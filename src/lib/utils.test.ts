@@ -21,7 +21,8 @@ describe('utils', () => {
     });
 
     it('handles falsy, null, and undefined values cleanly', () => {
-      expect(cn('base', null, undefined, false, '', 0 && 'truthy')).toBe('base');
+      const zero = 0;
+      expect(cn('base', null, undefined, false, '', zero && 'truthy')).toBe('base');
     });
   });
 
