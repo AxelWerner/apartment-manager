@@ -1,11 +1,10 @@
-import { Routes, Route } from "react-router-dom";
-import { AppLayout } from "@/components/layout/app-layout";
-import Dashboard from "@/routes/Dashboard";
-import Bookings from "@/routes/Bookings";
-import BookingForm from "@/routes/BookingForm";
-import Expenses from "@/routes/Expenses";
-import ExpenseForm from "@/routes/ExpenseForm";
-import Reports from "@/routes/Reports";
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AppLayout } from '@/components/layout/AppLayout';
+import Dashboard from '@/routes/Dashboard';
+import Bookings from '@/routes/Bookings';
+import Expenses from '@/routes/Expenses';
+import Damages from '@/routes/Damages';
+import Settings from '@/routes/Settings';
 
 export default function App() {
   return (
@@ -13,14 +12,11 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/bookings" element={<Bookings />} />
-        <Route path="/bookings/new" element={<BookingForm />} />
-        <Route path="/bookings/:id" element={<BookingForm />} />
         <Route path="/expenses" element={<Expenses />} />
-        <Route path="/expenses/new" element={<ExpenseForm />} />
-        <Route path="/expenses/:id" element={<ExpenseForm />} />
-        <Route path="/reports" element={<Reports />} />
+        <Route path="/damages" element={<Damages />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
 }
-

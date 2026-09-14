@@ -26,7 +26,7 @@ When setting up this project, an AI agent should:
 - **Database:** PostgreSQL (Supabase) — accessed via Supabase JS client
 - **Routing:** React Router v7
 - **State Management:** TanStack Query (server state) + Zustand (client state if needed)
-- **Testing:** TBD (Vitest + Testing Library planned)
+- **Testing:** Vitest + React Testing Library + jsdom
 - **Linting/Formatting:** ESLint + Prettier
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`)
 
@@ -36,8 +36,12 @@ When setting up this project, an AI agent should:
 pnpm install          # Install dependencies
 pnpm dev              # Run dev server
 pnpm build            # Production build
+pnpm test             # Run test suite
+pnpm test:watch       # Run test suite in watch mode
+pnpm test:coverage    # Run test suite with code coverage report
 pnpm lint             # Lint
 pnpm preview          # Preview production build
+pnpm seed             # Seed database with sample data
 ```
 
 ## Architecture Decisions

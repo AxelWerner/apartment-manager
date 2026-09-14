@@ -1,76 +1,400 @@
-import { Link } from "react-router-dom";
-import { useBookings } from "@/hooks/use-bookings";
-import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { useState } from 'react';
+import {
+  CalendarDays,
+  Plus,
+  FileSpreadsheet,
+  Search,
+  Filter,
+  Edit2,
+  Trash2,
+  Moon,
+  DollarSign,
+  RotateCcw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
+import { useBookings, useDeleteBooking, useClearBookings } from '@/hooks/use-bookings';
+import { BookingModal } from '@/components/bookings/BookingModal';
+import { CsvImportModal } from '@/components/bookings/CsvImportModal';
+import { formatCOP, formatDate, BOOKING_STATUS_CONFIG, resolveBookingStatus } from '@/lib/formatters';
+import type { Booking, BookingStatus } from '@/types/database';
+import { toast } from 'sonner';
 
 export default function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
+  const deleteBookingMutation = useDeleteBooking();
+  const clearBookingsMutation = useClearBookings();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
+
+  // Sorting state
+  type SortField = 'guest_name' | 'check_in' | 'number_of_nights' | 'nightly_rate' | 'net_payout';
+  type SortDirection = 'asc' | 'desc';
+
+  const [sortField, setSortField] = useState<SortField>('check_in');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'guest_name' ? 'asc' : 'desc');
+    }
+  };
+
+  // Filtered list with dynamically resolved status
+  const filteredBookings = bookings.map((b) => ({
+    ...b,
+    status: resolveBookingStatus(b),
+  })).filter((b) => {
+    const matchesSearch =
+      b.guest_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.airbnb_confirmation_code &&
+        b.airbnb_confirmation_code.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = selectedStatus === 'all' || b.status === selectedStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Sorted list derived from filtered bookings
+  const sortedBookings = [...filteredBookings].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'guest_name') {
+      cmp = a.guest_name.localeCompare(b.guest_name, 'es', { sensitivity: 'base' });
+    } else if (sortField === 'check_in') {
+      cmp = new Date(a.check_in).getTime() - new Date(b.check_in).getTime();
+    } else if (sortField === 'number_of_nights') {
+      cmp = (Number(a.number_of_nights) || 0) - (Number(b.number_of_nights) || 0);
+    } else if (sortField === 'nightly_rate') {
+      const rateA =
+        a.number_of_nights > 0 ? Math.round(Number(a.net_payout) / Number(a.number_of_nights)) : a.nightly_rate;
+      const rateB =
+        b.number_of_nights > 0 ? Math.round(Number(b.net_payout) / Number(b.number_of_nights)) : b.nightly_rate;
+      cmp = rateA - rateB;
+    } else if (sortField === 'net_payout') {
+      cmp = (Number(a.net_payout) || 0) - (Number(b.net_payout) || 0);
+    }
+    return sortDirection === 'asc' ? cmp : -cmp;
+  });
+
+  // KPI aggregates
+  const totalPayout = bookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+  const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (confirm(`¿Estás seguro de eliminar la reserva de ${name}?`)) {
+      try {
+        await deleteBookingMutation.mutateAsync(id);
+        toast.success('Reserva eliminada');
+      } catch {
+        toast.error('No se pudo eliminar la reserva');
+      }
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (confirm('¿Deseas vaciar todas las reservas registradas para probar la importación desde cero?')) {
+      try {
+        await clearBookingsMutation.mutateAsync();
+        toast.success('Lista de reservas vaciada');
+      } catch {
+        toast.error('No se pudo vaciar la lista');
+      }
+    }
+  };
+
+  const renderSortHeader = (
+    field: SortField,
+    label: string,
+    align: 'left' | 'center' | 'right' = 'left'
+  ) => {
+    const isActive = sortField === field;
+    return (
+      <th
+        onClick={() => handleSort(field)}
+        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${
+          align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+        }`}
+      >
+        <div
+          className={`inline-flex items-center gap-1.5 group ${
+            align === 'center'
+              ? 'justify-center'
+              : align === 'right'
+              ? 'justify-end'
+              : 'justify-start'
+          }`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            sortDirection === 'asc' ? (
+              <ArrowUp className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+          )}
+        </div>
+      </th>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Bookings</h2>
-          <p className="text-muted-foreground">Manage your Airbnb bookings</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Reservas e Ingresos
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Control de estadías, pagos netos de Airbnb y carga de archivos CSV
+          </p>
         </div>
-        <Link
-          to="/bookings/new"
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Add Booking
-        </Link>
+
+        <div className="flex items-center gap-2">
+          {bookings.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearAll}
+              title="Vaciar reservas para probar importación"
+              className="p-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsCsvModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Importar CSV</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBookingToEdit(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nueva Reserva</span>
+          </button>
+        </div>
       </div>
 
-      {isLoading ? (
-        <p className="text-muted-foreground">Loading...</p>
-      ) : (
-        <div className="rounded-lg border">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="p-3 text-left text-sm font-medium">Guest</th>
-                <th className="p-3 text-left text-sm font-medium">Check-in</th>
-                <th className="p-3 text-left text-sm font-medium">Check-out</th>
-                <th className="p-3 text-left text-sm font-medium">Payout</th>
-                <th className="p-3 text-left text-sm font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                    No bookings yet. Add your first booking!
-                  </td>
-                </tr>
-              ) : (
-                bookings.map((booking) => (
-                  <tr key={booking.id} className="border-b last:border-0">
-                    <td className="p-3">
-                      <Link to={`/bookings/${booking.id}`} className="font-medium hover:underline">
-                        {booking.guest_name}
-                      </Link>
-                    </td>
-                    <td className="p-3 text-sm">{format(new Date(booking.check_in), "MMM d, yyyy")}</td>
-                    <td className="p-3 text-sm">{format(new Date(booking.check_out), "MMM d, yyyy")}</td>
-                    <td className="p-3 text-sm font-medium">€{Number(booking.total_payout).toFixed(2)}</td>
-                    <td className="p-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                        booking.status === "completed" ? "bg-green-100 text-green-700" :
-                        booking.status === "confirmed" ? "bg-blue-100 text-blue-700" :
-                        "bg-red-100 text-red-700"
-                      }`}>
-                        {booking.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Summary KPI Pills */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
+            <CalendarDays className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Total Reservas</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{bookings.length}</p>
+          </div>
         </div>
-      )}
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
+            <Moon className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Noches Totales</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{totalNights} noches</p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
+            <DollarSign className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Ingresos Netos Acumulados</p>
+            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              {formatCOP(totalPayout)} COP
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por huésped o código..."
+            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="confirmed">Confirmadas</option>
+            <option value="checked_in">En el Apartamento</option>
+            <option value="completed">Completadas</option>
+            <option value="cancelled">Canceladas</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Bookings Table / Cards */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-400 text-sm">Cargando reservas...</div>
+        ) : filteredBookings.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              No se encontraron reservas con los filtros aplicados.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                <tr>
+                  {renderSortHeader('guest_name', 'Huésped y Código', 'left')}
+                  {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
+                  {renderSortHeader('number_of_nights', 'Noches', 'center')}
+                  {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
+                  {renderSortHeader('net_payout', 'Pago Neto COP', 'right')}
+                  <th className="px-4 py-3.5 text-center">Estado</th>
+                  <th className="px-4 py-3.5 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {sortedBookings.map((b) => {
+                  const statusInfo = BOOKING_STATUS_CONFIG[b.status as BookingStatus] || {
+                    label: b.status,
+                    badgeClass: 'bg-slate-100 text-slate-800',
+                  };
+
+                  return (
+                    <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      {/* Guest & Code */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xs shrink-0">
+                            {b.guest_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-white leading-tight">
+                              {b.guest_name}
+                            </p>
+                            {b.airbnb_confirmation_code && (
+                              <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                                {b.airbnb_confirmation_code}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Dates */}
+                      <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-300">
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(b.check_in)}
+                        </span>
+                        <span className="text-slate-400 mx-1">→</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">
+                          {formatDate(b.check_out)}
+                        </span>
+                      </td>
+
+                      {/* Nights */}
+                      <td className="px-4 py-3.5 text-center">
+                        <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <span>{b.number_of_nights}</span>
+                          <Moon className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30" />
+                        </span>
+                      </td>
+
+                      {/* Nightly Rate (Betrag / Noches) */}
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-600 dark:text-slate-300 text-xs">
+                        {formatCOP(
+                          b.number_of_nights > 0
+                            ? Math.round(Number(b.net_payout) / Number(b.number_of_nights))
+                            : b.nightly_rate
+                        )}
+                      </td>
+
+                      {/* Net Payout */}
+                      <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatCOP(b.net_payout)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3.5 text-center">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusInfo.badgeClass}`}>
+                          {statusInfo.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookingToEdit(b);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(b.id, b.guest_name)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <BookingModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setBookingToEdit(null);
+        }}
+        bookingToEdit={bookingToEdit}
+      />
+
+      <CsvImportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+      />
     </div>
   );
 }
-

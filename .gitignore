@@ -1,8 +1,9 @@
 # dependencies
 node_modules/
 
-# build
+# build & coverage
 dist/
+coverage/
 
 # env
 .env.local
