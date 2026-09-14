@@ -7,11 +7,15 @@ import {
   Settings,
   Building2,
   CheckCircle2,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
 import { useProperty } from '@/hooks/use-property';
+import { useAuth } from '@/hooks/use-auth';
 
 export function AppLayout() {
   const { data: property } = useProperty();
+  const { user, signOut } = useAuth();
   const location = useLocation();
 
   const navItems = [
@@ -75,11 +79,33 @@ export function AppLayout() {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>Moneda: <strong>Pesos (COP)</strong></span>
           </div>
+
+          {user && (
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-slate-500">
+                  <UserIcon className="w-3.5 h-3.5" />
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate" title={user.email}>
+                  {user.email}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0 cursor-pointer"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -96,10 +122,23 @@ export function AppLayout() {
               <p className="text-[10px] text-slate-400">COP • Medellín</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            Activo
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Activo
+            </span>
+            {user && (
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Page Content */}
