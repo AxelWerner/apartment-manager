@@ -11,6 +11,9 @@ import {
   CalendarDays,
   ShieldCheck,
   ListOrdered,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useExpenses, useDeleteExpense } from '@/hooks/use-expenses';
 import { MonthlyChecklistView } from '@/components/expenses/MonthlyChecklistView';
@@ -40,12 +43,87 @@ export default function Expenses() {
   // Receipt viewer modal
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
 
+  // Sorting state for the Ledger view
+  type SortField = 'date' | 'category' | 'description' | 'expense_type' | 'amount';
+  type SortDirection = 'asc' | 'desc';
+
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDirection(
+        field === 'description' || field === 'category' || field === 'expense_type' ? 'asc' : 'desc'
+      );
+    }
+  };
+
   const filteredExpenses = expenses.filter((e) => {
     const matchesSearch = e.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCat = selectedCategory === 'all' || e.category === selectedCategory;
     const matchesStatus = selectedStatus === 'all' || e.payment_status === selectedStatus;
     return matchesSearch && matchesCat && matchesStatus;
   });
+
+  const sortedExpenses = [...filteredExpenses].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'date') {
+      cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+    } else if (sortField === 'category') {
+      const catA = CATEGORY_LABELS[a.category]?.label || a.category;
+      const catB = CATEGORY_LABELS[b.category]?.label || b.category;
+      cmp = catA.localeCompare(catB, 'es', { sensitivity: 'base' });
+    } else if (sortField === 'description') {
+      cmp = a.description.localeCompare(b.description, 'es', { sensitivity: 'base' });
+    } else if (sortField === 'expense_type') {
+      const typeA = EXPENSE_TYPE_LABELS[a.expense_type] || a.expense_type;
+      const typeB = EXPENSE_TYPE_LABELS[b.expense_type] || b.expense_type;
+      cmp = typeA.localeCompare(typeB, 'es', { sensitivity: 'base' });
+    } else if (sortField === 'amount') {
+      cmp = (Number(a.amount) || 0) - (Number(b.amount) || 0);
+    }
+    return sortDirection === 'asc' ? cmp : -cmp;
+  });
+
+  const renderSortHeader = (
+    field: SortField,
+    label: string,
+    align: 'left' | 'center' | 'right' = 'left'
+  ) => {
+    const isActive = sortField === field;
+    return (
+      <th
+        onClick={() => handleSort(field)}
+        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${
+          align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+        }`}
+      >
+        <div
+          className={`inline-flex items-center gap-1.5 group ${
+            align === 'center'
+              ? 'justify-center'
+              : align === 'right'
+              ? 'justify-end'
+              : 'justify-start'
+          }`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            sortDirection === 'asc' ? (
+              <ArrowUp className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+          )}
+        </div>
+      </th>
+    );
+  };
 
   const handleDelete = async (id: string, description: string) => {
     if (confirm(`¿Estás seguro de eliminar el gasto "${description}"?`)) {
@@ -195,7 +273,7 @@ export default function Expenses() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
             {isLoading ? (
               <div className="p-12 text-center text-slate-400 text-sm">Cargando gastos...</div>
-            ) : filteredExpenses.length === 0 ? (
+            ) : sortedExpenses.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-sm">
                 No hay gastos que coincidan con los filtros.
               </div>
@@ -204,17 +282,17 @@ export default function Expenses() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
                     <tr>
-                      <th className="px-4 py-3.5">Fecha</th>
-                      <th className="px-4 py-3.5">Categoría</th>
-                      <th className="px-4 py-3.5">Descripción</th>
-                      <th className="px-4 py-3.5">Tipo</th>
-                      <th className="px-4 py-3.5 text-right">Monto COP</th>
+                      {renderSortHeader('date', 'Fecha', 'left')}
+                      {renderSortHeader('category', 'Categoría', 'left')}
+                      {renderSortHeader('description', 'Descripción', 'left')}
+                      {renderSortHeader('expense_type', 'Tipo', 'left')}
+                      {renderSortHeader('amount', 'Monto COP', 'right')}
                       <th className="px-4 py-3.5 text-center">Estado</th>
                       <th className="px-4 py-3.5 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {filteredExpenses.map((exp) => {
+                    {sortedExpenses.map((exp) => {
                       const catInfo = CATEGORY_LABELS[exp.category] || { label: exp.category };
                       const typeLabel = EXPENSE_TYPE_LABELS[exp.expense_type] || exp.expense_type;
 
