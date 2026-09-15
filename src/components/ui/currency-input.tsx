@@ -21,10 +21,12 @@ interface CurrencyInputProps {
   name?: string;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
 }
 
 export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ id, value, onChange, onBlur, name, className, placeholder }, ref) => {
+  ({ id, value, onChange, onBlur, name, className, placeholder, disabled, readOnly }, ref) => {
     const [display, setDisplay] = useState(() =>
       value ? formatWithDots(String(value)) : ""
     );
@@ -58,6 +60,8 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         name={name}
         type="text"
         inputMode="numeric"
+        disabled={disabled}
+        readOnly={readOnly}
         className={className}
         placeholder={placeholder}
         value={display}

@@ -10,6 +10,7 @@ export const INITIAL_PROPERTY: Property = {
   default_nightly_rate: 280000,
   default_cleaning_fee: 60000,
   monthly_revenue_target: 3000000,
+  management_fee_rate: 20.0,
   check_in_time: '15:00',
   check_out_time: '11:00',
 };
@@ -89,7 +90,7 @@ export const INITIAL_TEMPLATES: RecurringBillTemplate[] = [
   },
 ];
 
-export const INITIAL_BOOKINGS: Booking[] = [
+const RAW_BOOKINGS: Omit<Booking, 'management_fee' | 'owner_payout'>[] = [
   // Completed Bookings (from airbnb_.csv)
   {
     id: 'b-001',
@@ -402,6 +403,21 @@ export const INITIAL_BOOKINGS: Booking[] = [
     notes: 'Reserva del Mar II',
   },
 ];
+
+export const INITIAL_BOOKINGS: Booking[] = RAW_BOOKINGS.map((b) => {
+  const cleaningFee = Number(b.cleaning_fee_collected) || 0;
+  const accommodationBase = Math.max(0, b.net_payout - cleaningFee);
+  const management_fee = Math.round(accommodationBase * 0.20);
+  const owner_payout = Math.round(accommodationBase * 0.80);
+  const nightly_rate =
+    b.number_of_nights > 0 ? Math.round(owner_payout / b.number_of_nights) : b.nightly_rate;
+  return {
+    ...b,
+    management_fee,
+    owner_payout,
+    nightly_rate,
+  };
+});
 
 export const INITIAL_EXPENSES: Expense[] = [
   // August Fixed & Utilities

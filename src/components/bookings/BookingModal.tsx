@@ -29,13 +29,16 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
   const [numberOfGuests, setNumberOfGuests] = useState(bookingToEdit?.number_of_guests ?? 1);
   const [checkIn, setCheckIn] = useState(bookingToEdit?.check_in ?? '');
   const [checkOut, setCheckOut] = useState(bookingToEdit?.check_out ?? '');
-  const [nightlyRate, setNightlyRate] = useState<number>(
-    bookingToEdit
-      ? (bookingToEdit.number_of_nights > 0
-          ? Math.round(Number(bookingToEdit.net_payout) / Number(bookingToEdit.number_of_nights))
-          : bookingToEdit.nightly_rate)
-      : 280000
-  );
+  const defaultNightlyRate = useMemo(() => {
+    if (!bookingToEdit) return 280000;
+    const accommodation = Math.max(
+      0,
+      Number(bookingToEdit.net_payout) - Number(bookingToEdit.cleaning_fee_collected || 0)
+    );
+    return bookingToEdit.number_of_nights > 0
+      ? Math.round((accommodation * 0.8) / Number(bookingToEdit.number_of_nights))
+      : bookingToEdit.nightly_rate;
+  }, [bookingToEdit]);
   const [cleaningFee, setCleaningFee] = useState<number>(bookingToEdit?.cleaning_fee_collected ?? 90000);
   const [customAirbnbFee, setCustomAirbnbFee] = useState<number | null>(
     bookingToEdit ? bookingToEdit.airbnb_service_fee : null
@@ -58,13 +61,18 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
     }
   }, [checkIn, checkOut]);
 
-  // Gross accommodation total
-  const grossAmount = useMemo(() => {
-    return numberOfNights * nightlyRate + cleaningFee;
-  }, [numberOfNights, nightlyRate, cleaningFee]);
+  const fallbackNetPayout = numberOfNights > 0 ? numberOfNights * defaultNightlyRate + cleaningFee : 0;
+  const effectiveNetPayout = customNetPayout !== null ? customNetPayout : fallbackNetPayout;
+  const effectiveAirbnbFee = customAirbnbFee !== null ? customAirbnbFee : Math.round(effectiveNetPayout * 0.03);
+  const grossAmount = bookingToEdit?.gross_amount ?? (effectiveNetPayout + effectiveAirbnbFee);
 
-  const effectiveAirbnbFee = customAirbnbFee !== null ? customAirbnbFee : Math.round(grossAmount * 0.03);
-  const effectiveNetPayout = customNetPayout !== null ? customNetPayout : Math.max(0, grossAmount - effectiveAirbnbFee);
+  // Deducir el aseo al pago recibido antes de calcular el 20% de administradora
+  const accommodationBase = Math.max(0, effectiveNetPayout - cleaningFee);
+  const effectiveManagementFee = Math.round(accommodationBase * 0.20);
+  const effectiveOwnerAccommodation = Math.max(0, accommodationBase - effectiveManagementFee);
+  const effectiveOwnerPayout = effectiveOwnerAccommodation; // 80% neto de alojamiento para el propietario (sin aseo)
+  const effectiveNightlyRate =
+    numberOfNights > 0 ? Math.round(effectiveOwnerAccommodation / numberOfNights) : defaultNightlyRate;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,12 +95,14 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         check_in: checkIn,
         check_out: checkOut,
         number_of_nights: numberOfNights,
-        nightly_rate: nightlyRate,
+        nightly_rate: effectiveNightlyRate,
         gross_amount: grossAmount,
         cleaning_fee_collected: cleaningFee,
         airbnb_service_fee: effectiveAirbnbFee,
         taxes_withheld: 0,
         net_payout: effectiveNetPayout,
+        management_fee: effectiveManagementFee,
+        owner_payout: effectiveOwnerPayout,
         status,
         payout_status: payoutStatus,
         payout_date: payoutStatus === 'paid' ? checkIn : null,
@@ -220,14 +230,19 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Tarifa por Noche ($ COP)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Tarifa por Noche ($ COP)
+              </label>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                (Auto-calculada: alojamiento ÷ noches)
+              </span>
+            </div>
             <CurrencyInput
-              value={nightlyRate}
-              onChange={setNightlyRate}
-              placeholder="280.000"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
+              value={effectiveNightlyRate}
+              disabled
+              placeholder="0"
+              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed opacity-90"
             />
           </div>
           <div>
@@ -237,7 +252,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
             <CurrencyInput
               value={cleaningFee}
               onChange={setCleaningFee}
-              placeholder="90.000"
+              placeholder="60.000"
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
             />
           </div>
@@ -268,12 +283,32 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
           </div>
         </div>
 
-        {/* Quick Summary Strip */}
-        <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200 dark:border-slate-700">
-          <span className="text-slate-500">Ingreso Bruto Total:</span>
-          <span className="font-semibold text-slate-800 dark:text-slate-200">
-            {formatCOP(grossAmount)} COP
-          </span>
+        {/* Financial Breakdown Strip */}
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+          <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+            <span>Pago Transferido por Airbnb (100%):</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{formatCOP(effectiveNetPayout)} COP</span>
+          </div>
+          {cleaningFee > 0 && (
+            <div className="flex justify-between items-center text-slate-500 text-[11px]">
+              <span>Base Alojamiento (Airbnb - Aseo {formatCOP(cleaningFee)}):</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{formatCOP(accommodationBase)} COP</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
+            <span>Comisión Administradora (20% sobre alojamiento):</span>
+            <span className="font-semibold">-{formatCOP(effectiveManagementFee)} COP</span>
+          </div>
+          <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+            <span>Valor Neto Propietario:</span>
+            <span>{formatCOP(effectiveOwnerPayout)} COP</span>
+          </div>
+          {numberOfNights > 0 && (
+            <div className="flex justify-between items-center text-[11px] text-slate-400 pt-0.5">
+              <span>Tarifa Real por Noche ({numberOfNights} {numberOfNights === 1 ? 'noche' : 'noches'}):</span>
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCOP(effectiveNightlyRate)} / noche</span>
+            </div>
+          )}
         </div>
       </div>
 

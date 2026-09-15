@@ -28,12 +28,18 @@ export function RevenueGoalCard({
 
   const annualGoal = monthlyGoal * 12; // 36.000.000 COP por defecto
 
+  const getOwnerRevenue = (b: Booking) => {
+    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    return (Number(b.net_payout) || 0) - Math.round(accommodation * 0.20);
+  };
+
   // Current Month Bookings and Revenue (filtered by check_in in currentMonthStr, excluding cancelled)
   const thisMonthBookings = bookings.filter(
     (b) => b.check_in.startsWith(currentMonthStr) && b.status !== 'cancelled'
   );
   const thisMonthRevenue = thisMonthBookings.reduce(
-    (sum, b) => sum + (Number(b.net_payout) || 0),
+    (sum, b) => sum + getOwnerRevenue(b),
     0
   );
   const monthProgressPercent = Math.min(200, Math.round((thisMonthRevenue / monthlyGoal) * 100));
@@ -45,7 +51,7 @@ export function RevenueGoalCard({
     (b) => b.check_in.startsWith(String(currentYear)) && b.status !== 'cancelled'
   );
   const thisYearRevenue = thisYearBookings.reduce(
-    (sum, b) => sum + (Number(b.net_payout) || 0),
+    (sum, b) => sum + getOwnerRevenue(b),
     0
   );
   const annualProgressPercent = Math.min(200, Math.round((thisYearRevenue / annualGoal) * 100));

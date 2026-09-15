@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   fetchProperty,
   updateProperty,
+  fetchBookings,
   upsertBookingsBatch,
 } from './api-service';
 import { supabase, DEFAULT_PROPERTY_ID } from './supabase';
@@ -160,6 +161,50 @@ describe('api-service', () => {
       expect(result.unchanged).toBe(1);
       expect(result.total).toBe(3);
       expect(mockUpsert).toHaveBeenCalled();
+    });
+
+    it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
+      const rawBooking: Booking = {
+        id: 'b-calc-test',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HMCALC123',
+        guest_name: 'Calculation Test Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-09-11',
+        check_out: '2026-09-14',
+        number_of_nights: 3,
+        nightly_rate: 106106,
+        gross_amount: 378815,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 71993,
+        taxes_withheld: 0,
+        net_payout: 318317, // 318.317 COP transferido por Airbnb (incluye 60.000 de aseo)
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      const mockOrder = vi.fn().mockResolvedValue({ data: [rawBooking], error: null });
+      const mockSelect = vi.fn().mockReturnValue({ order: mockOrder });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: mockSelect,
+      });
+
+      const bookings = await fetchBookings();
+      const synced = bookings.find((b) => b.id === 'b-calc-test');
+
+      expect(synced).toBeDefined();
+      // Base alojamiento: 318.317 - 60.000 = 258.317 COP
+      // 20% comision adm: 258.317 * 0.20 = 51.663 COP
+      expect(synced?.management_fee).toBe(51663);
+      // Neto propietario (80% alojamiento, restando aseo): 258.317 * 0.80 = 206.654 COP
+      expect(synced?.owner_payout).toBe(206654);
+      // 80% alojamiento: 258.317 * 0.80 = 206.654 COP / 3 noches = 68.885 COP por noche
+      expect(synced?.nightly_rate).toBe(68885);
     });
   });
 });

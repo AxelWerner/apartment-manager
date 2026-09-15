@@ -77,17 +77,26 @@ export default function Dashboard() {
   }, [bookings, expenses, timeRange, currentMonthStr, lastMonthStr, currentYear]);
 
   // Aggregate financials
-  const totalNetPayout = filteredBookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
-  const totalGross = filteredBookings.reduce((sum, b) => sum + (Number(b.gross_amount) || 0), 0);
+  const totalAirbnbPayout = filteredBookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+  const totalManagementFee = filteredBookings.reduce((sum, b) => {
+    if (b.management_fee !== undefined && b.management_fee !== null) return sum + Number(b.management_fee);
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    return sum + Math.round(accommodation * 0.20);
+  }, 0);
+  const totalOwnerPayout = filteredBookings.reduce((sum, b) => {
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    return sum + Math.round(accommodation * 0.80);
+  }, 0);
+  const totalOwnerAccommodation = totalOwnerPayout;
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  const netProfit = totalNetPayout - totalExpenses;
-  const profitMargin = totalGross > 0 ? Math.round((netProfit / totalGross) * 100) : 0;
+  const netProfit = totalOwnerPayout - totalExpenses;
+  const profitMargin = totalOwnerPayout > 0 ? Math.round((netProfit / totalOwnerPayout) * 100) : 0;
 
   // Hospitality KPIs
   const bookedNights = filteredBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
   const calendarDays = timeRange === 'this_month' || timeRange === 'last_month' ? 30 : 90;
   const occupancyRate = Math.min(100, Math.round((bookedNights / calendarDays) * 100));
-  const adr = bookedNights > 0 ? Math.round(totalNetPayout / bookedNights) : 0;
+  const adr = bookedNights > 0 ? Math.round(totalOwnerAccommodation / bookedNights) : 0;
   const revPar = Math.round(adr * (occupancyRate / 100));
 
   // Monthly Cash Flow Chart Data (last 6 months)
@@ -110,7 +119,9 @@ export default function Dashboard() {
     bookings.forEach((b) => {
       const m = b.check_in.substring(0, 7);
       if (monthsMap[m]) {
-        monthsMap[m].income += Number(b.net_payout) || 0;
+        const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+        const ownerAmount = Math.round(accommodation * 0.80);
+        monthsMap[m].income += ownerAmount;
       }
     });
 
@@ -249,17 +260,17 @@ export default function Dashboard() {
         {/* Total Income Card */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Ingresos Netos</span>
+            <span className="text-xs font-semibold text-slate-500">Valor Neto Propietarios</span>
             <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2">
             <p className="text-xl font-bold text-slate-900 dark:text-white">
-              {formatCOP(totalNetPayout)}
+              {formatCOP(totalOwnerPayout)}
             </p>
             <span className="text-[11px] font-medium text-slate-400">
-              {filteredBookings.length} reservas en período
+              Airbnb: {formatCOP(totalAirbnbPayout)} <span className="text-amber-500 font-semibold">(-{formatCOP(totalManagementFee)} adm)</span>
             </span>
           </div>
         </div>
@@ -314,7 +325,7 @@ export default function Dashboard() {
               {formatCOP(adr)}
             </p>
             <span className="text-[11px] font-medium text-slate-400">
-              {bookedNights} noches vendidas
+              {bookedNights} noches (neta de adm.)
             </span>
           </div>
         </div>
@@ -475,7 +486,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                {formatCOP(activeGuest.net_payout)}
+                {formatCOP(Math.round(Math.max(0, (Number(activeGuest.net_payout) || 0) - (Number(activeGuest.cleaning_fee_collected) || 0)) * 0.80))}
               </span>
             </div>
           )}
@@ -496,7 +507,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatCOP(b.net_payout)}
+                    {formatCOP(Math.round(Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) * 0.80))}
                   </span>
                 </div>
               ))}

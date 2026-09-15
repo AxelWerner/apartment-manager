@@ -9,6 +9,7 @@ import {
   Trash2,
   Moon,
   DollarSign,
+  Percent,
   RotateCcw,
   ArrowUpDown,
   ArrowUp,
@@ -71,19 +72,33 @@ export default function Bookings() {
     } else if (sortField === 'number_of_nights') {
       cmp = (Number(a.number_of_nights) || 0) - (Number(b.number_of_nights) || 0);
     } else if (sortField === 'nightly_rate') {
-      const rateA =
-        a.number_of_nights > 0 ? Math.round(Number(a.net_payout) / Number(a.number_of_nights)) : a.nightly_rate;
-      const rateB =
-        b.number_of_nights > 0 ? Math.round(Number(b.net_payout) / Number(b.number_of_nights)) : b.nightly_rate;
-      cmp = rateA - rateB;
+      const getRate = (item: Booking) => {
+        if (Number(item.number_of_nights) <= 0) return Number(item.nightly_rate) || 0;
+        const accommodation = Math.max(0, (Number(item.net_payout) || 0) - (Number(item.cleaning_fee_collected) || 0));
+        return Math.round((accommodation * 0.80) / Number(item.number_of_nights));
+      };
+      cmp = getRate(a) - getRate(b);
     } else if (sortField === 'net_payout') {
-      cmp = (Number(a.net_payout) || 0) - (Number(b.net_payout) || 0);
+      const getOwner = (item: Booking) => {
+        const accommodation = Math.max(0, (Number(item.net_payout) || 0) - (Number(item.cleaning_fee_collected) || 0));
+        return Math.round(accommodation * 0.80);
+      };
+      cmp = getOwner(a) - getOwner(b);
     }
     return sortDirection === 'asc' ? cmp : -cmp;
   });
 
   // KPI aggregates
-  const totalPayout = bookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+  const totalAirbnbPayout = bookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+  const totalManagementFee = bookings.reduce((sum, b) => {
+    if (b.management_fee !== undefined && b.management_fee !== null) return sum + Number(b.management_fee);
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    return sum + Math.round(accommodation * 0.20);
+  }, 0);
+  const totalOwnerPayout = bookings.reduce((sum, b) => {
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    return sum + Math.round(accommodation * 0.80);
+  }, 0);
   const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
 
   const handleDelete = async (id: string, name: string) => {
@@ -192,7 +207,7 @@ export default function Bookings() {
       </div>
 
       {/* Summary KPI Pills */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
             <CalendarDays className="w-5 h-5" />
@@ -214,14 +229,27 @@ export default function Bookings() {
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center">
+            <Percent className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">Adm. Inmueble (20%)</p>
+            <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+              -{formatCOP(totalManagementFee)}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
             <DollarSign className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-slate-500 font-medium">Ingresos Netos Acumulados</p>
+            <p className="text-xs text-slate-500 font-medium">Valor Neto Propietarios</p>
             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-              {formatCOP(totalPayout)} COP
+              {formatCOP(totalOwnerPayout)}
             </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Airbnb: {formatCOP(totalAirbnbPayout)}</p>
           </div>
         </div>
       </div>
@@ -275,7 +303,7 @@ export default function Bookings() {
                   {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
                   {renderSortHeader('number_of_nights', 'Noches', 'center')}
                   {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
-                  {renderSortHeader('net_payout', 'Pago Neto COP', 'right')}
+                  {renderSortHeader('net_payout', 'Valor Neto', 'right')}
                   <th className="px-4 py-3.5 text-center">Estado</th>
                   <th className="px-4 py-3.5 text-right">Acciones</th>
                 </tr>
@@ -286,6 +314,11 @@ export default function Bookings() {
                     label: b.status,
                     badgeClass: 'bg-slate-100 text-slate-800',
                   };
+
+                  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+                  const ownerNet80 = Math.round(accommodation * 0.80);
+                  const realNightlyRate =
+                    b.number_of_nights > 0 ? Math.round(ownerNet80 / Number(b.number_of_nights)) : b.nightly_rate;
 
                   return (
                     <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
@@ -327,18 +360,26 @@ export default function Bookings() {
                         </span>
                       </td>
 
-                      {/* Nightly Rate (Betrag / Noches) */}
-                      <td className="px-4 py-3.5 text-right font-medium text-slate-600 dark:text-slate-300 text-xs">
-                        {formatCOP(
-                          b.number_of_nights > 0
-                            ? Math.round(Number(b.net_payout) / Number(b.number_of_nights))
-                            : b.nightly_rate
-                        )}
+                      {/* Nightly Rate (Neto Dueño 80% / Noches) */}
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {formatCOP(realNightlyRate)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">neta/noche</span>
+                        </div>
                       </td>
 
-                      {/* Net Payout */}
-                      <td className="px-4 py-3.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                        {formatCOP(b.net_payout)}
+                      {/* Net Payout (Neto Dueño 80%) */}
+                      <td className="px-4 py-3.5 text-right font-bold text-xs">
+                        <div className="flex flex-col items-end">
+                          <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold">
+                            {formatCOP(ownerNet80)}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            Airbnb: {formatCOP(b.net_payout)} <span className="text-amber-500 font-medium">(-20% & aseo)</span>
+                          </span>
+                        </div>
                       </td>
 
                       {/* Status */}

@@ -45,10 +45,10 @@ const createMockBooking = (overrides: Partial<Booking>): Booking => ({
 describe('RevenueGoalCard Component', () => {
   it('calculates monthly revenue excluding cancelled bookings', () => {
     const bookings: Booking[] = [
-      createMockBooking({ id: 'b-1', check_in: '2026-09-01', net_payout: 800000, status: 'completed' }),
-      createMockBooking({ id: 'b-2', check_in: '2026-09-10', net_payout: 400000, status: 'confirmed' }),
-      createMockBooking({ id: 'b-3', check_in: '2026-09-15', net_payout: 700000, status: 'cancelled' }), // cancelled: ignored
-      createMockBooking({ id: 'b-4', check_in: '2026-08-20', net_payout: 900000, status: 'completed' }), // other month: ignored
+      createMockBooking({ id: 'b-1', check_in: '2026-09-01', net_payout: 1000000, owner_payout: 800000, status: 'completed' }),
+      createMockBooking({ id: 'b-2', check_in: '2026-09-10', net_payout: 500000, owner_payout: 400000, status: 'confirmed' }),
+      createMockBooking({ id: 'b-3', check_in: '2026-09-15', net_payout: 700000, owner_payout: 560000, status: 'cancelled' }), // cancelled: ignored
+      createMockBooking({ id: 'b-4', check_in: '2026-08-20', net_payout: 900000, owner_payout: 720000, status: 'completed' }), // other month: ignored
     ];
 
     renderWithProviders(

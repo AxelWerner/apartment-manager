@@ -4,7 +4,7 @@ import {
   Save,
   Download,
 } from 'lucide-react';
-import { useProperty } from '@/hooks/use-property';
+import { useProperty, useUpdateProperty } from '@/hooks/use-property';
 import { useBookings } from '@/hooks/use-bookings';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useDamages } from '@/hooks/use-damages';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 
 export default function Settings() {
   const { data: property } = useProperty();
+  const updatePropertyMutation = useUpdateProperty();
   const { data: bookings = [] } = useBookings();
   const { data: expenses = [] } = useExpenses();
   const { data: damages = [] } = useDamages();
@@ -23,8 +24,9 @@ export default function Settings() {
   const [nightRate, setNightRate] = useState<number>(property?.default_nightly_rate || 280000);
   const [cleanFee, setCleanFee] = useState<number>(property?.default_cleaning_fee || 90000);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(property?.monthly_revenue_target || 3000000);
+  const [managementFeeRate, setManagementFeeRate] = useState<number>(property?.management_fee_rate ?? 20.0);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const updated = {
@@ -35,8 +37,10 @@ export default function Settings() {
         default_nightly_rate: nightRate,
         default_cleaning_fee: cleanFee,
         monthly_revenue_target: monthlyTarget,
+        management_fee_rate: managementFeeRate,
       };
       localStorage.setItem('apt_mgr_property', JSON.stringify(updated));
+      await updatePropertyMutation.mutateAsync(updated);
       toast.success('Configuración del apartamento guardada');
     } catch {
       toast.error('Error al guardar');
@@ -154,6 +158,29 @@ export default function Settings() {
                 onChange={setCleanFee}
                 className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Comisión Empresa Administradora (%)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={managementFeeRate}
+                  onChange={(e) => setManagementFeeRate(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                  %
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Porcentaje deducido al valor de cada reserva para calcular los ingresos netos del propietario y la tarifa por noche (20% por defecto).
+              </p>
             </div>
 
             <div className="sm:col-span-2">

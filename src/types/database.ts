@@ -50,6 +50,7 @@ export interface Property {
   default_nightly_rate: number;
   default_cleaning_fee: number;
   monthly_revenue_target?: number;
+  management_fee_rate?: number; // e.g. 20.0 for 20%
   check_in_time: string;
   check_out_time: string;
   created_at?: string;
@@ -72,6 +73,8 @@ export interface Booking {
   airbnb_service_fee: number;
   taxes_withheld: number;
   net_payout: number;
+  management_fee?: number; // 20% admin fee
+  owner_payout?: number; // 80% net to owner
   status: BookingStatus;
   payout_status: PayoutStatus;
   payout_date: string | null;

@@ -86,11 +86,36 @@ export async function updateProperty(updates: Partial<Property>): Promise<Proper
   return updated;
 }
 
-// Synchronize booking statuses dynamically based on dates
+// Synchronize booking statuses dynamically based on dates and ensure management fee calculations
 function syncBookingStatuses(bookings: Booking[]): Booking[] {
   return bookings.map((b) => {
     const resolved = resolveBookingStatus(b);
-    return resolved !== b.status ? { ...b, status: resolved } : b;
+    const payout = Number(b.net_payout) || 0;
+    const cleaningFee = Number(b.cleaning_fee_collected) || 0;
+    const accommodationBase = Math.max(0, payout - cleaningFee);
+
+    const management_fee =
+      b.management_fee !== undefined && b.management_fee !== null
+        ? Number(b.management_fee)
+        : Math.round(accommodationBase * 0.20);
+
+    const owner_payout =
+      b.owner_payout !== undefined && b.owner_payout !== null
+        ? Number(b.owner_payout)
+        : Math.round(accommodationBase * 0.80);
+
+    const ownerAccommodation = Math.max(0, accommodationBase - management_fee);
+    const nights = Number(b.number_of_nights) || 0;
+    const nightly_rate =
+      nights > 0 ? Math.round(ownerAccommodation / nights) : Number(b.nightly_rate) || 0;
+
+    return {
+      ...b,
+      status: resolved !== b.status ? resolved : b.status,
+      management_fee,
+      owner_payout,
+      nightly_rate,
+    };
   });
 }
 
@@ -203,6 +228,8 @@ export async function upsertBookingsBatch(
       // Check if any fields changed
       const hasChanges =
         existing.net_payout !== incoming.net_payout ||
+        existing.management_fee !== incoming.management_fee ||
+        existing.owner_payout !== incoming.owner_payout ||
         existing.nightly_rate !== incoming.nightly_rate ||
         existing.gross_amount !== incoming.gross_amount ||
         existing.cleaning_fee_collected !== incoming.cleaning_fee_collected ||

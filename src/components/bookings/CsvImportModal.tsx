@@ -21,6 +21,8 @@ interface ParsedBookingRow {
   number_of_nights: number;
   gross_amount: number;
   net_payout: number;
+  management_fee: number;
+  owner_payout: number;
   cleaning_fee_collected: number;
   airbnb_service_fee: number;
   nightly_rate: number;
@@ -151,9 +153,16 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             serviceFee = Math.max(0, gross - payout);
           }
 
-          // Betrag es el valor neto total por todas las noches:
-          // betrag / noches = lo que sale cada noche (tarifa por noche neta)
-          const rate = Math.round(payout / validNights);
+          // Betrag es el valor recibido de Airbnb:
+          // 1. Al Betrag se le resta el valor del aseo (Reinigungsgebühr)
+          // 2. Sobre ese valor de alojamiento se saca el 20% para la empresa administradora
+          // 3. El 80% de ese valor de alojamiento es lo que le queda al propietario por las noches
+          // 4. Tarifa por noche real para el dueño = (alojamiento * 80%) / noches
+          const accommodationBase = Math.max(0, payout - cleanFee);
+          const managementFee = Math.round(accommodationBase * 0.20);
+          const ownerAccommodation = Math.max(0, accommodationBase - managementFee);
+          const ownerPayout = ownerAccommodation; // 80% neto de alojamiento para el dueño (restando aseo)
+          const rate = Math.round(ownerAccommodation / validNights);
 
           const normalizedIn = parseDate(checkIn);
           const normalizedOut = parseDate(checkOut);
@@ -197,9 +206,11 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             number_of_nights: validNights,
             gross_amount: gross,
             net_payout: payout,
+            management_fee: managementFee,
+            owner_payout: ownerPayout,
             cleaning_fee_collected: cleanFee,
             airbnb_service_fee: serviceFee,
-            nightly_rate: rate > 0 ? rate : payout,
+            nightly_rate: rate > 0 ? rate : ownerPayout,
             importStatus,
             changeSummary,
             previousPayout,
@@ -243,6 +254,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             r.airbnb_service_fee > 0 ? r.airbnb_service_fee : Math.max(0, r.gross_amount - r.net_payout),
           taxes_withheld: 0,
           net_payout: r.net_payout,
+          management_fee: r.management_fee,
+          owner_payout: r.owner_payout,
           status,
           payout_status: isPendingPayout ? 'pending' : 'paid',
           payout_date: isPendingPayout ? null : r.check_in,
@@ -377,6 +390,28 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               </button>
             </div>
 
+            {/* Aggregate summary of batch */}
+            <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Pago Airbnb (100%)</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                  {formatCOP(parsedRows.reduce((sum, r) => sum + (r.net_payout || 0), 0))}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">Adm. Inmueble (20%)</p>
+                <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                  -{formatCOP(parsedRows.reduce((sum, r) => sum + (r.management_fee || 0), 0))}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Valor Neto</p>
+                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCOP(parsedRows.reduce((sum, r) => sum + (r.owner_payout || 0), 0))}
+                </p>
+              </div>
+            </div>
+
             <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 border-b border-slate-200 dark:border-slate-700">
@@ -384,8 +419,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300">Código</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300">Huésped</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300">Fechas</th>
+                    <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-right">Airbnb (Betrag)</th>
+                    <th className="p-2.5 font-semibold text-amber-600 dark:text-amber-400 text-right">Adm. (20%)</th>
+                    <th className="p-2.5 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Valor Neto</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-right">Tarifa / Noche</th>
-                    <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-right">Pago Neto (Betrag)</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-center">Estado</th>
                   </tr>
                 </thead>
@@ -410,15 +447,21 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                         </span>
                       </td>
                       <td className="p-2.5 text-right font-medium text-slate-700 dark:text-slate-300">
-                        {formatCOP(row.nightly_rate)}
-                      </td>
-                      <td className="p-2.5 text-right font-semibold">
-                        <span className="text-emerald-600 dark:text-emerald-400">{formatCOP(row.net_payout)}</span>
+                        {formatCOP(row.net_payout)}
                         {row.previousPayout !== undefined && row.previousPayout !== row.net_payout && (
                           <span className="block text-[10px] text-slate-400 line-through">
                             {formatCOP(row.previousPayout)}
                           </span>
                         )}
+                      </td>
+                      <td className="p-2.5 text-right font-medium text-amber-600 dark:text-amber-400">
+                        -{formatCOP(row.management_fee)}
+                      </td>
+                      <td className="p-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatCOP(row.owner_payout)}
+                      </td>
+                      <td className="p-2.5 text-right font-medium text-slate-700 dark:text-slate-300" title="Tarifa neta por noche">
+                        {formatCOP(row.nightly_rate)}
                       </td>
                       <td className="p-2.5 text-center">
                         {row.importStatus === 'new' && (
