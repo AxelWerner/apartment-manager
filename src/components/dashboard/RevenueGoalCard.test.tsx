@@ -67,7 +67,7 @@ describe('RevenueGoalCard Component', () => {
 
   it('displays goal achieved badge when revenue equals or exceeds target', () => {
     const bookings: Booking[] = [
-      createMockBooking({ id: 'b-1', check_in: '2026-09-01', net_payout: 2500000, status: 'completed' }),
+      createMockBooking({ id: 'b-1', check_in: '2026-09-01', net_payout: 3000000, status: 'completed' }),
     ];
 
     renderWithProviders(

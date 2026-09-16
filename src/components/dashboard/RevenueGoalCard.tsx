@@ -31,7 +31,7 @@ export function RevenueGoalCard({
   const getOwnerRevenue = (b: Booking) => {
     if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    return (Number(b.net_payout) || 0) - Math.round(accommodation * 0.20);
+    return Math.round(accommodation * 0.80);
   };
 
   // Current Month Bookings and Revenue (filtered by check_in in currentMonthStr, excluding cancelled)

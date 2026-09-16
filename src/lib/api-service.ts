@@ -19,8 +19,14 @@ const STORAGE_KEYS = {
 
 // Migrate / clear old prototype dummy data if present
 try {
-  if (typeof window !== 'undefined' && localStorage.getItem('apt_mgr_bookings')) {
-    localStorage.removeItem('apt_mgr_bookings');
+  if (typeof window !== 'undefined') {
+    if (localStorage.getItem('apt_mgr_bookings')) {
+      localStorage.removeItem('apt_mgr_bookings');
+    }
+    const cachedExp = localStorage.getItem(STORAGE_KEYS.expenses);
+    if (cachedExp && cachedExp.includes('exp-08')) {
+      localStorage.removeItem(STORAGE_KEYS.expenses);
+    }
   }
 } catch {
   // Ignore

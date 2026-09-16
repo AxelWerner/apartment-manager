@@ -58,22 +58,30 @@ export default function Dashboard() {
     let eList: typeof expenses;
 
     if (timeRange === 'this_month') {
-      bList = bookings.filter((b) => b.check_in.startsWith(currentMonthStr));
-      eList = expenses.filter(
-        (e) => (e.billing_month && e.billing_month === currentMonthStr) || e.date.startsWith(currentMonthStr)
+      bList = bookings.filter(
+        (b) => b.check_in.startsWith(currentMonthStr) && resolveBookingStatus(b) !== 'cancelled'
+      );
+      eList = expenses.filter((e) =>
+        e.billing_month ? e.billing_month === currentMonthStr : e.date.startsWith(currentMonthStr)
       );
     } else if (timeRange === 'last_month') {
-      bList = bookings.filter((b) => b.check_in.startsWith(lastMonthStr));
-      eList = expenses.filter(
-        (e) => (e.billing_month && e.billing_month === lastMonthStr) || e.date.startsWith(lastMonthStr)
+      bList = bookings.filter(
+        (b) => b.check_in.startsWith(lastMonthStr) && resolveBookingStatus(b) !== 'cancelled'
+      );
+      eList = expenses.filter((e) =>
+        e.billing_month ? e.billing_month === lastMonthStr : e.date.startsWith(lastMonthStr)
       );
     } else if (timeRange === 'ytd') {
       const yearPrefix = `${currentYear}-`;
-      bList = bookings.filter((b) => b.check_in.startsWith(yearPrefix));
-      eList = expenses.filter((e) => e.date.startsWith(yearPrefix));
+      bList = bookings.filter(
+        (b) => b.check_in.startsWith(yearPrefix) && resolveBookingStatus(b) !== 'cancelled'
+      );
+      eList = expenses.filter((e) =>
+        e.billing_month ? e.billing_month.startsWith(yearPrefix) : e.date.startsWith(yearPrefix)
+      );
     } else {
       // all_time
-      bList = bookings;
+      bList = bookings.filter((b) => resolveBookingStatus(b) !== 'cancelled');
       eList = expenses;
     }
 
@@ -89,6 +97,7 @@ export default function Dashboard() {
     return sum + Math.round(accommodation * 0.20);
   }, 0);
   const totalOwnerPayout = filteredBookings.reduce((sum, b) => {
+    if (b.owner_payout !== undefined && b.owner_payout !== null) return sum + Number(b.owner_payout);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
     return sum + Math.round(accommodation * 0.80);
   }, 0);
@@ -96,12 +105,30 @@ export default function Dashboard() {
   const netProfit = totalOwnerPayout - totalExpenses;
   const profitMargin = totalOwnerPayout > 0 ? Math.round((netProfit / totalOwnerPayout) * 100) : 0;
 
-  // Hospitality KPIs
+  // Hospitality KPIs with exact calendar days per period
   const bookedNights = filteredBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
-  const calendarDays = timeRange === 'this_month' || timeRange === 'last_month' ? 30 : 90;
+  const calendarDays = useMemo(() => {
+    if (timeRange === 'this_month') {
+      return new Date(currentYear, currentMonth + 1, 0).getDate();
+    }
+    if (timeRange === 'last_month') {
+      const lastMonthNum = currentMonth === 0 ? 12 : currentMonth;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      return new Date(lastMonthYear, lastMonthNum, 0).getDate();
+    }
+    if (timeRange === 'ytd') {
+      const colDay = parseInt(colDateStr.split('-')[2], 10) || 1;
+      const now = new Date(currentYear, currentMonth, colDay);
+      const startOfYear = new Date(currentYear, 0, 1);
+      const diffTime = Math.abs(now.getTime() - startOfYear.getTime());
+      return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+    return 365;
+  }, [timeRange, currentYear, currentMonth, colDateStr]);
+
   const occupancyRate = Math.min(100, Math.round((bookedNights / calendarDays) * 100));
   const adr = bookedNights > 0 ? Math.round(totalOwnerAccommodation / bookedNights) : 0;
-  const revPar = Math.round(adr * (occupancyRate / 100));
+  const revPar = calendarDays > 0 ? Math.round(totalOwnerAccommodation / calendarDays) : 0;
 
   // Monthly Cash Flow Chart Data (last 6 months)
   const cashFlowData = useMemo(() => {
@@ -121,11 +148,16 @@ export default function Dashboard() {
     }
 
     bookings.forEach((b) => {
+      if (resolveBookingStatus(b) === 'cancelled') return;
       const m = b.check_in.substring(0, 7);
       if (monthsMap[m]) {
-        const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-        const ownerAmount = Math.round(accommodation * 0.80);
-        monthsMap[m].income += ownerAmount;
+        if (b.owner_payout !== undefined && b.owner_payout !== null) {
+          monthsMap[m].income += Number(b.owner_payout);
+        } else {
+          const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+          const ownerAmount = Math.round(accommodation * 0.80);
+          monthsMap[m].income += ownerAmount;
+        }
       }
     });
 
@@ -171,7 +203,9 @@ export default function Dashboard() {
     .slice(0, 3);
 
   const pendingBills = expenses.filter(
-    (e) => e.payment_status === 'pending' && (!e.billing_month || e.billing_month === currentMonthStr)
+    (e) =>
+      e.payment_status === 'pending' &&
+      (e.billing_month ? e.billing_month === currentMonthStr : e.date.startsWith(currentMonthStr))
   );
 
   return (
