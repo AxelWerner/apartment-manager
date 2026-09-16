@@ -3,29 +3,43 @@ import { es } from 'date-fns/locale';
 import type { ExpenseCategory, ExpenseType, DamageSeverity, ClaimStatus, BookingStatus } from '@/types/database';
 
 /**
- * Format a number into Colombian Pesos without decimal cents:
- * e.g., 1500000 -> "$ 1.500.000 COP"
+ * Format a number into Colombian Pesos with 2 decimal places:
+ * e.g., 1500000 -> "$ 1.500.000,00 COP"
  */
 export function formatCOP(amount: number | null | undefined, includeCurrencySuffix = false): string {
   if (amount === null || amount === undefined || isNaN(amount)) {
-    return '$ 0';
+    return includeCurrencySuffix ? '$ 0,00 COP' : '$ 0,00';
   }
   const formatted = new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 
   return includeCurrencySuffix ? `${formatted} COP` : formatted;
 }
 
 /**
- * Parse a formatted COP string back into raw integer:
+ * Parse a formatted COP string back into raw number:
+ * e.g., "$ 1.500.000,00" -> 1500000
  * e.g., "$ 1.500.000" -> 1500000
  */
 export function parseCOP(value: string | number): number {
   if (typeof value === 'number') return value;
-  const digits = value.replace(/\D/g, '');
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+
+  // Handle decimal comma if present, e.g. "1.500.000,50" -> 1500000.5
+  if (trimmed.includes(',')) {
+    const [intPart, decPart] = trimmed.split(',');
+    const cleanInt = intPart.replace(/\D/g, '') || '0';
+    const cleanDec = decPart.replace(/\D/g, '');
+    const num = parseFloat(`${cleanInt}.${cleanDec}`);
+    return isNaN(num) ? 0 : num;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
   return digits ? parseInt(digits, 10) : 0;
 }
 

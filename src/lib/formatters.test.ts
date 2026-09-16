@@ -9,33 +9,35 @@ import {
 
 describe('formatters', () => {
   describe('formatCOP', () => {
-    it('formats numbers into Colombian Pesos without decimal cents', () => {
+    it('formats numbers into Colombian Pesos with 2 decimal places', () => {
       const result = formatCOP(1500000);
-      // In es-CO, formatting is $ 1.500.000 or includes non-breaking space
-      expect(result).toMatch(/\$?\s?1\.500\.000/);
+      // In es-CO, formatting is $ 1.500.000,00 or includes non-breaking space
+      expect(result).toMatch(/\$?\s?1\.500\.000,00/);
     });
 
     it('appends COP suffix when includeCurrencySuffix is true', () => {
       const result = formatCOP(250000, true);
       expect(result).toContain('COP');
+      expect(result).toMatch(/\$?\s?250\.000,00\s?COP/);
     });
 
-    it('handles null, undefined and NaN safely returning $ 0', () => {
-      expect(formatCOP(null)).toBe('$ 0');
-      expect(formatCOP(undefined)).toBe('$ 0');
-      expect(formatCOP(NaN)).toBe('$ 0');
+    it('handles null, undefined and NaN safely returning $ 0,00', () => {
+      expect(formatCOP(null)).toBe('$ 0,00');
+      expect(formatCOP(undefined)).toBe('$ 0,00');
+      expect(formatCOP(NaN)).toBe('$ 0,00');
     });
 
-    it('formats zero correctly', () => {
+    it('formats zero correctly with 2 decimals', () => {
       const result = formatCOP(0);
-      expect(result).toMatch(/\$?\s?0/);
+      expect(result).toMatch(/\$?\s?0,00/);
     });
   });
 
   describe('parseCOP', () => {
     it('extracts clean integer from formatted currency string', () => {
       expect(parseCOP('$ 1.500.000')).toBe(1500000);
-      expect(parseCOP('COP 350.000')).toBe(350000);
+      expect(parseCOP('$ 1.500.000,00')).toBe(1500000);
+      expect(parseCOP('COP 350.000,50')).toBe(350000.5);
       expect(parseCOP('2.800.000 COP')).toBe(2800000);
     });
 

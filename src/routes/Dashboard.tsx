@@ -53,9 +53,9 @@ export default function Dashboard() {
     : `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
   // Filter items according to selected time range
-  const { filteredBookings, filteredExpenses } = useMemo(() => {
-    let bList = bookings;
-    let eList = expenses;
+  const { filteredBookings, filteredExpenses, totalExpenses } = useMemo(() => {
+    let bList: typeof bookings;
+    let eList: typeof expenses;
 
     if (timeRange === 'this_month') {
       bList = bookings.filter((b) => b.check_in.startsWith(currentMonthStr));
@@ -71,9 +71,14 @@ export default function Dashboard() {
       const yearPrefix = `${currentYear}-`;
       bList = bookings.filter((b) => b.check_in.startsWith(yearPrefix));
       eList = expenses.filter((e) => e.date.startsWith(yearPrefix));
+    } else {
+      // all_time
+      bList = bookings;
+      eList = expenses;
     }
 
-    return { filteredBookings: bList, filteredExpenses: eList };
+    const calculatedTotal = eList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    return { filteredBookings: bList, filteredExpenses: eList, totalExpenses: calculatedTotal };
   }, [bookings, expenses, timeRange, currentMonthStr, lastMonthStr, currentYear]);
 
   // Aggregate financials
@@ -88,7 +93,6 @@ export default function Dashboard() {
     return sum + Math.round(accommodation * 0.80);
   }, 0);
   const totalOwnerAccommodation = totalOwnerPayout;
-  const totalExpenses = filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const netProfit = totalOwnerPayout - totalExpenses;
   const profitMargin = totalOwnerPayout > 0 ? Math.round((netProfit / totalOwnerPayout) * 100) : 0;
 

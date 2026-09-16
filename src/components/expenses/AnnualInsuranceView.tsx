@@ -56,7 +56,7 @@ export function AnnualInsuranceView({ onViewReceipt }: AnnualInsuranceViewProps)
             className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-white text-slate-900 hover:bg-slate-100 transition-colors shrink-0 shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            <span>Registrar Renovación</span>
+            <span>{currentPolicy ? 'Actualizar / Renovar Póliza' : 'Registrar Seguro'}</span>
           </button>
         </div>
 
@@ -116,7 +116,7 @@ export function AnnualInsuranceView({ onViewReceipt }: AnnualInsuranceViewProps)
         <div>
           <p className="font-bold">¿Cómo afecta el seguro anual a tus estadísticas de ganancias?</p>
           <p className="mt-0.5 text-amber-700 dark:text-amber-400/90 leading-relaxed">
-            Al pagar un seguro de una sola vez al año (ej. $1.350.000 COP), si se resta únicamente en ese mes, ese período parecerá tener pérdidas irreales. En el Dashboard podrás alternar el cálculo prorrateado (<strong>{formatCOP(monthlyAmortized)} COP/mes</strong>) para conocer tu rentabilidad neta mensual exacta.
+            Al pagar un seguro de una sola vez al año ({formatCOP(annualPremium)} COP), si se restara únicamente en ese mes, ese período parecería tener pérdidas irreales. En el Dashboard se aplica automáticamente el cálculo prorrateado (<strong>{formatCOP(monthlyAmortized)} COP/mes</strong>) para reflejar tu rentabilidad neta mensual exacta.
           </p>
         </div>
       </div>
@@ -124,6 +124,7 @@ export function AnnualInsuranceView({ onViewReceipt }: AnnualInsuranceViewProps)
       <ExpenseModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        expenseToEdit={currentPolicy}
         defaultCategory="insurance_annual"
         defaultType="annual"
       />

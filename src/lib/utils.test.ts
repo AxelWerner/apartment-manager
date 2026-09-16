@@ -27,9 +27,9 @@ describe('utils', () => {
   });
 
   describe('formatCurrency', () => {
-    it('formats amount in Colombian Pesos without decimals by default', () => {
+    it('formats amount in Colombian Pesos with 2 decimals by default', () => {
       const result = formatCurrency(500000);
-      expect(result).toMatch(/\$?\s?500\.000/);
+      expect(result).toMatch(/\$?\s?500\.000,00/);
     });
 
     it('supports custom currency codes', () => {
