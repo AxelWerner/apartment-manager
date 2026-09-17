@@ -97,18 +97,16 @@ export default function Expenses() {
     return (
       <th
         onClick={() => handleSort(field)}
-        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${
-          align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
-        }`}
+        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+          }`}
       >
         <div
-          className={`inline-flex items-center gap-1.5 group ${
-            align === 'center'
+          className={`inline-flex items-center gap-1.5 group ${align === 'center'
               ? 'justify-center'
               : align === 'right'
-              ? 'justify-end'
-              : 'justify-start'
-          }`}
+                ? 'justify-end'
+                : 'justify-start'
+            }`}
         >
           <span>{label}</span>
           {isActive ? (
@@ -185,11 +183,10 @@ export default function Expenses() {
         <button
           type="button"
           onClick={() => setActiveTab('checklist')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'checklist'
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === 'checklist'
               ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
-          }`}
+            }`}
         >
           <CalendarDays className="w-4 h-4" />
           <span>Planilla Mensual de Servicios</span>
@@ -198,11 +195,10 @@ export default function Expenses() {
         <button
           type="button"
           onClick={() => setActiveTab('ledger')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'ledger'
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === 'ledger'
               ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
-          }`}
+            }`}
         >
           <ListOrdered className="w-4 h-4" />
           <span>Libro Completo de Gastos</span>
@@ -211,11 +207,10 @@ export default function Expenses() {
         <button
           type="button"
           onClick={() => setActiveTab('insurance')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'insurance'
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${activeTab === 'insurance'
               ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
-          }`}
+            }`}
         >
           <ShieldCheck className="w-4 h-4" />
           <span>Seguro Anual</span>
