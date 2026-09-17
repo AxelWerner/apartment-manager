@@ -148,3 +148,73 @@ export interface Damage {
     check_out: string;
   } | null;
 }
+
+export interface GuideRecommendation {
+  id: string;
+  title: string;
+  category: 'restaurant' | 'cafe' | 'supermarket' | 'pharmacy' | 'attraction' | 'transport';
+  description: string;
+  address?: string;
+  distance?: string;
+  maps_url?: string;
+}
+
+export interface HouseRule {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+}
+
+export interface ApplianceGuide {
+  id: string;
+  title: string;
+  icon: string;
+  steps: string[];
+  tips?: string;
+}
+
+export interface EmergencyContact {
+  id: string;
+  title: string;
+  phone: string;
+  description?: string;
+  icon?: string;
+}
+
+export interface GuestGuideData {
+  id?: string;
+  property_id: string;
+  welcome_title: string;
+  welcome_message: string;
+  apartment_number: string;
+  address: string;
+  maps_url: string;
+  
+  // Wi-Fi
+  wifi_ssid: string;
+  wifi_password: string;
+  
+  // Access & Keys
+  show_access_code: boolean;
+  access_code: string;
+  access_instructions: string;
+  check_in_time: string;
+  check_out_time: string;
+  check_out_instructions: string;
+  
+  // Host Contact
+  host_name: string;
+  host_phone: string; // WhatsApp number
+  host_email?: string;
+  
+  // Building & Services
+  building_amenities: string[];
+  house_rules: HouseRule[];
+  appliances: ApplianceGuide[];
+  recommendations: GuideRecommendation[];
+  emergency_contacts: EmergencyContact[];
+  
+  updated_at?: string;
+}
+

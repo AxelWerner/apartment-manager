@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Receipt,
   ShieldAlert,
+  Compass,
   Settings,
   Building2,
   CheckCircle2,
@@ -23,8 +24,10 @@ export function AppLayout() {
     { to: '/bookings', label: 'Reservas', icon: CalendarDays },
     { to: '/expenses', label: 'Gastos y Servicios', icon: Receipt },
     { to: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
+    { to: '/guest-guide', label: 'Guía Huésped', icon: Compass },
     { to: '/settings', label: 'Configuración', icon: Settings },
   ];
+
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0">
