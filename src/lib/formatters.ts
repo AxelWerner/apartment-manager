@@ -118,6 +118,57 @@ export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; badge
   cancelled: { label: 'Cancelada', badgeClass: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' },
 };
 
+export interface BookingSourceConfig {
+  label: string;
+  shortLabel: string;
+  commissionRate: number; // e.g. 0.10, 0.20, 0.25
+  ownerRate: number; // e.g. 0.90, 0.80, 0.75
+  badgeClass: string;
+  isDirect: boolean;
+}
+
+export const BOOKING_SOURCE_CONFIG: Record<string, BookingSourceConfig> = {
+  airbnb: {
+    label: 'Airbnb (20%)',
+    shortLabel: 'Airbnb 20%',
+    commissionRate: 0.20,
+    ownerRate: 0.80,
+    badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40',
+    isDirect: false,
+  },
+  direct: {
+    label: 'Directa (10%)',
+    shortLabel: 'Directa 10%',
+    commissionRate: 0.10,
+    ownerRate: 0.90,
+    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40',
+    isDirect: true,
+  },
+  direct_10: {
+    label: 'Directa (10%)',
+    shortLabel: 'Directa 10%',
+    commissionRate: 0.10,
+    ownerRate: 0.90,
+    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40',
+    isDirect: true,
+  },
+  direct_25: {
+    label: 'Directa (25%)',
+    shortLabel: 'Directa 25%',
+    commissionRate: 0.25,
+    ownerRate: 0.75,
+    badgeClass: 'bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200/60 dark:border-violet-800/40',
+    isDirect: true,
+  },
+};
+
+export function getBookingSourceInfo(source?: string | null): BookingSourceConfig {
+  if (source && BOOKING_SOURCE_CONFIG[source]) {
+    return BOOKING_SOURCE_CONFIG[source];
+  }
+  return BOOKING_SOURCE_CONFIG.airbnb;
+}
+
 /**
  * Get current date and time components in Colombia timezone (America/Bogota, UTC-5).
  */

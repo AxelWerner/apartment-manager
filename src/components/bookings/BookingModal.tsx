@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { Modal } from '@/components/ui/modal';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import { formatCOP } from '@/lib/formatters';
+import { formatCOP, getBookingSourceInfo } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import type { Booking, BookingStatus, PayoutStatus } from '@/types/database';
 import { useCreateBooking, useUpdateBooking } from '@/hooks/use-bookings';
+import { useProperty } from '@/hooks/use-property';
 import { toast } from 'sonner';
 
 interface BookingModalProps {
@@ -22,24 +23,45 @@ interface BookingFormContentProps {
 function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps) {
   const createBookingMutation = useCreateBooking();
   const updateBookingMutation = useUpdateBooking();
+  const { data: property } = useProperty();
 
+  const configuredCleaningFee = property?.default_cleaning_fee ?? 60000;
+  const configuredNightlyRate = property?.default_nightly_rate ?? 280000;
+
+  const initialSource = useMemo<'airbnb' | 'direct_10' | 'direct_25'>(() => {
+    if (bookingToEdit?.source === 'direct_25') return 'direct_25';
+    if (bookingToEdit?.source === 'direct' || bookingToEdit?.source === 'direct_10') return 'direct_10';
+    return 'airbnb';
+  }, [bookingToEdit]);
+
+  const [source, setSource] = useState<'airbnb' | 'direct_10' | 'direct_25'>(initialSource);
   const [guestName, setGuestName] = useState(bookingToEdit?.guest_name ?? '');
   const [confirmationCode, setConfirmationCode] = useState(bookingToEdit?.airbnb_confirmation_code ?? '');
   const [guestPhone, setGuestPhone] = useState(bookingToEdit?.guest_phone ?? '');
   const [numberOfGuests, setNumberOfGuests] = useState(bookingToEdit?.number_of_guests ?? 1);
   const [checkIn, setCheckIn] = useState(bookingToEdit?.check_in ?? '');
   const [checkOut, setCheckOut] = useState(bookingToEdit?.check_out ?? '');
+
+  const sourceInfo = getBookingSourceInfo(source);
+  const isDirect = sourceInfo.isDirect;
+  const adminCommissionRate = sourceInfo.commissionRate;
+  const ownerPayoutRate = sourceInfo.ownerRate;
+
   const defaultNightlyRate = useMemo(() => {
-    if (!bookingToEdit) return 280000;
+    if (!bookingToEdit) return configuredNightlyRate;
     const accommodation = Math.max(
       0,
       Number(bookingToEdit.net_payout) - Number(bookingToEdit.cleaning_fee_collected || 0)
     );
+    const rate = getBookingSourceInfo(bookingToEdit.source).ownerRate;
     return bookingToEdit.number_of_nights > 0
-      ? Math.round((accommodation * 0.8) / Number(bookingToEdit.number_of_nights))
+      ? Math.round((accommodation * rate) / Number(bookingToEdit.number_of_nights))
       : bookingToEdit.nightly_rate;
-  }, [bookingToEdit]);
-  const [cleaningFee, setCleaningFee] = useState<number>(bookingToEdit?.cleaning_fee_collected ?? 90000);
+  }, [bookingToEdit, configuredNightlyRate]);
+
+  const [cleaningFee, setCleaningFee] = useState<number>(
+    bookingToEdit?.cleaning_fee_collected ?? configuredCleaningFee
+  );
   const [customAirbnbFee, setCustomAirbnbFee] = useState<number | null>(
     bookingToEdit ? bookingToEdit.airbnb_service_fee : null
   );
@@ -63,14 +85,18 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
 
   const fallbackNetPayout = numberOfNights > 0 ? numberOfNights * defaultNightlyRate + cleaningFee : 0;
   const effectiveNetPayout = customNetPayout !== null ? customNetPayout : fallbackNetPayout;
-  const effectiveAirbnbFee = customAirbnbFee !== null ? customAirbnbFee : Math.round(effectiveNetPayout * 0.03);
+  const effectiveAirbnbFee = isDirect
+    ? 0
+    : customAirbnbFee !== null
+    ? customAirbnbFee
+    : Math.round(effectiveNetPayout * 0.03);
   const grossAmount = bookingToEdit?.gross_amount ?? (effectiveNetPayout + effectiveAirbnbFee);
 
-  // Deducir el aseo al pago recibido antes de calcular el 20% de administradora
+  // Deducir el aseo al pago recibido antes de calcular la comisión de administradora (10% directa, 20% Airbnb)
   const accommodationBase = Math.max(0, effectiveNetPayout - cleaningFee);
-  const effectiveManagementFee = Math.round(accommodationBase * 0.20);
+  const effectiveManagementFee = Math.round(accommodationBase * adminCommissionRate);
   const effectiveOwnerAccommodation = Math.max(0, accommodationBase - effectiveManagementFee);
-  const effectiveOwnerPayout = effectiveOwnerAccommodation; // 80% neto de alojamiento para el propietario (sin aseo)
+  const effectiveOwnerPayout = effectiveOwnerAccommodation; // 90% para directa, 80% para Airbnb
   const effectiveNightlyRate =
     numberOfNights > 0 ? Math.round(effectiveOwnerAccommodation / numberOfNights) : defaultNightlyRate;
 
@@ -106,7 +132,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         status,
         payout_status: payoutStatus,
         payout_date: payoutStatus === 'paid' ? checkIn : null,
-        source: 'airbnb',
+        source,
         notes: notes.trim() || null,
       };
 
@@ -118,7 +144,11 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         toast.success('Reserva actualizada correctamente');
       } else {
         await createBookingMutation.mutateAsync(payload);
-        toast.success('Reserva registrada exitosamente');
+        toast.success(
+          isDirect
+            ? 'Reserva directa registrada exitosamente'
+            : 'Reserva de Airbnb registrada exitosamente'
+        );
       }
       onClose();
     } catch {
@@ -128,6 +158,48 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Channel / Source Selector */}
+      <div className="space-y-1">
+        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Origen de la Reserva
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={() => setSource('airbnb')}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              source === 'airbnb'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Airbnb (20%)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSource('direct_10')}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              source === 'direct_10'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Directa (10%)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSource('direct_25')}
+            className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              source === 'direct_25'
+                ? 'bg-violet-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span>Directa (25%)</span>
+          </button>
+        </div>
+      </div>
+
       {/* Guest Info */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
@@ -145,13 +217,13 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-            Código de Confirmación Airbnb
+            {isDirect ? 'Código / Referencia (Opcional)' : 'Código de Confirmación Airbnb'}
           </label>
           <input
             type="text"
             value={confirmationCode}
             onChange={(e) => setConfirmationCode(e.target.value)}
-            placeholder="Ej. HM9X7Y2Z"
+            placeholder={isDirect ? 'Ej. DIR-2026-01' : 'Ej. HM9X7Y2Z'}
             className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 uppercase font-mono focus:outline-hidden focus:ring-2 focus:ring-rose-500"
           />
         </div>
@@ -189,10 +261,11 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
       {/* Dates & Nights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="modal-check-in" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Check-in *
           </label>
           <input
+            id="modal-check-in"
             type="date"
             required
             value={checkIn}
@@ -201,10 +274,11 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="modal-check-out" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Check-out *
           </label>
           <input
+            id="modal-check-out"
             type="date"
             required
             value={checkOut}
@@ -224,9 +298,20 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
 
       {/* Financial Breakdown (COP) */}
       <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 space-y-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-          Desglose Financiero (COP)
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            Desglose Financiero ({isDirect ? 'Reserva Directa' : 'Airbnb'} - COP)
+          </p>
+          <span
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              isDirect
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+            }`}
+          >
+            Comisión Admin: {Math.round(adminCommissionRate * 100)}%
+          </span>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -235,7 +320,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                 Tarifa por Noche ($ COP)
               </label>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                (Auto-calculada: alojamiento ÷ noches)
+                (Alojamiento ÷ noches)
               </span>
             </div>
             <CurrencyInput
@@ -247,7 +332,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Tarifa de Limpieza Cobrada ($ COP)
+              Tarifa de Limpieza / Aseo ($ COP)
             </label>
             <CurrencyInput
               value={cleaningFee}
@@ -259,22 +344,37 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {!isDirect ? (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Comisión Airbnb (~3%) ($ COP)
+              </label>
+              <CurrencyInput
+                value={effectiveAirbnbFee}
+                onChange={(val) => setCustomAirbnbFee(val)}
+                placeholder="0"
+                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Comisión Plataforma ($ COP)
+              </label>
+              <input
+                type="text"
+                disabled
+                value="$ 0 (Directa sin comisión Airbnb)"
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-emerald-600 dark:text-emerald-400 font-bold cursor-not-allowed"
+              />
+            </div>
+          )}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Comisión Airbnb (~3%) ($ COP)
+            <label htmlFor="modal-net-payout" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              {isDirect ? 'Pago Total Recibido ($ COP) *' : 'Pago Neto Real Recibido ($ COP) *'}
             </label>
             <CurrencyInput
-              value={effectiveAirbnbFee}
-              onChange={(val) => setCustomAirbnbFee(val)}
-              placeholder="0"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Pago Neto Real Recibido ($ COP) *
-            </label>
-            <CurrencyInput
+              id="modal-net-payout"
               value={effectiveNetPayout}
               onChange={(val) => setCustomNetPayout(val)}
               placeholder="0"
@@ -286,21 +386,21 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         {/* Financial Breakdown Strip */}
         <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
           <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-            <span>Pago Transferido por Airbnb (100%):</span>
+            <span>{isDirect ? 'Pago Total Recibido (100%):' : 'Pago Transferido por Airbnb (100%):'}</span>
             <span className="font-semibold text-slate-900 dark:text-white">{formatCOP(effectiveNetPayout)} COP</span>
           </div>
           {cleaningFee > 0 && (
             <div className="flex justify-between items-center text-slate-500 text-[11px]">
-              <span>Base Alojamiento (Airbnb - Aseo {formatCOP(cleaningFee)}):</span>
+              <span>Base Alojamiento (Total - Aseo {formatCOP(cleaningFee)}):</span>
               <span className="font-medium text-slate-700 dark:text-slate-300">{formatCOP(accommodationBase)} COP</span>
             </div>
           )}
           <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
-            <span>Comisión Administradora (20% sobre alojamiento):</span>
+            <span>Comisión Administradora ({Math.round(adminCommissionRate * 100)}% sobre alojamiento):</span>
             <span className="font-semibold">-{formatCOP(effectiveManagementFee)} COP</span>
           </div>
           <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-            <span>Valor Neto Propietario:</span>
+            <span>Valor Neto Propietario ({Math.round(ownerPayoutRate * 100)}%):</span>
             <span>{formatCOP(effectiveOwnerPayout)} COP</span>
           </div>
           {numberOfNights > 0 && (
@@ -353,7 +453,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ej. Llegada a las 4 PM, solicitó cuna para bebé..."
+          placeholder="Ej. Reserva directa de conocidos, llegada a las 4 PM..."
           className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
         />
       </div>
@@ -370,9 +470,21 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         <button
           type="submit"
           disabled={createBookingMutation.isPending || updateBookingMutation.isPending}
-          className="px-5 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-600/20 transition-all disabled:opacity-50"
+          className={`px-5 py-2 text-sm font-semibold text-white rounded-xl shadow-md transition-all disabled:opacity-50 ${
+            source === 'direct_25'
+              ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/20'
+              : source === 'direct_10'
+              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+              : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+          }`}
         >
-          {bookingToEdit ? 'Guardar Cambios' : 'Registrar Reserva'}
+          {bookingToEdit
+            ? 'Guardar Cambios'
+            : source === 'direct_25'
+            ? 'Registrar Reserva Directa (25%)'
+            : source === 'direct_10'
+            ? 'Registrar Reserva Directa (10%)'
+            : 'Registrar Reserva Airbnb'}
         </button>
       </div>
     </form>
@@ -386,7 +498,11 @@ export function BookingModal({ isOpen, onClose, bookingToEdit }: BookingModalPro
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={bookingToEdit ? 'Editar Reserva' : 'Nueva Reserva de Airbnb'}
+      title={
+        bookingToEdit
+          ? 'Editar Reserva'
+          : 'Nueva Reserva'
+      }
       subtitle="Ingresa los datos de la estadía y el desglose de ingresos en COP"
       maxWidth="xl"
     >
@@ -398,3 +514,4 @@ export function BookingModal({ isOpen, onClose, bookingToEdit }: BookingModalPro
     </Modal>
   );
 }
+

@@ -18,7 +18,13 @@ import {
 import { useBookings, useDeleteBooking, useClearBookings } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
 import { CsvImportModal } from '@/components/bookings/CsvImportModal';
-import { formatCOP, formatDate, BOOKING_STATUS_CONFIG, resolveBookingStatus } from '@/lib/formatters';
+import {
+  formatCOP,
+  formatDate,
+  BOOKING_STATUS_CONFIG,
+  resolveBookingStatus,
+  getBookingSourceInfo,
+} from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { toast } from 'sonner';
 
@@ -29,6 +35,7 @@ export default function Bookings() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedChannel, setSelectedChannel] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
@@ -49,6 +56,20 @@ export default function Bookings() {
     }
   };
 
+  const getOwnerNet = (b: Booking) => {
+    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    const rate = getBookingSourceInfo(b.source).ownerRate;
+    return Math.round(accommodation * rate);
+  };
+
+  const getManagementFee = (b: Booking) => {
+    if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    const rate = getBookingSourceInfo(b.source).commissionRate;
+    return Math.round(accommodation * rate);
+  };
+
   // Filtered list with dynamically resolved status
   const filteredBookings = bookings.map((b) => ({
     ...b,
@@ -59,7 +80,13 @@ export default function Bookings() {
       (b.airbnb_confirmation_code &&
         b.airbnb_confirmation_code.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = selectedStatus === 'all' || b.status === selectedStatus;
-    return matchesSearch && matchesStatus;
+    const matchesChannel =
+      selectedChannel === 'all' ||
+      (selectedChannel === 'airbnb' && (b.source === 'airbnb' || !b.source)) ||
+      (selectedChannel === 'direct_all' && b.source?.startsWith('direct')) ||
+      (selectedChannel === 'direct_10' && (b.source === 'direct' || b.source === 'direct_10')) ||
+      (selectedChannel === 'direct_25' && b.source === 'direct_25');
+    return matchesSearch && matchesStatus && matchesChannel;
   });
 
   // Sorted list derived from filtered bookings
@@ -74,31 +101,26 @@ export default function Bookings() {
     } else if (sortField === 'nightly_rate') {
       const getRate = (item: Booking) => {
         if (Number(item.number_of_nights) <= 0) return Number(item.nightly_rate) || 0;
-        const accommodation = Math.max(0, (Number(item.net_payout) || 0) - (Number(item.cleaning_fee_collected) || 0));
-        return Math.round((accommodation * 0.80) / Number(item.number_of_nights));
+        const ownerNet = getOwnerNet(item);
+        return Math.round(ownerNet / Number(item.number_of_nights));
       };
       cmp = getRate(a) - getRate(b);
     } else if (sortField === 'net_payout') {
-      const getOwner = (item: Booking) => {
-        const accommodation = Math.max(0, (Number(item.net_payout) || 0) - (Number(item.cleaning_fee_collected) || 0));
-        return Math.round(accommodation * 0.80);
-      };
-      cmp = getOwner(a) - getOwner(b);
+      cmp = getOwnerNet(a) - getOwnerNet(b);
     }
     return sortDirection === 'asc' ? cmp : -cmp;
   });
 
   // KPI aggregates
-  const totalAirbnbPayout = bookings.reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
-  const totalManagementFee = bookings.reduce((sum, b) => {
-    if (b.management_fee !== undefined && b.management_fee !== null) return sum + Number(b.management_fee);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    return sum + Math.round(accommodation * 0.20);
-  }, 0);
-  const totalOwnerPayout = bookings.reduce((sum, b) => {
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    return sum + Math.round(accommodation * 0.80);
-  }, 0);
+  const totalAirbnbPayout = bookings
+    .filter((b) => !b.source?.startsWith('direct'))
+    .reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+  const totalDirectPayout = bookings
+    .filter((b) => b.source?.startsWith('direct'))
+    .reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
+
+  const totalManagementFee = bookings.reduce((sum, b) => sum + getManagementFee(b), 0);
+  const totalOwnerPayout = bookings.reduce((sum, b) => sum + getOwnerNet(b), 0);
   const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
 
   const handleDelete = async (id: string, name: string) => {
@@ -169,7 +191,7 @@ export default function Bookings() {
             Reservas e Ingresos
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Control de estadías, pagos netos de Airbnb y carga de archivos CSV
+            Control de estadías de Airbnb, reservas directas y carga de archivos CSV
           </p>
         </div>
 
@@ -233,7 +255,7 @@ export default function Bookings() {
             <Percent className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-slate-500 font-medium">Adm. Inmueble (20%)</p>
+            <p className="text-xs text-slate-500 font-medium">Adm. Inmueble (10%-20%)</p>
             <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
               -{formatCOP(totalManagementFee)}
             </p>
@@ -249,7 +271,9 @@ export default function Bookings() {
             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
               {formatCOP(totalOwnerPayout)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Airbnb: {formatCOP(totalAirbnbPayout)}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Airbnb: {formatCOP(totalAirbnbPayout)} | Directas: {formatCOP(totalDirectPayout)}
+            </p>
           </div>
         </div>
       </div>
@@ -269,6 +293,17 @@ export default function Bookings() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+          <select
+            value={selectedChannel}
+            onChange={(e) => setSelectedChannel(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+          >
+            <option value="all">Todos los orígenes</option>
+            <option value="airbnb">Airbnb (20%)</option>
+            <option value="direct_all">Todas las Directas</option>
+            <option value="direct_10">Directas (10%)</option>
+            <option value="direct_25">Directas (25%)</option>
+          </select>
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -299,11 +334,11 @@ export default function Bookings() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
                 <tr>
-                  {renderSortHeader('guest_name', 'Huésped y Código', 'left')}
+                  {renderSortHeader('guest_name', 'Huésped y Origen', 'left')}
                   {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
                   {renderSortHeader('number_of_nights', 'Noches', 'center')}
                   {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
-                  {renderSortHeader('net_payout', 'Valor Neto', 'right')}
+                  {renderSortHeader('net_payout', 'Valor Neto Propietario', 'right')}
                   <th className="px-4 py-3.5 text-center">Estado</th>
                   <th className="px-4 py-3.5 text-right">Acciones</th>
                 </tr>
@@ -315,23 +350,36 @@ export default function Bookings() {
                     badgeClass: 'bg-slate-100 text-slate-800',
                   };
 
-                  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-                  const ownerNet80 = Math.round(accommodation * 0.80);
+                  const sourceInfo = getBookingSourceInfo(b.source);
+                  const ownerNet = getOwnerNet(b);
                   const realNightlyRate =
-                    b.number_of_nights > 0 ? Math.round(ownerNet80 / Number(b.number_of_nights)) : b.nightly_rate;
+                    b.number_of_nights > 0 ? Math.round(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
 
                   return (
                     <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      {/* Guest & Code */}
+                      {/* Guest & Channel / Code */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xs shrink-0">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${
+                              b.source === 'direct_25'
+                                ? 'bg-violet-100 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300'
+                                : b.source === 'direct' || b.source === 'direct_10'
+                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+                            }`}
+                          >
                             {b.guest_name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-slate-900 dark:text-white leading-tight">
-                              {b.guest_name}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-semibold text-slate-900 dark:text-white leading-tight">
+                                {b.guest_name}
+                              </p>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold ${sourceInfo.badgeClass}`}>
+                                {sourceInfo.label}
+                              </span>
+                            </div>
                             {b.airbnb_confirmation_code && (
                               <p className="text-[11px] font-mono text-slate-400 mt-0.5">
                                 {b.airbnb_confirmation_code}
@@ -360,7 +408,7 @@ export default function Bookings() {
                         </span>
                       </td>
 
-                      {/* Nightly Rate (Neto Dueño 80% / Noches) */}
+                      {/* Nightly Rate (Neto Dueño / Noches) */}
                       <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
                         <div className="flex flex-col items-end">
                           <span className="font-semibold text-slate-900 dark:text-white">
@@ -370,14 +418,17 @@ export default function Bookings() {
                         </div>
                       </td>
 
-                      {/* Net Payout (Neto Dueño 80%) */}
+                      {/* Net Payout (Neto Dueño) */}
                       <td className="px-4 py-3.5 text-right font-bold text-xs">
                         <div className="flex flex-col items-end">
                           <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold">
-                            {formatCOP(ownerNet80)}
+                            {formatCOP(ownerNet)}
                           </span>
                           <span className="text-[10px] text-slate-400 font-normal">
-                            Airbnb: {formatCOP(b.net_payout)} <span className="text-amber-500 font-medium">(-20% & aseo)</span>
+                            {sourceInfo.shortLabel}: {formatCOP(b.net_payout)}{' '}
+                            <span className="text-amber-500 font-medium">
+                              (-{Math.round(sourceInfo.commissionRate * 100)}% & aseo)
+                            </span>
                           </span>
                         </div>
                       </td>
@@ -439,3 +490,4 @@ export default function Bookings() {
     </div>
   );
 }
+

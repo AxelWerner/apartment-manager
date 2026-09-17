@@ -7,7 +7,7 @@ import {
   INITIAL_DAMAGES,
   INITIAL_TEMPLATES,
 } from './mock-data';
-import { resolveBookingStatus } from './formatters';
+import { resolveBookingStatus, getBookingSourceInfo } from './formatters';
 
 const STORAGE_KEYS = {
   property: 'apt_mgr_property',
@@ -100,15 +100,19 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
     const cleaningFee = Number(b.cleaning_fee_collected) || 0;
     const accommodationBase = Math.max(0, payout - cleaningFee);
 
+    const sourceInfo = getBookingSourceInfo(b.source);
+    const adminRate = sourceInfo.commissionRate;
+    const ownerRate = sourceInfo.ownerRate;
+
     const management_fee =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
-        : Math.round(accommodationBase * 0.20);
+        : Math.round(accommodationBase * adminRate);
 
     const owner_payout =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
-        : Math.round(accommodationBase * 0.80);
+        : Math.round(accommodationBase * ownerRate);
 
     const ownerAccommodation = Math.max(0, accommodationBase - management_fee);
     const nights = Number(b.number_of_nights) || 0;

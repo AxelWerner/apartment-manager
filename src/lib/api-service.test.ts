@@ -197,14 +197,98 @@ describe('api-service', () => {
       const bookings = await fetchBookings();
       const synced = bookings.find((b) => b.id === 'b-calc-test');
 
-      expect(synced).toBeDefined();
-      // Base alojamiento: 318.317 - 60.000 = 258.317 COP
-      // 20% comision adm: 258.317 * 0.20 = 51.663 COP
-      expect(synced?.management_fee).toBe(51663);
-      // Neto propietario (80% alojamiento, restando aseo): 258.317 * 0.80 = 206.654 COP
       expect(synced?.owner_payout).toBe(206654);
       // 80% alojamiento: 258.317 * 0.80 = 206.654 COP / 3 noches = 68.885 COP por noche
       expect(synced?.nightly_rate).toBe(68885);
     });
+
+    it('calculates 10% management fee and 90% owner payout for direct bookings after deducting cleaning fee', async () => {
+      const directBooking: Booking = {
+        id: 'b-direct-test',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: null,
+        guest_name: 'Direct Booking Guest',
+        guest_phone: '+57 300 000 0000',
+        number_of_guests: 2,
+        check_in: '2026-09-20',
+        check_out: '2026-09-22',
+        number_of_nights: 2,
+        nightly_rate: 450000,
+        gross_amount: 1090000,
+        cleaning_fee_collected: 90000,
+        airbnb_service_fee: 0,
+        taxes_withheld: 0,
+        net_payout: 1090000, // Total received: 1.090.000 COP
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'direct',
+        notes: 'Reserva directa',
+      };
+
+      const mockOrder = vi.fn().mockResolvedValue({ data: [directBooking], error: null });
+      const mockSelect = vi.fn().mockReturnValue({ order: mockOrder });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: mockSelect,
+      });
+
+      const bookings = await fetchBookings();
+      const synced = bookings.find((b) => b.id === 'b-direct-test');
+
+      expect(synced).toBeDefined();
+      // Base alojamiento: 1.090.000 - 90.000 = 1.000.000 COP
+      // 10% comision adm: 1.000.000 * 0.10 = 100.000 COP
+      expect(synced?.management_fee).toBe(100000);
+      // Neto propietario (90% alojamiento): 1.000.000 * 0.90 = 900.000 COP
+      expect(synced?.owner_payout).toBe(900000);
+      // 90% alojamiento / 2 noches = 450.000 COP / noche
+      expect(synced?.nightly_rate).toBe(450000);
+    });
+
+    it('calculates 25% management fee and 75% owner payout for direct_25 bookings after deducting cleaning fee', async () => {
+      const directBooking: Booking = {
+        id: 'b-direct25-test',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: null,
+        guest_name: 'Direct 25 Booking Guest',
+        guest_phone: '+57 300 000 0000',
+        number_of_guests: 2,
+        check_in: '2026-09-20',
+        check_out: '2026-09-22',
+        number_of_nights: 2,
+        nightly_rate: 375000,
+        gross_amount: 1060000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 0,
+        taxes_withheld: 0,
+        net_payout: 1060000, // Total received: 1.060.000 COP
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'direct_25',
+        notes: 'Reserva directa 25%',
+      };
+
+      const mockOrder = vi.fn().mockResolvedValue({ data: [directBooking], error: null });
+      const mockSelect = vi.fn().mockReturnValue({ order: mockOrder });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: mockSelect,
+      });
+
+      const bookings = await fetchBookings();
+      const synced = bookings.find((b) => b.id === 'b-direct25-test');
+
+      expect(synced).toBeDefined();
+      // Base alojamiento: 1.060.000 - 60.000 = 1.000.000 COP
+      // 25% comision adm: 1.000.000 * 0.25 = 250.000 COP
+      expect(synced?.management_fee).toBe(250000);
+      // Neto propietario (75% alojamiento): 1.000.000 * 0.75 = 750.000 COP
+      expect(synced?.owner_payout).toBe(750000);
+      // 75% alojamiento / 2 noches = 375.000 COP / noche
+      expect(synced?.nightly_rate).toBe(375000);
+    });
   });
 });
+

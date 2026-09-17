@@ -78,7 +78,7 @@ export interface Booking {
   status: BookingStatus;
   payout_status: PayoutStatus;
   payout_date: string | null;
-  source: string;
+  source: 'airbnb' | 'direct' | 'direct_10' | 'direct_25' | string;
   notes: string | null;
   created_at?: string;
   updated_at?: string;

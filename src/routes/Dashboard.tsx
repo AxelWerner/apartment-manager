@@ -29,7 +29,15 @@ import { useBookings } from '@/hooks/use-bookings';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useDamages } from '@/hooks/use-damages';
 import { useProperty } from '@/hooks/use-property';
-import { formatCOP, formatMonthYear, formatDate, CATEGORY_LABELS, resolveBookingStatus, getColombiaDateTime } from '@/lib/formatters';
+import {
+  formatCOP,
+  formatMonthYear,
+  formatDate,
+  CATEGORY_LABELS,
+  resolveBookingStatus,
+  getColombiaDateTime,
+  getBookingSourceInfo,
+} from '@/lib/formatters';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 
 type TimeRange = 'this_month' | 'last_month' | 'ytd' | 'all_time';
@@ -99,12 +107,14 @@ export default function Dashboard() {
   const totalManagementFee = filteredBookings.reduce((sum, b) => {
     if (b.management_fee !== undefined && b.management_fee !== null) return sum + Number(b.management_fee);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    return sum + Math.round(accommodation * 0.20);
+    const rate = getBookingSourceInfo(b.source).commissionRate;
+    return sum + Math.round(accommodation * rate);
   }, 0);
   const totalOwnerPayout = filteredBookings.reduce((sum, b) => {
     if (b.owner_payout !== undefined && b.owner_payout !== null) return sum + Number(b.owner_payout);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    return sum + Math.round(accommodation * 0.80);
+    const rate = getBookingSourceInfo(b.source).ownerRate;
+    return sum + Math.round(accommodation * rate);
   }, 0);
   const totalGrossAccommodation = totalOwnerPayout + totalManagementFee;
   const netProfit = totalOwnerPayout - totalExpenses;
@@ -194,7 +204,8 @@ export default function Dashboard() {
           monthsMap[m].income += Number(b.owner_payout);
         } else {
           const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-          const ownerAmount = Math.round(accommodation * 0.80);
+          const rate = getBookingSourceInfo(b.source).ownerRate;
+          const ownerAmount = Math.round(accommodation * rate);
           monthsMap[m].income += ownerAmount;
         }
       }
