@@ -7,8 +7,41 @@ import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import type { Expense, ExpenseCategory, ExpenseType, PaymentStatus, RecurrencePeriod } from '@/types/database';
 import { useCreateExpense, useUpdateExpense } from '@/hooks/use-expenses';
 import { useBookings } from '@/hooks/use-bookings';
-import { CATEGORY_LABELS } from '@/lib/formatters';
+import { CATEGORY_LABELS, formatMonthYear } from '@/lib/formatters';
 import { toast } from 'sonner';
+
+export function getDefaultExpenseDescription(cat: ExpenseCategory, monthStr?: string | null): string {
+  const catInfo = CATEGORY_LABELS[cat];
+  const catLabel = catInfo?.label || 'Gasto';
+  const monthFormatted = monthStr ? formatMonthYear(monthStr) : '';
+
+  if (!monthFormatted) return catLabel;
+
+  switch (cat) {
+    case 'hoa_administration':
+      return `Administración Edificio - ${monthFormatted}`;
+    case 'electricity':
+      return `Factura Energía / Luz (EPM) - ${monthFormatted}`;
+    case 'water':
+      return `Factura Agua y Alcantarillado (EPM) - ${monthFormatted}`;
+    case 'gas':
+      return `Factura Gas Natural (EPM) - ${monthFormatted}`;
+    case 'internet_cable':
+      return `Internet Fibra Óptica - ${monthFormatted}`;
+    case 'insurance_annual':
+      return `Póliza Seguro Todo Riesgo - ${monthFormatted}`;
+    case 'cleaning_laundry':
+      return `Limpieza y Lavandería - ${monthFormatted}`;
+    case 'supplies_restock':
+      return `Insumos y Reposición - ${monthFormatted}`;
+    case 'maintenance_repairs':
+      return `Mantenimiento y Reparaciones - ${monthFormatted}`;
+    case 'platform_fees':
+      return `Comisiones y Tasas - ${monthFormatted}`;
+    default:
+      return `${catLabel} - ${monthFormatted}`;
+  }
+}
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -38,21 +71,24 @@ function ExpenseFormContent({
   const updateExpenseMutation = useUpdateExpense();
   const { data: bookings = [] } = useBookings();
 
-  const [category, setCategory] = useState<ExpenseCategory>(
-    expenseToEdit?.category ?? defaultCategory
-  );
+  const initialBillingMonth =
+    expenseToEdit?.billing_month ?? defaultBillingMonth ?? new Date().toISOString().substring(0, 7);
+  const initialCategory = expenseToEdit?.category ?? defaultCategory;
+
+  const [category, setCategory] = useState<ExpenseCategory>(initialCategory);
   const [expenseType, setExpenseType] = useState<ExpenseType>(
     expenseToEdit?.expense_type ?? defaultType
   );
-  const [description, setDescription] = useState(expenseToEdit?.description ?? '');
+  const [billingMonth, setBillingMonth] = useState(initialBillingMonth);
+  const [description, setDescription] = useState(
+    expenseToEdit?.description ?? getDefaultExpenseDescription(initialCategory, initialBillingMonth)
+  );
+  const [isManualDescription, setIsManualDescription] = useState(Boolean(expenseToEdit?.description));
   const [amount, setAmount] = useState<number>(expenseToEdit?.amount ?? 0);
   const [date, setDate] = useState(
     expenseToEdit?.date ?? new Date().toISOString().split('T')[0]
   );
   const [dueDate, setDueDate] = useState(expenseToEdit?.due_date ?? '');
-  const [billingMonth, setBillingMonth] = useState(
-    expenseToEdit?.billing_month ?? defaultBillingMonth ?? new Date().toISOString().substring(0, 7)
-  );
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(
     expenseToEdit?.payment_status ?? 'paid'
   );
@@ -66,6 +102,22 @@ function ExpenseFormContent({
   const [receiptUrl, setReceiptUrl] = useState<string | null>(expenseToEdit?.receipt_url ?? null);
   const [notes, setNotes] = useState(expenseToEdit?.notes ?? '');
   const [isUploading, setIsUploading] = useState(false);
+
+  const suggestedDescription = getDefaultExpenseDescription(category, billingMonth);
+
+  const handleCategoryChange = (newCat: ExpenseCategory) => {
+    setCategory(newCat);
+    if (!isManualDescription || !description.trim()) {
+      setDescription(getDefaultExpenseDescription(newCat, billingMonth));
+    }
+  };
+
+  const handleBillingMonthChange = (newMonth: string) => {
+    setBillingMonth(newMonth);
+    if (!isManualDescription || !description.trim()) {
+      setDescription(getDefaultExpenseDescription(category, newMonth));
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -133,12 +185,13 @@ function ExpenseFormContent({
       {/* Category & Type */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="expense-category-select" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Categoría *
           </label>
           <select
+            id="expense-category-select"
             value={category}
-            onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+            onChange={(e) => handleCategoryChange(e.target.value as ExpenseCategory)}
             className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
           >
             {Object.entries(CATEGORY_LABELS).map(([catKey, { label }]) => (
@@ -150,10 +203,11 @@ function ExpenseFormContent({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+          <label htmlFor="expense-type-select" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Tipo de Gasto
           </label>
           <select
+            id="expense-type-select"
             value={expenseType}
             onChange={(e) => setExpenseType(e.target.value as ExpenseType)}
             className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
@@ -169,16 +223,34 @@ function ExpenseFormContent({
 
       {/* Description */}
       <div>
-        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-          Descripción del Gasto *
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor="expense-description-input" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Descripción del Gasto *
+          </label>
+          {description !== suggestedDescription && (
+            <button
+              type="button"
+              onClick={() => {
+                setDescription(suggestedDescription);
+                setIsManualDescription(false);
+              }}
+              className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+            >
+              Usar predeterminado: {suggestedDescription}
+            </button>
+          )}
+        </div>
         <input
+          id="expense-description-input"
           type="text"
           required
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Ej. Factura Luz EPM Septiembre, o Compra de café y papel"
-          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+          onChange={(e) => {
+            setDescription(e.target.value);
+            setIsManualDescription(true);
+          }}
+          placeholder={suggestedDescription}
+          className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
         />
       </div>
 
@@ -231,7 +303,7 @@ function ExpenseFormContent({
           <input
             type="month"
             value={billingMonth}
-            onChange={(e) => setBillingMonth(e.target.value)}
+            onChange={(e) => handleBillingMonthChange(e.target.value)}
             className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
           />
         </div>
