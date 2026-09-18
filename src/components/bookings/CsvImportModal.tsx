@@ -241,8 +241,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         const codeUpper = row.airbnb_confirmation_code?.trim().toUpperCase();
         const existing = codeUpper
           ? existingBookings.find(
-              (b) => b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
-            )
+            (b) => b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
+          )
           : undefined;
 
         let importStatus: 'new' | 'updated' | 'unchanged' = 'new';
@@ -446,76 +446,78 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               </label>
             </div>
 
-            {/* Quick test buttons */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Archivos detectados en <code className="text-rose-600 dark:text-rose-400 font-mono font-bold">data/</code> (Prueba Rápida):
-              </p>
+            {/* Quick test buttons (Only available in development mode) */}
+            {import.meta.env.DEV && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Archivos detectados en <code className="text-rose-600 dark:text-rose-400 font-mono font-bold">data/</code> (Prueba Rápida - Solo DEV):
+                </p>
 
-              {/* Combined test button */}
-              <button
-                type="button"
-                onClick={loadBothSamples}
-                disabled={loadingSample !== null}
-                className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-dashed border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 text-left transition-all group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
-                      Cargar ambos archivos a la vez (Completadas + Pendientes)
-                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 font-semibold">
-                        Recomendado
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-rose-700/80 dark:text-rose-400">
-                      Importa simultáneamente airbnb_.csv (6) y airbnb_pending.csv (8) — Total 14 reservas
-                    </p>
-                  </div>
-                </div>
-                <div className="text-xs font-semibold text-rose-600 dark:text-rose-400 group-hover:translate-x-0.5 transition-transform">
-                  {loadingSample === 'all' ? 'Cargando...' : 'Cargar ambos →'}
-                </div>
-              </button>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Combined test button */}
                 <button
                   type="button"
-                  onClick={() => loadSampleCsv('airbnb_.csv')}
+                  onClick={loadBothSamples}
                   disabled={loadingSample !== null}
-                  className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group cursor-pointer"
+                  className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-dashed border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 text-left transition-all group cursor-pointer"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <FileSpreadsheet className="w-4 h-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+                        Cargar ambos archivos a la vez (Completadas + Pendientes)
+                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 font-semibold">
+                          DEV
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-rose-700/80 dark:text-rose-400">
+                        Importa simultáneamente airbnb_.csv (6) y airbnb_pending.csv (8) — Total 14 reservas
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 truncate">
-                      airbnb_.csv
-                    </p>
-                    <p className="text-[11px] text-slate-400">6 reservas finalizadas / cobros</p>
+                  <div className="text-xs font-semibold text-rose-600 dark:text-rose-400 group-hover:translate-x-0.5 transition-transform">
+                    {loadingSample === 'all' ? 'Cargando...' : 'Cargar ambos →'}
                   </div>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => loadSampleCsv('airbnb_pending.csv')}
-                  disabled={loadingSample !== null}
-                  className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 text-left transition-all group cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                    <FileSpreadsheet className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 truncate">
-                      airbnb_pending.csv
-                    </p>
-                    <p className="text-[11px] text-slate-400">8 reservas pendientes / futuras</p>
-                  </div>
-                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => loadSampleCsv('airbnb_.csv')}
+                    disabled={loadingSample !== null}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 truncate">
+                        airbnb_.csv
+                      </p>
+                      <p className="text-[11px] text-slate-400">6 reservas finalizadas / cobros</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => loadSampleCsv('airbnb_pending.csv')}
+                    disabled={loadingSample !== null}
+                    className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FileSpreadsheet className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 truncate">
+                        airbnb_pending.csv
+                      </p>
+                      <p className="text-[11px] text-slate-400">8 reservas pendientes / futuras</p>
+                    </div>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           /* Preview table */
@@ -597,8 +599,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                         row.importStatus === 'updated'
                           ? 'bg-amber-50/60 dark:bg-amber-950/30'
                           : row.importStatus === 'unchanged'
-                          ? 'opacity-70 dark:opacity-60'
-                          : ''
+                            ? 'opacity-70 dark:opacity-60'
+                            : ''
                       }
                     >
                       <td className="p-2.5 font-mono text-[11px]">
@@ -706,10 +708,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               {createBatchMutation.isPending
                 ? 'Procesando...'
                 : parsedRows.filter((r) => r.importStatus === 'updated').length > 0
-                ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas, ${parsedRows.filter((r) => r.importStatus === 'updated').length} cambios)`
-                : parsedRows.filter((r) => r.importStatus === 'new').length > 0
-                ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas)`
-                : 'Re-sincronizar Reservas (Al día)'}
+                  ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas, ${parsedRows.filter((r) => r.importStatus === 'updated').length} cambios)`
+                  : parsedRows.filter((r) => r.importStatus === 'new').length > 0
+                    ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas)`
+                    : 'Re-sincronizar Reservas (Al día)'}
             </button>
           )}
         </div>

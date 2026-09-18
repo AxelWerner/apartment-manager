@@ -102,4 +102,19 @@ describe('CsvImportModal Component', () => {
       expect(handleClose).toHaveBeenCalled();
     });
   });
+
+  it('does not render test sample shortcut buttons when in production mode (import.meta.env.DEV = false)', () => {
+    const originalDev = import.meta.env.DEV;
+    try {
+      (import.meta.env as Record<string, unknown>).DEV = false;
+      renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+      expect(screen.queryByText(/Prueba Rápida/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Cargar ambos archivos a la vez/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^airbnb_\.csv$/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^airbnb_pending\.csv$/i)).not.toBeInTheDocument();
+    } finally {
+      (import.meta.env as Record<string, unknown>).DEV = originalDev;
+    }
+  });
 });

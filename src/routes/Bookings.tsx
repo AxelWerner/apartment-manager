@@ -286,11 +286,11 @@ export default function Bookings() {
         </div>
 
         <div className="flex items-center gap-2">
-          {bookings.length > 0 && (
+          {import.meta.env.DEV && bookings.length > 0 && (
             <button
               type="button"
               onClick={handleClearAll}
-              title="Vaciar reservas para probar importación"
+              title="Vaciar reservas para probar importación (Solo DEV)"
               className="p-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
