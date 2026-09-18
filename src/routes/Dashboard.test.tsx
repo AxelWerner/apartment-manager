@@ -122,6 +122,43 @@ describe('Dashboard Component', () => {
     // Assert ADR and RevPAR are removed
     expect(screen.queryByText(/Tarifa Diaria \(ADR\)/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/RevPAR/i)).not.toBeInTheDocument();
+
+    // Assert period nights counter shows aggregate nights (4 nights in September = 4/30)
+    expect(screen.getByText('4/30')).toBeInTheDocument();
+    expect(screen.getByText('4 de 30 noches reservadas')).toBeInTheDocument();
+  });
+
+  it('renders period nights correctly even when a guest is currently checked in', () => {
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'book-active',
+          property_id: 'prop-1',
+          guest_name: 'María Gómez',
+          check_in: '2026-09-18',
+          check_out: '2026-09-21',
+          number_of_nights: 3,
+          gross_amount: 900000,
+          platform_fee: 27000,
+          net_payout: 873000,
+          cleaning_fee_collected: 80000,
+          management_fee: 158600,
+          owner_payout: 634400,
+          payout_status: 'paid',
+          booking_status: 'confirmed',
+          channel: 'airbnb',
+          created_at: '2026-09-01T00:00:00Z',
+          updated_at: '2026-09-01T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useBookings>);
+
+    renderWithProviders(<Dashboard />);
+
+    // Should display period nights (3/30), not guest stay progress (1/3)
+    expect(screen.getByText('3/30')).toBeInTheDocument();
+    expect(screen.getByText('3 de 30 noches reservadas')).toBeInTheDocument();
   });
 
   it('renders hyphen (-) when there are no bookings', () => {

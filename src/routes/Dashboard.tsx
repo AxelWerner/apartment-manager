@@ -217,8 +217,20 @@ export default function Dashboard() {
       const diffTime = Math.abs(now.getTime() - startOfYear.getTime());
       return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     }
+    if (bookings.length > 0) {
+      const sortedCheckIns = bookings
+        .filter((b) => resolveBookingStatus(b) !== 'cancelled')
+        .map((b) => b.check_in)
+        .sort();
+      if (sortedCheckIns.length > 0) {
+        const firstCheckIn = new Date(sortedCheckIns[0] + 'T00:00:00');
+        const today = new Date(colDateStr + 'T00:00:00');
+        const diffDays = Math.ceil(Math.abs(today.getTime() - firstCheckIn.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        return Math.max(1, diffDays);
+      }
+    }
     return 365;
-  }, [timeRange, currentYear, currentMonth, colDateStr]);
+  }, [timeRange, currentYear, currentMonth, colDateStr, bookings]);
 
   const occupancyRate = Math.min(100, Math.round((bookedNights / calendarDays) * 100));
 
@@ -231,21 +243,8 @@ export default function Dashboard() {
   // Active guest in house
   const activeGuest = bookings.find((b) => resolveBookingStatus(b) === 'checked_in');
 
-  // Night progress tracker: "3/7", "2/5" or "-" if no bookings
-  const activeStayProgress = useMemo(() => {
-    if (activeGuest) {
-      const checkInDate = new Date(activeGuest.check_in + 'T12:00:00');
-      const todayDate = new Date(colDateStr + 'T12:00:00');
-      const diffTime = todayDate.getTime() - checkInDate.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      const totalNights = Number(activeGuest.number_of_nights) || 1;
-      const currentNight = Math.min(Math.max(1, diffDays), totalNights);
-      return {
-        display: `${currentNight}/${totalNights}`,
-        subtitle: `En curso: ${activeGuest.guest_name}`,
-      };
-    }
-
+  // Night progress tracker for the period
+  const periodNightsProgress = useMemo(() => {
     if (filteredBookings.length > 0 && bookedNights > 0) {
       return {
         display: `${bookedNights}/${calendarDays}`,
@@ -257,7 +256,7 @@ export default function Dashboard() {
       display: '-',
       subtitle: 'Sin reservas en el período',
     };
-  }, [activeGuest, colDateStr, filteredBookings.length, bookedNights, calendarDays]);
+  }, [filteredBookings.length, bookedNights, calendarDays]);
 
   // Monthly Cash Flow Chart Data (last 6 months)
   const cashFlowData = useMemo(() => {
@@ -432,7 +431,7 @@ export default function Dashboard() {
                 Noches en el Período
               </p>
               <p className="text-[11px] text-slate-400 text-left sm:text-right">
-                {activeStayProgress.subtitle}
+                {periodNightsProgress.subtitle}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -440,7 +439,7 @@ export default function Dashboard() {
                 <Moon className="w-4 h-4" />
               </div>
               <span className="text-xl font-bold text-slate-900 dark:text-white">
-                {activeStayProgress.display}
+                {periodNightsProgress.display}
               </span>
             </div>
           </div>
