@@ -123,6 +123,16 @@ export default function Bookings() {
   const totalOwnerPayout = bookings.reduce((sum, b) => sum + getOwnerNet(b), 0);
   const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
 
+  const managementFeeAirbnb = bookings
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + getManagementFee(b), 0);
+  const managementFeeDirect10 = bookings
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + getManagementFee(b), 0);
+  const managementFeeDirect25 = bookings
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + getManagementFee(b), 0);
+
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`¿Estás seguro de eliminar la reserva de ${name}?`)) {
       try {
@@ -255,9 +265,12 @@ export default function Bookings() {
             <Percent className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-slate-500 font-medium">Adm. Inmueble (10%-20%)</p>
+            <p className="text-xs text-slate-500 font-medium">Gasto de Administración</p>
             <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
               -{formatCOP(totalManagementFee)}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Airbnb (20%): {formatCOP(managementFeeAirbnb)} | Dir. 10%: {formatCOP(managementFeeDirect10)} | Dir. 25%: {formatCOP(managementFeeDirect25)}
             </p>
           </div>
         </div>

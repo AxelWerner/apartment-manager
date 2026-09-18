@@ -97,7 +97,8 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
   return bookings.map((b) => {
     const resolved = resolveBookingStatus(b);
     const payout = Number(b.net_payout) || 0;
-    const cleaningFee = Number(b.cleaning_fee_collected) || 0;
+    const rawCleaningFee = Number(b.cleaning_fee_collected);
+    const cleaningFee = rawCleaningFee > 0 ? rawCleaningFee : 60000;
     const accommodationBase = Math.max(0, payout - cleaningFee);
 
     const sourceInfo = getBookingSourceInfo(b.source);
@@ -121,6 +122,7 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
 
     return {
       ...b,
+      cleaning_fee_collected: cleaningFee,
       status: resolved !== b.status ? resolved : b.status,
       management_fee,
       owner_payout,

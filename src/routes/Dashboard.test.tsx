@@ -113,9 +113,12 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('Desglose Financiero y Gastos del Período')).toBeInTheDocument();
     expect(screen.getByText('Ganancia Neta')).toBeInTheDocument();
     expect(screen.getByText('Ingresos de Alojamiento')).toBeInTheDocument();
-    expect(screen.getByText(/Neto \(80% propietarios\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Neto propietarios/i)).toBeInTheDocument();
     expect(screen.getByText(/Bruto \(100%\):/i)).toBeInTheDocument();
     expect(screen.getByText('Gasto de Administración')).toBeInTheDocument();
+    expect(screen.getByText('Airbnb (20%):')).toBeInTheDocument();
+    expect(screen.getByText('Directas (10%):')).toBeInTheDocument();
+    expect(screen.getByText('Directas (25%):')).toBeInTheDocument();
     expect(screen.getByText('Gasto de Aseo')).toBeInTheDocument();
     expect(screen.getByText('Gastos Mensuales')).toBeInTheDocument();
 

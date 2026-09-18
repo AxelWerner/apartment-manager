@@ -38,6 +38,7 @@ import {
   getColombiaDateTime,
   getBookingSourceInfo,
 } from '@/lib/formatters';
+import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 
 type TimeRange = 'this_month' | 'last_month' | 'ytd' | 'all_time';
@@ -104,18 +105,35 @@ export default function Dashboard() {
   }, [bookings, expenses, timeRange, currentMonthStr, lastMonthStr, currentYear]);
 
   // Aggregate financials
-  const totalManagementFee = filteredBookings.reduce((sum, b) => {
-    if (b.management_fee !== undefined && b.management_fee !== null) return sum + Number(b.management_fee);
+  const getBookingMgmtFee = (b: Booking) => {
+    if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
     const rate = getBookingSourceInfo(b.source).commissionRate;
-    return sum + Math.round(accommodation * rate);
-  }, 0);
-  const totalOwnerPayout = filteredBookings.reduce((sum, b) => {
-    if (b.owner_payout !== undefined && b.owner_payout !== null) return sum + Number(b.owner_payout);
+    return Math.round(accommodation * rate);
+  };
+
+  const getBookingOwnerPayout = (b: Booking) => {
+    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
     const rate = getBookingSourceInfo(b.source).ownerRate;
-    return sum + Math.round(accommodation * rate);
-  }, 0);
+    return Math.round(accommodation * rate);
+  };
+
+  const totalManagementFee = filteredBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+
+  const managementFeeAirbnb = filteredBookings
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+
+  const managementFeeDirect10 = filteredBookings
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+
+  const managementFeeDirect25 = filteredBookings
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+
+  const totalOwnerPayout = filteredBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
   const totalGrossAccommodation = totalOwnerPayout + totalManagementFee;
   const netProfit = totalOwnerPayout - totalExpenses;
 
@@ -417,7 +435,7 @@ export default function Dashboard() {
                     {formatCOP(totalOwnerPayout)}
                   </p>
                   <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    Neto (80% propietarios)
+                    Neto propietarios
                   </span>
                 </div>
               </div>
@@ -438,13 +456,29 @@ export default function Dashboard() {
                 <Building2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-2">
-              <p className="text-xl font-bold text-slate-900 dark:text-white">
-                {formatCOP(totalManagementFee)}
-              </p>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                20% comisión de gestión
-              </span>
+            <div className="mt-2 space-y-1.5">
+              <div>
+                <p className="text-xl font-bold text-slate-900 dark:text-white">
+                  {formatCOP(totalManagementFee)}
+                </p>
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  Comisión total de gestión
+                </span>
+              </div>
+              <div className="pt-1.5 border-t border-amber-200/60 dark:border-amber-800/40 space-y-0.5 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Airbnb (20%):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeAirbnb)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Directas (10%):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect10)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Directas (25%):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect25)}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -623,7 +657,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                {formatCOP(Math.round(Math.max(0, (Number(activeGuest.net_payout) || 0) - (Number(activeGuest.cleaning_fee_collected) || 0)) * 0.80))}
+                {formatCOP(getBookingOwnerPayout(activeGuest))}
               </span>
             </div>
           )}
@@ -644,7 +678,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatCOP(Math.round(Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) * 0.80))}
+                    {formatCOP(getBookingOwnerPayout(b))}
                   </span>
                 </div>
               ))}

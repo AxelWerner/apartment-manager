@@ -142,7 +142,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           const nights = nightsStr ? parseInt(nightsStr, 10) : 1;
           const validNights = nights > 0 ? nights : 1;
           const payout = parseAirbnbAmount(amountStr); // Betrag: valor neto total recibido por todas las noches
-          const cleanFee = parseAirbnbAmount(cleanFeeStr); // Reinigungsgebühr
+          const parsedCleanFee = parseAirbnbAmount(cleanFeeStr); // Reinigungsgebühr
+          const cleanFee = parsedCleanFee > 0 ? parsedCleanFee : 60000;
           let serviceFee = parseAirbnbAmount(serviceFeeStr); // Servicegebühr (gastos de la plataforma)
           let gross = parseAirbnbAmount(grossStr); // Bruttoeinkünfte
 

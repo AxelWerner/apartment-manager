@@ -22,7 +22,7 @@ export default function Settings() {
   const [address, setAddress] = useState(property?.address || 'Carrera 43A # 1-50, Medellín');
   const [city, setCity] = useState(property?.city || 'Medellín');
   const [nightRate, setNightRate] = useState<number>(property?.default_nightly_rate || 280000);
-  const [cleanFee, setCleanFee] = useState<number>(property?.default_cleaning_fee || 90000);
+  const [cleanFee, setCleanFee] = useState<number>(property?.default_cleaning_fee || 60000);
   const [monthlyTarget, setMonthlyTarget] = useState<number>(property?.monthly_revenue_target || 3000000);
   const [managementFeeRate, setManagementFeeRate] = useState<number>(property?.management_fee_rate ?? 20.0);
 
