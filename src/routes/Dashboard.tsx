@@ -40,6 +40,7 @@ import {
 } from '@/lib/formatters';
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
+import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 
 type TimeRange = 'this_month' | 'last_month' | 'ytd' | 'all_time';
 
@@ -160,6 +161,43 @@ export default function Dashboard() {
   const totalOwnerPayout = filteredBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
   const totalGrossAccommodation = totalOwnerPayout + totalManagementFee;
   const netProfit = totalOwnerPayout - totalExpenses;
+
+  // Pie chart datasets for cards
+  const accommodationRevenuePieData = useMemo(() => [
+    { name: 'Airbnb', value: ownerPayoutAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: ownerPayoutDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: ownerPayoutDirect25, color: '#8b5cf6' },
+  ], [ownerPayoutAirbnb, ownerPayoutDirect10, ownerPayoutDirect25]);
+
+  const managementFeePieData = useMemo(() => [
+    { name: 'Airbnb (20%)', value: managementFeeAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: managementFeeDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: managementFeeDirect25, color: '#8b5cf6' },
+  ], [managementFeeAirbnb, managementFeeDirect10, managementFeeDirect25]);
+
+  const cleaningFeeAirbnb = useMemo(() => filteredBookings
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
+
+  const cleaningFeeDirect10 = useMemo(() => filteredBookings
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
+
+  const cleaningFeeDirect25 = useMemo(() => filteredBookings
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
+
+  const cleaningFeePieData = useMemo(() => [
+    { name: 'Airbnb', value: cleaningFeeAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: cleaningFeeDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: cleaningFeeDirect25, color: '#8b5cf6' },
+  ], [cleaningFeeAirbnb, cleaningFeeDirect10, cleaningFeeDirect25]);
+
+  const monthlyExpensesPieData = useMemo(() => [
+    { name: 'Adm Edificio', value: hoaExpenses, color: '#f59e0b' },
+    { name: 'Servicios Públicos', value: utilitiesExpenses, color: '#06b6d4' },
+    { name: 'Internet y Otros', value: otherExpenses, color: '#8b5cf6' },
+  ], [hoaExpenses, utilitiesExpenses, otherExpenses]);
 
   // Hospitality KPIs with exact calendar days per period
   const bookedNights = filteredBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
@@ -453,32 +491,23 @@ export default function Dashboard() {
                   <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Airbnb:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutAirbnb)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Directas (10%):</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect10)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Directas (25%):</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect25)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400 dark:text-slate-500 pt-0.5 border-t border-blue-100 dark:border-blue-900/40">
-                  <span>Bruto total:</span>
-                  <span className="font-medium">{formatCOP(totalGrossAccommodation)}</span>
-                </div>
+              <div className="mt-2">
+                <MiniPieCardChart
+                  data={accommodationRevenuePieData}
+                  emptyText="Sin ingresos"
+                />
               </div>
             </div>
-            <div className="pt-2.5 mt-3 border-t border-blue-200/60 dark:border-blue-800/40">
+            <div className="pt-2.5 mt-2 border-t border-blue-200/60 dark:border-blue-800/40">
               <p className="text-xl font-bold text-slate-900 dark:text-white">
                 {formatCOP(totalOwnerPayout)}
               </p>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Neto total propietarios
-              </span>
+              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                <span>Neto dueños</span>
+                <span className="text-[10px] text-slate-400" title={`Bruto: ${formatCOP(totalGrossAccommodation)}`}>
+                  Bruto: {formatCOP(totalGrossAccommodation)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -491,22 +520,14 @@ export default function Dashboard() {
                   <Building2 className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Airbnb (20%):</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeAirbnb)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Directas (10%):</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect10)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Directas (25%):</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect25)}</span>
-                </div>
+              <div className="mt-2">
+                <MiniPieCardChart
+                  data={managementFeePieData}
+                  emptyText="Sin comisiones"
+                />
               </div>
             </div>
-            <div className="pt-2.5 mt-3 border-t border-amber-200/60 dark:border-amber-800/40">
+            <div className="pt-2.5 mt-2 border-t border-amber-200/60 dark:border-amber-800/40">
               <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
                 -{formatCOP(totalManagementFee)}
               </p>
@@ -525,27 +546,19 @@ export default function Dashboard() {
                   <Sparkles className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Estadías del período:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {filteredBookings.length} {filteredBookings.length === 1 ? 'estadía' : 'estadías'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Tarifa estándar:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">
-                    {formatCOP(property?.default_cleaning_fee ?? 60000)}
-                  </span>
-                </div>
+              <div className="mt-2">
+                <MiniPieCardChart
+                  data={cleaningFeePieData}
+                  emptyText="Sin aseo recaudado"
+                />
               </div>
             </div>
-            <div className="pt-2.5 mt-3 border-t border-teal-200/60 dark:border-teal-800/40">
+            <div className="pt-2.5 mt-2 border-t border-teal-200/60 dark:border-teal-800/40">
               <p className="text-xl font-bold text-slate-900 dark:text-white">
                 {formatCOP(totalGuestCleaningFee)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Recaudado por huéspedes
+                Recaudado ({filteredBookings.length} {filteredBookings.length === 1 ? 'estadía' : 'estadías'})
               </span>
             </div>
           </div>
@@ -559,22 +572,14 @@ export default function Dashboard() {
                   <Receipt className="w-4 h-4" />
                 </div>
               </div>
-              <div className="mt-3 space-y-1 text-[11px]">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Adm Edificio:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(hoaExpenses)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Servicios Públicos:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(utilitiesExpenses)}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                  <span>Internet y Otros:</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(otherExpenses)}</span>
-                </div>
+              <div className="mt-2">
+                <MiniPieCardChart
+                  data={monthlyExpensesPieData}
+                  emptyText="Sin gastos del período"
+                />
               </div>
             </div>
-            <div className="pt-2.5 mt-3 border-t border-rose-200/60 dark:border-rose-800/40">
+            <div className="pt-2.5 mt-2 border-t border-rose-200/60 dark:border-rose-800/40">
               <p className="text-xl font-bold text-rose-600 dark:text-rose-400">
                 -{formatCOP(totalExpenses)}
               </p>

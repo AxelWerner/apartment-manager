@@ -28,6 +28,7 @@ import {
   getBookingSourceInfo,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
+import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 import { toast } from 'sonner';
 
 export default function Bookings() {
@@ -179,6 +180,37 @@ export default function Bookings() {
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getOwnerNet(b), 0);
 
+  // Pie chart datasets for Bookings KPI cards
+  const bookingsCountAirbnb = bookings.filter((b) => !b.source || b.source === 'airbnb').length;
+  const bookingsCountDirect10 = bookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').length;
+  const bookingsCountDirect25 = bookings.filter((b) => b.source === 'direct_25').length;
+  const bookingsCountPieData = [
+    { name: 'Airbnb', value: bookingsCountAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: bookingsCountDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: bookingsCountDirect25, color: '#8b5cf6' },
+  ];
+
+  const nightsAirbnb = bookings.filter((b) => !b.source || b.source === 'airbnb').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsDirect10 = bookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsDirect25 = bookings.filter((b) => b.source === 'direct_25').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsPieData = [
+    { name: 'Airbnb', value: nightsAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: nightsDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: nightsDirect25, color: '#8b5cf6' },
+  ];
+
+  const bookingsMgmtPieData = [
+    { name: 'Airbnb (20%)', value: managementFeeAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: managementFeeDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: managementFeeDirect25, color: '#8b5cf6' },
+  ];
+
+  const bookingsRevenuePieData = [
+    { name: 'Airbnb', value: ownerPayoutAirbnb, color: '#f43f5e' },
+    { name: 'Directas (10%)', value: ownerPayoutDirect10, color: '#10b981' },
+    { name: 'Directas (25%)', value: ownerPayoutDirect25, color: '#8b5cf6' },
+  ];
+
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`¿Estás seguro de eliminar la reserva de ${name}?`)) {
       try {
@@ -288,6 +320,7 @@ export default function Bookings() {
 
       {/* Summary KPI Pills */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+        {/* 1. Total Reservas */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center justify-between">
@@ -296,11 +329,16 @@ export default function Bookings() {
                 <CalendarDays className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 space-y-1 text-[11px] text-slate-400">
-              <p>Historial y reservas activas</p>
+            <div className="mt-2">
+              <MiniPieCardChart
+                data={bookingsCountPieData}
+                isCurrency={false}
+                unitLabel="reservas"
+                emptyText="Sin reservas"
+              />
             </div>
           </div>
-          <div className="pt-2.5 mt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800">
             <p className="text-xl font-bold text-slate-900 dark:text-white">{bookings.length}</p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               {bookings.length === 1 ? 'Reserva registrada' : 'Reservas registradas'}
@@ -308,6 +346,7 @@ export default function Bookings() {
           </div>
         </div>
 
+        {/* 2. Noches Totales */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center justify-between">
@@ -316,11 +355,16 @@ export default function Bookings() {
                 <Moon className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 space-y-1 text-[11px] text-slate-400">
-              <p>Total estadías acumuladas</p>
+            <div className="mt-2">
+              <MiniPieCardChart
+                data={nightsPieData}
+                isCurrency={false}
+                unitLabel="noches"
+                emptyText="Sin noches"
+              />
             </div>
           </div>
-          <div className="pt-2.5 mt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800">
             <p className="text-xl font-bold text-slate-900 dark:text-white">{totalNights} noches</p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Noches vendidas
@@ -328,6 +372,7 @@ export default function Bookings() {
           </div>
         </div>
 
+        {/* 3. Gasto de Administración */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center justify-between">
@@ -336,22 +381,14 @@ export default function Bookings() {
                 <Percent className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 space-y-1 text-[11px]">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Airbnb (20%):</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeAirbnb)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Directas (10%):</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect10)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Directas (25%):</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect25)}</span>
-              </div>
+            <div className="mt-2">
+              <MiniPieCardChart
+                data={bookingsMgmtPieData}
+                emptyText="Sin comisiones"
+              />
             </div>
           </div>
-          <div className="pt-2.5 mt-3 border-t border-amber-100 dark:border-amber-900/40">
+          <div className="pt-2.5 mt-2 border-t border-amber-100 dark:border-amber-900/40">
             <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
               -{formatCOP(totalManagementFee)}
             </p>
@@ -361,6 +398,7 @@ export default function Bookings() {
           </div>
         </div>
 
+        {/* 4. Ingresos de Alojamiento */}
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center justify-between">
@@ -369,22 +407,14 @@ export default function Bookings() {
                 <DollarSign className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 space-y-1 text-[11px]">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Airbnb:</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutAirbnb)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Directas (10%):</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect10)}</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                <span>Directas (25%):</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect25)}</span>
-              </div>
+            <div className="mt-2">
+              <MiniPieCardChart
+                data={bookingsRevenuePieData}
+                emptyText="Sin ingresos"
+              />
             </div>
           </div>
-          <div className="pt-2.5 mt-3 border-t border-emerald-100 dark:border-emerald-900/40">
+          <div className="pt-2.5 mt-2 border-t border-emerald-100 dark:border-emerald-900/40">
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
               {formatCOP(totalOwnerPayout)}
             </p>
