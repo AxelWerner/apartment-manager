@@ -133,6 +133,30 @@ export default function Dashboard() {
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
 
+  const ownerPayoutAirbnb = filteredBookings
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const ownerPayoutDirect10 = filteredBookings
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const ownerPayoutDirect25 = filteredBookings
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const hoaExpenses = filteredExpenses
+    .filter((e) => e.category === 'hoa_administration')
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+  const utilitiesExpenses = filteredExpenses
+    .filter((e) => ['electricity', 'water', 'gas'].includes(e.category))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+  const otherExpenses = filteredExpenses
+    .filter((e) => !['hoa_administration', 'electricity', 'water', 'gas'].includes(e.category))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
   const totalOwnerPayout = filteredBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
   const totalGrossAccommodation = totalOwnerPayout + totalManagementFee;
   const netProfit = totalOwnerPayout - totalExpenses;
@@ -419,101 +443,143 @@ export default function Dashboard() {
         </div>
 
         {/* 4 Columns in the Big Card */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
           {/* 1. Ingresos de Alojamiento (Neto y Bruto) */}
-          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Ingresos de Alojamiento</span>
-              <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                <DollarSign className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-2 space-y-1.5">
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <p className="text-xl font-bold text-slate-900 dark:text-white">
-                    {formatCOP(totalOwnerPayout)}
-                  </p>
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    Neto propietarios
-                  </span>
+          <div className="p-4 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Ingresos de Alojamiento</span>
+                <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                  <DollarSign className="w-4 h-4" />
                 </div>
               </div>
-              <div className="pt-1.5 border-t border-blue-200/60 dark:border-blue-800/40 flex items-center justify-between">
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Bruto (100%):</span>
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                  {formatCOP(totalGrossAccommodation)}
-                </span>
+              <div className="mt-3 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Airbnb:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutAirbnb)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Directas (10%):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect10)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Directas (25%):</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect25)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-400 dark:text-slate-500 pt-0.5 border-t border-blue-100 dark:border-blue-900/40">
+                  <span>Bruto total:</span>
+                  <span className="font-medium">{formatCOP(totalGrossAccommodation)}</span>
+                </div>
               </div>
+            </div>
+            <div className="pt-2.5 mt-3 border-t border-blue-200/60 dark:border-blue-800/40">
+              <p className="text-xl font-bold text-slate-900 dark:text-white">
+                {formatCOP(totalOwnerPayout)}
+              </p>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Neto total propietarios
+              </span>
             </div>
           </div>
 
           {/* 2. Gasto de Administración */}
-          <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Gasto de Administración</span>
-              <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                <Building2 className="w-4 h-4" />
+          <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Gasto de Administración</span>
+                <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                  <Building2 className="w-4 h-4" />
+                </div>
               </div>
-            </div>
-            <div className="mt-2 space-y-1.5">
-              <div>
-                <p className="text-xl font-bold text-slate-900 dark:text-white">
-                  {formatCOP(totalManagementFee)}
-                </p>
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  Comisión total de gestión
-                </span>
-              </div>
-              <div className="pt-1.5 border-t border-amber-200/60 dark:border-amber-800/40 space-y-0.5 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Airbnb (20%):</span>
+              <div className="mt-3 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Airbnb (20%):</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeAirbnb)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Directas (10%):</span>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Directas (10%):</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect10)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Directas (25%):</span>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Directas (25%):</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect25)}</span>
                 </div>
               </div>
             </div>
+            <div className="pt-2.5 mt-3 border-t border-amber-200/60 dark:border-amber-800/40">
+              <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                -{formatCOP(totalManagementFee)}
+              </p>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Comisión total de gestión
+              </span>
+            </div>
           </div>
 
           {/* 3. Gasto de Aseo */}
-          <div className="p-4 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">Gasto de Aseo</span>
-              <div className="p-1.5 rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300">
-                <Sparkles className="w-4 h-4" />
+          <div className="p-4 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200/60 dark:border-teal-800/40 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-teal-700 dark:text-teal-300">Gasto de Aseo</span>
+                <div className="p-1.5 rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Estadías del período:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {filteredBookings.length} {filteredBookings.length === 1 ? 'estadía' : 'estadías'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Tarifa estándar:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {formatCOP(property?.default_cleaning_fee ?? 60000)}
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="mt-2">
+            <div className="pt-2.5 mt-3 border-t border-teal-200/60 dark:border-teal-800/40">
               <p className="text-xl font-bold text-slate-900 dark:text-white">
                 {formatCOP(totalGuestCleaningFee)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Tarifa aseo huéspedes ({filteredBookings.length} {filteredBookings.length === 1 ? 'estadía' : 'estadías'})
+                Recaudado por huéspedes
               </span>
             </div>
           </div>
 
           {/* 4. Gastos Mensuales (Agua, Luz, Gas, etc.) */}
-          <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/40 flex flex-col justify-between">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Gastos Mensuales</span>
-              <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300">
-                <Receipt className="w-4 h-4" />
+          <div className="p-4 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/40 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Gastos Mensuales</span>
+                <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300">
+                  <Receipt className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3 space-y-1 text-[11px]">
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Adm Edificio:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(hoaExpenses)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Servicios Públicos:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(utilitiesExpenses)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span>Internet y Otros:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(otherExpenses)}</span>
+                </div>
               </div>
             </div>
-            <div className="mt-2">
+            <div className="pt-2.5 mt-3 border-t border-rose-200/60 dark:border-rose-800/40">
               <p className="text-xl font-bold text-rose-600 dark:text-rose-400">
-                {formatCOP(totalExpenses)}
+                -{formatCOP(totalExpenses)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Agua, Luz, Gas, Internet y Fijos
+                Total gastos del período
               </span>
             </div>
           </div>

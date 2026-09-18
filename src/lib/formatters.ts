@@ -95,6 +95,39 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   occasional: 'Insumo Ocasional',
 };
 
+export function getDefaultExpenseDescription(cat: ExpenseCategory, monthStr?: string | null): string {
+  const catInfo = CATEGORY_LABELS[cat];
+  const catLabel = catInfo?.label || 'Gasto';
+  const monthFormatted = monthStr ? formatMonthYear(monthStr) : '';
+
+  if (!monthFormatted) return catLabel;
+
+  switch (cat) {
+    case 'hoa_administration':
+      return `Administración Edificio - ${monthFormatted}`;
+    case 'electricity':
+      return `Factura Energía / Luz (EPM) - ${monthFormatted}`;
+    case 'water':
+      return `Factura Agua y Alcantarillado (EPM) - ${monthFormatted}`;
+    case 'gas':
+      return `Factura Gas Natural (EPM) - ${monthFormatted}`;
+    case 'internet_cable':
+      return `Internet Fibra Óptica - ${monthFormatted}`;
+    case 'insurance_annual':
+      return `Póliza Seguro Todo Riesgo - ${monthFormatted}`;
+    case 'cleaning_laundry':
+      return `Limpieza y Lavandería - ${monthFormatted}`;
+    case 'supplies_restock':
+      return `Insumos y Reposición - ${monthFormatted}`;
+    case 'maintenance_repairs':
+      return `Mantenimiento y Reparaciones - ${monthFormatted}`;
+    case 'platform_fees':
+      return `Comisiones y Tasas - ${monthFormatted}`;
+    default:
+      return `${catLabel} - ${monthFormatted}`;
+  }
+}
+
 export const SEVERITY_CONFIG: Record<DamageSeverity, { label: string; color: string; badgeClass: string }> = {
   low: { label: 'Leve', color: 'emerald', badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' },
   medium: { label: 'Medio', color: 'amber', badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' },

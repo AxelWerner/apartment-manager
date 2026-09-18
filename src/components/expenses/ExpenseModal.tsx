@@ -7,41 +7,8 @@ import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import type { Expense, ExpenseCategory, ExpenseType, PaymentStatus, RecurrencePeriod } from '@/types/database';
 import { useCreateExpense, useUpdateExpense } from '@/hooks/use-expenses';
 import { useBookings } from '@/hooks/use-bookings';
-import { CATEGORY_LABELS, formatMonthYear } from '@/lib/formatters';
+import { CATEGORY_LABELS, getDefaultExpenseDescription } from '@/lib/formatters';
 import { toast } from 'sonner';
-
-export function getDefaultExpenseDescription(cat: ExpenseCategory, monthStr?: string | null): string {
-  const catInfo = CATEGORY_LABELS[cat];
-  const catLabel = catInfo?.label || 'Gasto';
-  const monthFormatted = monthStr ? formatMonthYear(monthStr) : '';
-
-  if (!monthFormatted) return catLabel;
-
-  switch (cat) {
-    case 'hoa_administration':
-      return `Administración Edificio - ${monthFormatted}`;
-    case 'electricity':
-      return `Factura Energía / Luz (EPM) - ${monthFormatted}`;
-    case 'water':
-      return `Factura Agua y Alcantarillado (EPM) - ${monthFormatted}`;
-    case 'gas':
-      return `Factura Gas Natural (EPM) - ${monthFormatted}`;
-    case 'internet_cable':
-      return `Internet Fibra Óptica - ${monthFormatted}`;
-    case 'insurance_annual':
-      return `Póliza Seguro Todo Riesgo - ${monthFormatted}`;
-    case 'cleaning_laundry':
-      return `Limpieza y Lavandería - ${monthFormatted}`;
-    case 'supplies_restock':
-      return `Insumos y Reposición - ${monthFormatted}`;
-    case 'maintenance_repairs':
-      return `Mantenimiento y Reparaciones - ${monthFormatted}`;
-    case 'platform_fees':
-      return `Comisiones y Tasas - ${monthFormatted}`;
-    default:
-      return `${catLabel} - ${monthFormatted}`;
-  }
-}
 
 interface ExpenseModalProps {
   isOpen: boolean;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   CalendarDays,
   Plus,
@@ -14,6 +14,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Calculator,
+  Eye,
 } from 'lucide-react';
 import { useBookings, useDeleteBooking, useClearBookings } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
@@ -39,6 +41,47 @@ export default function Bookings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
+
+  // Revenue calculation display mode: compact ('solo neto') vs breakdown ('desglose')
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [rowBreakdownOverrides, setRowBreakdownOverrides] = useState<Record<string, boolean>>({});
+
+  // Context menu state for right-click interaction
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    booking: Booking;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    window.addEventListener('click', handleClose);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const toggleRowBreakdown = (bookingId: string) => {
+    setRowBreakdownOverrides((prev) => {
+      const current = prev[bookingId] !== undefined ? prev[bookingId] : showBreakdown;
+      return {
+        ...prev,
+        [bookingId]: !current,
+      };
+    });
+  };
+
+  const isRowInBreakdownMode = (bookingId: string) => {
+    if (rowBreakdownOverrides[bookingId] !== undefined) {
+      return rowBreakdownOverrides[bookingId];
+    }
+    return showBreakdown;
+  };
 
   // Sorting state
   type SortField = 'guest_name' | 'check_in' | 'number_of_nights' | 'nightly_rate' | 'net_payout';
@@ -112,13 +155,6 @@ export default function Bookings() {
   });
 
   // KPI aggregates
-  const totalAirbnbPayout = bookings
-    .filter((b) => !b.source?.startsWith('direct'))
-    .reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
-  const totalDirectPayout = bookings
-    .filter((b) => b.source?.startsWith('direct'))
-    .reduce((sum, b) => sum + (Number(b.net_payout) || 0), 0);
-
   const totalManagementFee = bookings.reduce((sum, b) => sum + getManagementFee(b), 0);
   const totalOwnerPayout = bookings.reduce((sum, b) => sum + getOwnerNet(b), 0);
   const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
@@ -132,6 +168,16 @@ export default function Bookings() {
   const managementFeeDirect25 = bookings
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getManagementFee(b), 0);
+
+  const ownerPayoutAirbnb = bookings
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + getOwnerNet(b), 0);
+  const ownerPayoutDirect10 = bookings
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + getOwnerNet(b), 0);
+  const ownerPayoutDirect25 = bookings
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + getOwnerNet(b), 0);
 
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`¿Estás seguro de eliminar la reserva de ${name}?`)) {
@@ -158,7 +204,8 @@ export default function Bookings() {
   const renderSortHeader = (
     field: SortField,
     label: string,
-    align: 'left' | 'center' | 'right' = 'left'
+    align: 'left' | 'center' | 'right' = 'left',
+    extraAction?: React.ReactNode
   ) => {
     const isActive = sortField === field;
     return (
@@ -187,6 +234,7 @@ export default function Bookings() {
           ) : (
             <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
           )}
+          {extraAction}
         </div>
       </th>
     );
@@ -239,54 +287,110 @@ export default function Bookings() {
       </div>
 
       {/* Summary KPI Pills */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
-            <CalendarDays className="w-5 h-5" />
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
-            <p className="text-xs text-slate-500 font-medium">Total Reservas</p>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{bookings.length}</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Total Reservas</span>
+              <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
+                <CalendarDays className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-[11px] text-slate-400">
+              <p>Historial y reservas activas</p>
+            </div>
+          </div>
+          <div className="pt-2.5 mt-3 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-xl font-bold text-slate-900 dark:text-white">{bookings.length}</p>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {bookings.length === 1 ? 'Reserva registrada' : 'Reservas registradas'}
+            </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
-            <Moon className="w-5 h-5" />
-          </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
-            <p className="text-xs text-slate-500 font-medium">Noches Totales</p>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{totalNights} noches</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Noches Totales</span>
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
+                <Moon className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-[11px] text-slate-400">
+              <p>Total estadías acumuladas</p>
+            </div>
+          </div>
+          <div className="pt-2.5 mt-3 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-xl font-bold text-slate-900 dark:text-white">{totalNights} noches</p>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Noches vendidas
+            </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center">
-            <Percent className="w-5 h-5" />
-          </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
-            <p className="text-xs text-slate-500 font-medium">Gasto de Administración</p>
-            <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Gasto de Administración</span>
+              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center">
+                <Percent className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-[11px]">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Airbnb (20%):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeAirbnb)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Directas (10%):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect10)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Directas (25%):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(managementFeeDirect25)}</span>
+              </div>
+            </div>
+          </div>
+          <div className="pt-2.5 mt-3 border-t border-amber-100 dark:border-amber-900/40">
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
               -{formatCOP(totalManagementFee)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Airbnb (20%): {formatCOP(managementFeeAirbnb)} | Dir. 10%: {formatCOP(managementFeeDirect10)} | Dir. 25%: {formatCOP(managementFeeDirect25)}
-            </p>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Comisión acumulada
+            </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
-            <DollarSign className="w-5 h-5" />
-          </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full">
           <div>
-            <p className="text-xs text-slate-500 font-medium">Ingresos de Alojamiento</p>
-            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Ingresos de Alojamiento</span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-[11px]">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Airbnb:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutAirbnb)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Directas (10%):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect10)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                <span>Directas (25%):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{formatCOP(ownerPayoutDirect25)}</span>
+              </div>
+            </div>
+          </div>
+          <div className="pt-2.5 mt-3 border-t border-emerald-100 dark:border-emerald-900/40">
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
               {formatCOP(totalOwnerPayout)}
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Airbnb: {formatCOP(totalAirbnbPayout)} | Directas: {formatCOP(totalDirectPayout)}
-            </p>
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Neto acumulado
+            </span>
           </div>
         </div>
       </div>
@@ -304,30 +408,67 @@ export default function Bookings() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-          <select
-            value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
-          >
-            <option value="all">Todos los orígenes</option>
-            <option value="airbnb">Airbnb (20%)</option>
-            <option value="direct_all">Todas las Directas</option>
-            <option value="direct_10">Directas (10%)</option>
-            <option value="direct_25">Directas (25%)</option>
-          </select>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
-          >
-            <option value="all">Todos los estados</option>
-            <option value="confirmed">Confirmadas</option>
-            <option value="checked_in">En el Apartamento</option>
-            <option value="completed">Completadas</option>
-            <option value="cancelled">Canceladas</option>
-          </select>
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Toggle Vista Neto / Desglose */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setShowBreakdown(false);
+                setRowBreakdownOverrides({});
+              }}
+              title="Mostrar únicamente el valor neto de alojamiento"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                !showBreakdown
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>Solo Neto</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowBreakdown(true);
+                setRowBreakdownOverrides({});
+              }}
+              title="Mostrar desglose de Bruto, Aseo, Adm y Neto"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                showBreakdown
+                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Ver Desglose</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+            <select
+              value={selectedChannel}
+              onChange={(e) => setSelectedChannel(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Todos los orígenes</option>
+              <option value="airbnb">Airbnb (20%)</option>
+              <option value="direct_all">Todas las Directas</option>
+              <option value="direct_10">Directas (10%)</option>
+              <option value="direct_25">Directas (25%)</option>
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Todos los estados</option>
+              <option value="confirmed">Confirmadas</option>
+              <option value="checked_in">En el Apartamento</option>
+              <option value="completed">Completadas</option>
+              <option value="cancelled">Canceladas</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -351,7 +492,27 @@ export default function Bookings() {
                   {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
                   {renderSortHeader('number_of_nights', 'Noches', 'center')}
                   {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
-                  {renderSortHeader('net_payout', 'Ingresos de Alojamiento', 'right')}
+                  {renderSortHeader(
+                    'net_payout',
+                    'Ingresos de Alojamiento',
+                    'right',
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowBreakdown((prev) => !prev);
+                        setRowBreakdownOverrides({});
+                      }}
+                      title={showBreakdown ? 'Cambiar a vista Solo Neto' : 'Ver desglose de cálculo'}
+                      className={`p-1 rounded-md transition-colors ml-0.5 ${
+                        showBreakdown
+                          ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70'
+                          : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <th className="px-4 py-3.5 text-center">Estado</th>
                   <th className="px-4 py-3.5 text-right">Acciones</th>
                 </tr>
@@ -367,9 +528,25 @@ export default function Bookings() {
                   const ownerNet = getOwnerNet(b);
                   const realNightlyRate =
                     b.number_of_nights > 0 ? Math.round(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
+                  const isBreakdown = isRowInBreakdownMode(b.id);
+                  const bruto = Number(b.net_payout) || 0;
+                  const aseo = Number(b.cleaning_fee_collected) || 0;
+                  const admFee = getManagementFee(b);
+                  const commissionPercent = Math.round(sourceInfo.commissionRate * 100);
 
                   return (
-                    <tr key={b.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr
+                      key={b.id}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          booking: b,
+                        });
+                      }}
+                      className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                    >
                       {/* Guest & Channel / Code */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
@@ -385,32 +562,35 @@ export default function Bookings() {
                             {b.guest_name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-semibold text-slate-900 dark:text-white leading-tight">
-                                {b.guest_name}
-                              </p>
+                            <p className="font-semibold text-slate-900 dark:text-white leading-tight">
+                              {b.guest_name}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                               <span className={`inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold ${sourceInfo.badgeClass}`}>
                                 {sourceInfo.label}
                               </span>
+                              {b.airbnb_confirmation_code && (
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  {b.airbnb_confirmation_code}
+                                </span>
+                              )}
                             </div>
-                            {b.airbnb_confirmation_code && (
-                              <p className="text-[11px] font-mono text-slate-400 mt-0.5">
-                                {b.airbnb_confirmation_code}
-                              </p>
-                            )}
                           </div>
                         </div>
                       </td>
 
                       {/* Dates */}
-                      <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
-                          {formatDate(b.check_in)}
-                        </span>
-                        <span className="text-slate-400 mx-1">→</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-200">
-                          {formatDate(b.check_out)}
-                        </span>
+                      <td className="px-4 py-3.5 text-xs">
+                        <div className="flex flex-col space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                            <span className="text-[10px] font-semibold text-slate-400">Entrada:</span>
+                            <span className="font-medium">{formatDate(b.check_in)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                            <span className="text-[10px] font-semibold text-slate-400">Salida:</span>
+                            <span className="font-medium">{formatDate(b.check_out)}</span>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Nights */}
@@ -431,19 +611,59 @@ export default function Bookings() {
                         </div>
                       </td>
 
-                      {/* Net Payout (Neto Dueño) */}
-                      <td className="px-4 py-3.5 text-right font-bold text-xs">
-                        <div className="flex flex-col items-end">
-                          <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold">
-                            {formatCOP(ownerNet)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {sourceInfo.shortLabel}: {formatCOP(b.net_payout)}{' '}
-                            <span className="text-amber-500 font-medium">
-                              (-{Math.round(sourceInfo.commissionRate * 100)}% & aseo)
+                      {/* Net Payout (Neto de Alojamiento / Desglose de Cálculo) */}
+                      <td
+                        className="px-4 py-3.5 text-right font-bold text-xs cursor-pointer select-none"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRowBreakdown(b.id);
+                        }}
+                        title={
+                          isBreakdown
+                            ? 'Clic para ver solo neto'
+                            : 'Clic para ver desglose de cálculo'
+                        }
+                      >
+                        {isBreakdown ? (
+                          <div className="flex flex-col items-end space-y-1 font-mono text-xs select-text">
+                            <div className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-300 w-full min-w-[150px]">
+                              <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400 font-normal">
+                                Bruto:
+                              </span>
+                              <span className="font-medium text-slate-800 dark:text-slate-200">
+                                {formatCOP(bruto)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 w-full min-w-[150px]">
+                              <span className="text-[11px] font-sans text-rose-500 dark:text-rose-400 font-normal">
+                                Aseo:
+                              </span>
+                              <span className="font-medium">
+                                -{formatCOP(aseo)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 text-amber-600 dark:text-amber-400 w-full min-w-[150px]">
+                              <span className="text-[11px] font-sans text-amber-600 dark:text-amber-400 font-normal">
+                                Adm ({commissionPercent}%):
+                              </span>
+                              <span className="font-medium">
+                                -{formatCOP(admFee)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-700/80 text-emerald-600 dark:text-emerald-400 w-full min-w-[150px]">
+                              <span className="text-xs font-sans font-bold">Neto:</span>
+                              <span className="text-sm font-bold font-sans">
+                                {formatCOP(ownerNet)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-end group/cell">
+                            <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold transition-transform group-hover/cell:scale-105">
+                              {formatCOP(ownerNet)}
                             </span>
-                          </span>
-                        </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -485,6 +705,75 @@ export default function Bookings() {
           </div>
         )}
       </div>
+
+      {/* Context Menu (Click Derecho) */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl py-1.5 min-w-[220px] text-xs animate-in fade-in zoom-in-95 duration-100 select-none"
+          style={{
+            top: Math.min(contextMenu.y, window.innerHeight - 200),
+            left: Math.min(contextMenu.x, window.innerWidth - 230),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+            {contextMenu.booking.guest_name}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              toggleRowBreakdown(contextMenu.booking.id);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+          >
+            <Calculator className="w-3.5 h-3.5 text-emerald-600" />
+            <span>
+              {isRowInBreakdownMode(contextMenu.booking.id)
+                ? 'Ocultar desglose de cálculo'
+                : 'Ver desglose de cálculo'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowBreakdown((prev) => !prev);
+              setRowBreakdownOverrides({});
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 text-indigo-600" />
+            <span>
+              {showBreakdown ? 'Cambiar todas a Solo Neto' : 'Cambiar todas a Desglose'}
+            </span>
+          </button>
+          <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+          <button
+            type="button"
+            onClick={() => {
+              setBookingToEdit(contextMenu.booking);
+              setIsModalOpen(true);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+          >
+            <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+            <span>Editar reserva</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              handleDelete(contextMenu.booking.id, contextMenu.booking.guest_name);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Eliminar reserva</span>
+          </button>
+        </div>
+      )}
 
       {/* Modals */}
       <BookingModal

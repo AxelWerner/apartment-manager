@@ -113,14 +113,16 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('Desglose Financiero y Gastos del Período')).toBeInTheDocument();
     expect(screen.getByText('Ganancia Neta')).toBeInTheDocument();
     expect(screen.getByText('Ingresos de Alojamiento')).toBeInTheDocument();
-    expect(screen.getByText(/Neto propietarios/i)).toBeInTheDocument();
-    expect(screen.getByText(/Bruto \(100%\):/i)).toBeInTheDocument();
+    expect(screen.getByText(/Neto total propietarios/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bruto total:/i)).toBeInTheDocument();
     expect(screen.getByText('Gasto de Administración')).toBeInTheDocument();
     expect(screen.getByText('Airbnb (20%):')).toBeInTheDocument();
-    expect(screen.getByText('Directas (10%):')).toBeInTheDocument();
-    expect(screen.getByText('Directas (25%):')).toBeInTheDocument();
+    expect(screen.getAllByText('Directas (10%):').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Directas (25%):').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Gasto de Aseo')).toBeInTheDocument();
     expect(screen.getByText('Gastos Mensuales')).toBeInTheDocument();
+    expect(screen.getByText('Adm Edificio:')).toBeInTheDocument();
+    expect(screen.getByText('Servicios Públicos:')).toBeInTheDocument();
 
     // Assert ADR and RevPAR are removed
     expect(screen.queryByText(/Tarifa Diaria \(ADR\)/i)).not.toBeInTheDocument();

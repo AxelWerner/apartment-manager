@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ExpenseModal, getDefaultExpenseDescription } from './ExpenseModal';
+import { ExpenseModal } from './ExpenseModal';
+import { getDefaultExpenseDescription } from '@/lib/formatters';
 import { renderWithProviders } from '@/test/test-utils';
 
 vi.mock('@/hooks/use-expenses', () => ({
