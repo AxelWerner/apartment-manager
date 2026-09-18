@@ -280,7 +280,7 @@ export default function Bookings() {
             <DollarSign className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs text-slate-500 font-medium">Valor Neto Propietarios</p>
+            <p className="text-xs text-slate-500 font-medium">Ingresos de Alojamiento</p>
             <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
               {formatCOP(totalOwnerPayout)}
             </p>
@@ -351,7 +351,7 @@ export default function Bookings() {
                   {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
                   {renderSortHeader('number_of_nights', 'Noches', 'center')}
                   {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
-                  {renderSortHeader('net_payout', 'Valor Neto Propietario', 'right')}
+                  {renderSortHeader('net_payout', 'Ingresos de Alojamiento', 'right')}
                   <th className="px-4 py-3.5 text-center">Estado</th>
                   <th className="px-4 py-3.5 text-right">Acciones</th>
                 </tr>

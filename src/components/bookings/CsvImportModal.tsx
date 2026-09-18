@@ -406,7 +406,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                 </p>
               </div>
               <div>
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Valor Neto</p>
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Ingresos de Alojamiento</p>
                 <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                   {formatCOP(parsedRows.reduce((sum, r) => sum + (r.owner_payout || 0), 0))}
                 </p>
@@ -422,7 +422,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300">Fechas</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-right">Airbnb (Betrag)</th>
                     <th className="p-2.5 font-semibold text-amber-600 dark:text-amber-400 text-right">Adm. (20%)</th>
-                    <th className="p-2.5 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Valor Neto</th>
+                    <th className="p-2.5 font-semibold text-emerald-600 dark:text-emerald-400 text-right">Ingresos de Alojamiento</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-right">Tarifa / Noche</th>
                     <th className="p-2.5 font-semibold text-slate-600 dark:text-slate-300 text-center">Estado</th>
                   </tr>

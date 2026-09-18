@@ -400,7 +400,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
             <span className="font-semibold">-{formatCOP(effectiveManagementFee)} COP</span>
           </div>
           <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-            <span>Valor Neto Propietario ({Math.round(ownerPayoutRate * 100)}%):</span>
+            <span>Ingresos de Alojamiento ({Math.round(ownerPayoutRate * 100)}%):</span>
             <span>{formatCOP(effectiveOwnerPayout)} COP</span>
           </div>
           {numberOfNights > 0 && (
