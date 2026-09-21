@@ -76,134 +76,146 @@ async function runSeed() {
   }
 
   console.log('--- 3. INSERT BOOKINGS ---');
-  // Check if bookings already exist
-  const { data: existingBookings } = await supabase
-    .from('bookings')
-    .select('id, airbnb_confirmation_code');
-
   const bookingIdMap = new Map<string, string>(); // mockId -> real UUID
 
-  if (existingBookings && existingBookings.length > 0) {
-    console.log(`Found ${existingBookings.length} existing bookings.`);
-    for (const b of existingBookings) {
-      if (b.airbnb_confirmation_code) {
+  if (INITIAL_BOOKINGS.length === 0) {
+    console.log('No bookings to insert (INITIAL_BOOKINGS is empty).');
+  } else {
+    // Check if bookings already exist
+    const { data: existingBookings } = await supabase
+      .from('bookings')
+      .select('id, airbnb_confirmation_code');
+
+    if (existingBookings && existingBookings.length > 0) {
+      console.log(`Found ${existingBookings.length} existing bookings.`);
+      for (const b of existingBookings) {
+        if (b.airbnb_confirmation_code) {
+          const mockMatch = INITIAL_BOOKINGS.find((mb) => mb.airbnb_confirmation_code === b.airbnb_confirmation_code);
+          if (mockMatch) {
+            bookingIdMap.set(mockMatch.id, b.id);
+          }
+        }
+      }
+    } else {
+      const bookingsPayload = INITIAL_BOOKINGS.map((b) => ({
+        property_id: INITIAL_PROPERTY.id,
+        airbnb_confirmation_code: b.airbnb_confirmation_code,
+        guest_name: b.guest_name,
+        guest_phone: b.guest_phone,
+        number_of_guests: b.number_of_guests,
+        check_in: b.check_in,
+        check_out: b.check_out,
+        number_of_nights: b.number_of_nights,
+        nightly_rate: b.nightly_rate,
+        gross_amount: b.gross_amount,
+        cleaning_fee_collected: b.cleaning_fee_collected,
+        airbnb_service_fee: b.airbnb_service_fee,
+        taxes_withheld: b.taxes_withheld,
+        net_payout: b.net_payout,
+        status: b.status,
+        payout_status: b.payout_status,
+        payout_date: b.payout_date,
+        source: b.source,
+        notes: b.notes,
+      }));
+
+      const { data: insertedBookings, error: insertBookingsError } = await supabase
+        .from('bookings')
+        .insert(bookingsPayload)
+        .select('id, airbnb_confirmation_code');
+
+      if (insertBookingsError) {
+        console.error('Failed to insert bookings:', insertBookingsError);
+        process.exit(1);
+      }
+
+      console.log(`Successfully inserted ${insertedBookings?.length} bookings.`);
+
+      // Build mockId -> inserted UUID map
+      for (const b of insertedBookings || []) {
         const mockMatch = INITIAL_BOOKINGS.find((mb) => mb.airbnb_confirmation_code === b.airbnb_confirmation_code);
         if (mockMatch) {
           bookingIdMap.set(mockMatch.id, b.id);
         }
       }
     }
-  } else {
-    const bookingsPayload = INITIAL_BOOKINGS.map((b) => ({
-      property_id: INITIAL_PROPERTY.id,
-      airbnb_confirmation_code: b.airbnb_confirmation_code,
-      guest_name: b.guest_name,
-      guest_phone: b.guest_phone,
-      number_of_guests: b.number_of_guests,
-      check_in: b.check_in,
-      check_out: b.check_out,
-      number_of_nights: b.number_of_nights,
-      nightly_rate: b.nightly_rate,
-      gross_amount: b.gross_amount,
-      cleaning_fee_collected: b.cleaning_fee_collected,
-      airbnb_service_fee: b.airbnb_service_fee,
-      taxes_withheld: b.taxes_withheld,
-      net_payout: b.net_payout,
-      status: b.status,
-      payout_status: b.payout_status,
-      payout_date: b.payout_date,
-      source: b.source,
-      notes: b.notes,
-    }));
-
-    const { data: insertedBookings, error: insertBookingsError } = await supabase
-      .from('bookings')
-      .insert(bookingsPayload)
-      .select('id, airbnb_confirmation_code');
-
-    if (insertBookingsError) {
-      console.error('Failed to insert bookings:', insertBookingsError);
-      process.exit(1);
-    }
-
-    console.log(`Successfully inserted ${insertedBookings?.length} bookings.`);
-
-    // Build mockId -> inserted UUID map
-    for (const b of insertedBookings || []) {
-      const mockMatch = INITIAL_BOOKINGS.find((mb) => mb.airbnb_confirmation_code === b.airbnb_confirmation_code);
-      if (mockMatch) {
-        bookingIdMap.set(mockMatch.id, b.id);
-      }
-    }
   }
 
   console.log('--- 4. INSERT EXPENSES ---');
-  const { data: existingExpenses } = await supabase.from('expenses').select('id').limit(1);
-
-  if (existingExpenses && existingExpenses.length > 0) {
-    console.log('Expenses already exist, skipping insert.');
+  if (INITIAL_EXPENSES.length === 0) {
+    console.log('No expenses to insert (INITIAL_EXPENSES is empty).');
   } else {
-    const expensesPayload = INITIAL_EXPENSES.map((exp) => ({
-      property_id: INITIAL_PROPERTY.id,
-      category: exp.category,
-      expense_type: exp.expense_type,
-      description: exp.description,
-      amount: exp.amount,
-      date: exp.date,
-      due_date: exp.due_date,
-      billing_month: exp.billing_month,
-      payment_status: exp.payment_status,
-      is_recurring: exp.is_recurring,
-      recurrence_period: exp.recurrence_period,
-      linked_booking_id: exp.linked_booking_id ? bookingIdMap.get(exp.linked_booking_id) || null : null,
-      receipt_url: exp.receipt_url,
-      notes: exp.notes,
-    }));
+    const { data: existingExpenses } = await supabase.from('expenses').select('id').limit(1);
 
-    const { data: insertedExpenses, error: expError } = await supabase
-      .from('expenses')
-      .insert(expensesPayload)
-      .select('id');
+    if (existingExpenses && existingExpenses.length > 0) {
+      console.log('Expenses already exist, skipping insert.');
+    } else {
+      const expensesPayload = INITIAL_EXPENSES.map((exp) => ({
+        property_id: INITIAL_PROPERTY.id,
+        category: exp.category,
+        expense_type: exp.expense_type,
+        description: exp.description,
+        amount: exp.amount,
+        date: exp.date,
+        due_date: exp.due_date,
+        billing_month: exp.billing_month,
+        payment_status: exp.payment_status,
+        is_recurring: exp.is_recurring,
+        recurrence_period: exp.recurrence_period,
+        linked_booking_id: exp.linked_booking_id ? bookingIdMap.get(exp.linked_booking_id) || null : null,
+        receipt_url: exp.receipt_url,
+        notes: exp.notes,
+      }));
 
-    if (expError) {
-      console.error('Failed to insert expenses:', expError);
-      process.exit(1);
+      const { data: insertedExpenses, error: expError } = await supabase
+        .from('expenses')
+        .insert(expensesPayload)
+        .select('id');
+
+      if (expError) {
+        console.error('Failed to insert expenses:', expError);
+        process.exit(1);
+      }
+      console.log(`Successfully inserted ${insertedExpenses?.length} expenses.`);
     }
-    console.log(`Successfully inserted ${insertedExpenses?.length} expenses.`);
   }
 
   console.log('--- 5. INSERT DAMAGES ---');
-  const { data: existingDamages } = await supabase.from('damages').select('id').limit(1);
-
-  if (existingDamages && existingDamages.length > 0) {
-    console.log('Damages already exist, skipping insert.');
+  if (INITIAL_DAMAGES.length === 0) {
+    console.log('No damages to insert (INITIAL_DAMAGES is empty).');
   } else {
-    const damagesPayload = INITIAL_DAMAGES.map((dmg) => ({
-      property_id: INITIAL_PROPERTY.id,
-      linked_booking_id: dmg.linked_booking_id ? bookingIdMap.get(dmg.linked_booking_id) || null : null,
-      title: dmg.title,
-      description: dmg.description,
-      date_discovered: dmg.date_discovered,
-      severity: dmg.severity,
-      estimated_repair_cost: dmg.estimated_repair_cost,
-      actual_repair_cost: dmg.actual_repair_cost,
-      reimbursement_amount: dmg.reimbursement_amount,
-      claim_status: dmg.claim_status,
-      aircover_case_number: dmg.aircover_case_number,
-      resolution_notes: dmg.resolution_notes,
-      photo_urls: dmg.photo_urls,
-    }));
+    const { data: existingDamages } = await supabase.from('damages').select('id').limit(1);
 
-    const { data: insertedDamages, error: dmgError } = await supabase
-      .from('damages')
-      .insert(damagesPayload)
-      .select('id');
+    if (existingDamages && existingDamages.length > 0) {
+      console.log('Damages already exist, skipping insert.');
+    } else {
+      const damagesPayload = INITIAL_DAMAGES.map((dmg) => ({
+        property_id: INITIAL_PROPERTY.id,
+        linked_booking_id: dmg.linked_booking_id ? bookingIdMap.get(dmg.linked_booking_id) || null : null,
+        title: dmg.title,
+        description: dmg.description,
+        date_discovered: dmg.date_discovered,
+        severity: dmg.severity,
+        estimated_repair_cost: dmg.estimated_repair_cost,
+        actual_repair_cost: dmg.actual_repair_cost,
+        reimbursement_amount: dmg.reimbursement_amount,
+        claim_status: dmg.claim_status,
+        aircover_case_number: dmg.aircover_case_number,
+        resolution_notes: dmg.resolution_notes,
+        photo_urls: dmg.photo_urls,
+      }));
 
-    if (dmgError) {
-      console.error('Failed to insert damages:', dmgError);
-      process.exit(1);
+      const { data: insertedDamages, error: dmgError } = await supabase
+        .from('damages')
+        .insert(damagesPayload)
+        .select('id');
+
+      if (dmgError) {
+        console.error('Failed to insert damages:', dmgError);
+        process.exit(1);
+      }
+      console.log(`Successfully inserted ${insertedDamages?.length} damages.`);
     }
-    console.log(`Successfully inserted ${insertedDamages?.length} damages.`);
   }
 
   console.log('\n🎉 ¡Base de datos de Supabase totalmente poblada y sincronizada!');

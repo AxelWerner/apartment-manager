@@ -23,9 +23,17 @@ try {
     if (localStorage.getItem('apt_mgr_bookings')) {
       localStorage.removeItem('apt_mgr_bookings');
     }
+    const cachedBookings = localStorage.getItem(STORAGE_KEYS.bookings);
+    if (cachedBookings && (cachedBookings.includes('b-001') || cachedBookings.includes('HMTW8FZT3Y'))) {
+      localStorage.setItem(STORAGE_KEYS.bookings, '[]');
+    }
     const cachedExp = localStorage.getItem(STORAGE_KEYS.expenses);
-    if (cachedExp && cachedExp.includes('exp-08')) {
-      localStorage.removeItem(STORAGE_KEYS.expenses);
+    if (cachedExp && (cachedExp.includes('exp-01') || cachedExp.includes('exp-08'))) {
+      localStorage.setItem(STORAGE_KEYS.expenses, '[]');
+    }
+    const cachedDamages = localStorage.getItem(STORAGE_KEYS.damages);
+    if (cachedDamages && (cachedDamages.includes('dmg-01') || cachedDamages.includes('dmg-02'))) {
+      localStorage.setItem(STORAGE_KEYS.damages, '[]');
     }
   }
 } catch {
@@ -164,7 +172,7 @@ export async function fetchBookings(): Promise<Booking[]> {
       .select('*')
       .order('check_in', { ascending: false });
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       const synced = deduplicateAndSyncBookings(data as Booking[]);
       setLocal(STORAGE_KEYS.bookings, synced);
       return synced;
@@ -342,7 +350,7 @@ export async function fetchExpenses(): Promise<Expense[]> {
       .select('*, booking:bookings(guest_name)')
       .order('date', { ascending: false });
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       setLocal(STORAGE_KEYS.expenses, data);
       return data as Expense[];
     }
@@ -433,7 +441,7 @@ export async function fetchDamages(): Promise<Damage[]> {
       .select('*, booking:bookings(guest_name, check_in, check_out)')
       .order('date_discovered', { ascending: false });
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       setLocal(STORAGE_KEYS.damages, data);
       return data as Damage[];
     }
