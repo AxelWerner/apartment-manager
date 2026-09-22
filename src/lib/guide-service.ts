@@ -11,7 +11,12 @@ function getLocalGuide(): GuestGuideData {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_GUEST_GUIDE));
       return INITIAL_GUEST_GUIDE;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      ...INITIAL_GUEST_GUIDE,
+      ...parsed,
+      key_distances: parsed.key_distances?.length ? parsed.key_distances : INITIAL_GUEST_GUIDE.key_distances,
+    };
   } catch {
     return INITIAL_GUEST_GUIDE;
   }

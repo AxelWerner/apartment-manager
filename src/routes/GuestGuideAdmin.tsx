@@ -21,9 +21,12 @@ import {
   Printer,
   LayoutTemplate,
   Clock,
+  Navigation,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { GuestGuideData } from '@/types/database';
+import type { GuestGuideData, KeyDistance } from '@/types/database';
 
 export default function GuestGuideAdmin() {
   const { data: guide, isLoading } = useGuestGuide();
@@ -42,7 +45,35 @@ export default function GuestGuideAdmin() {
     theme: 'sage',
   });
 
+  const handleUpdateDistance = (index: number, updatedItem: Partial<KeyDistance>) => {
+    if (!formData) return;
+    const list = [...(formData.key_distances || [])];
+    list[index] = { ...list[index], ...updatedItem };
+    setFormData({ ...formData, key_distances: list });
+  };
 
+  const handleAddDistance = () => {
+    if (!formData) return;
+    const newDistance: KeyDistance = {
+      id: `dist-${Date.now()}`,
+      name: '',
+      category: 'beach',
+      distance: '',
+      travel_time: '',
+      description: '',
+      maps_url: '',
+    };
+    setFormData({
+      ...formData,
+      key_distances: [...(formData.key_distances || []), newDistance],
+    });
+  };
+
+  const handleDeleteDistance = (index: number) => {
+    if (!formData) return;
+    const list = (formData.key_distances || []).filter((_, i) => i !== index);
+    setFormData({ ...formData, key_distances: list });
+  };
 
   // Initialize form state once loaded
   if (guide && !formData) {
@@ -100,6 +131,7 @@ Para que disfrutes al máximo de tu estancia, aquí tienes el enlace directo a n
 Allí encontrarás:
 📶 Nombre y contraseña de la red Wi-Fi
 🔑 Instrucciones de llegada y acceso
+📍 Distancias al aeropuerto, playas y puntos de interés
 💡 Uso de aire acondicionado y servicios
 🍽️ Recomendaciones de restaurantes y supermercados cercanos
 
@@ -483,6 +515,149 @@ Allí encontrarás:
                   placeholder="+57 300 123 4567"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* 5. Distancias a Lugares Clave */}
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <Navigation className="w-4 h-4 text-rose-500" />
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Distancias y Puntos de Interés Clave
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    Información sobre distancias al aeropuerto, centros, playas y hospitales
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddDistance}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Agregar Destino</span>
+              </button>
+            </div>
+
+            {/* List of Distances */}
+            <div className="space-y-3">
+              {(formData.key_distances || []).map((dist, idx) => (
+                <div
+                  key={dist.id || idx}
+                  className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      #{idx + 1} Lugar / Destino
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDistance(idx)}
+                      className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                      title="Eliminar este lugar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Nombre del Lugar o Punto de Interés *
+                      </label>
+                      <input
+                        type="text"
+                        value={dist.name}
+                        onChange={(e) => handleUpdateDistance(idx, { name: e.target.value })}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        placeholder="Ej: Aeropuerto Internacional Simón Bolívar (SMR)"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Categoría
+                      </label>
+                      <select
+                        value={dist.category}
+                        onChange={(e) =>
+                          handleUpdateDistance(idx, {
+                            category: e.target.value as KeyDistance['category'],
+                          })
+                        }
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                      >
+                        <option value="airport">✈️ Aeropuerto</option>
+                        <option value="beach">🏖️ Playa</option>
+                        <option value="center">🏙️ Centro Urbano</option>
+                        <option value="hospital">🏥 Salud / Urgencias</option>
+                        <option value="attraction">🌴 Turismo / Naturaleza</option>
+                        <option value="supermarket">🛒 Supermercado</option>
+                        <option value="transport">🚗 Transporte</option>
+                        <option value="other">📍 Otro</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Distancia (km / metros) *
+                      </label>
+                      <input
+                        type="text"
+                        value={dist.distance}
+                        onChange={(e) => handleUpdateDistance(idx, { distance: e.target.value })}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        placeholder="Ej: 10 km o 50 metros"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Tiempo Estimado de Traslado
+                      </label>
+                      <input
+                        type="text"
+                        value={dist.travel_time || ''}
+                        onChange={(e) => handleUpdateDistance(idx, { travel_time: e.target.value })}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        placeholder="Ej: 15 min en taxi / 2 min a pie"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Enlace Google Maps (Opcional)
+                      </label>
+                      <input
+                        type="url"
+                        value={dist.maps_url || ''}
+                        onChange={(e) => handleUpdateDistance(idx, { maps_url: e.target.value })}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        placeholder="https://maps.google.com/..."
+                      />
+                    </div>
+
+                    <div className="sm:col-span-3">
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                        Descripción o Tips para el Huésped
+                      </label>
+                      <input
+                        type="text"
+                        value={dist.description || ''}
+                        onChange={(e) => handleUpdateDistance(idx, { description: e.target.value })}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                        placeholder="Ej: Terminal aérea con vuelos directos a Bogotá, Medellín y Cali."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

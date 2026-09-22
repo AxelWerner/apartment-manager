@@ -4,6 +4,7 @@ import { useGuestGuide } from '@/hooks/use-guest-guide';
 import { WifiCard } from '@/components/guide/WifiCard';
 import { HouseRulesSection } from '@/components/guide/HouseRulesSection';
 import { AppliancesGuideSection } from '@/components/guide/AppliancesGuideSection';
+import { KeyDistancesSection } from '@/components/guide/KeyDistancesSection';
 import { LocalRecommendationsSection } from '@/components/guide/LocalRecommendationsSection';
 import { EmergencyContactsSection } from '@/components/guide/EmergencyContactsSection';
 import {
@@ -24,7 +25,7 @@ import { toast } from 'sonner';
 export default function GuestPortal() {
   const { propertyId } = useParams();
   const { data: guide, isLoading } = useGuestGuide(propertyId);
-  const [activeTab, setActiveTab] = useState<'all' | 'wifi' | 'access' | 'rules' | 'appliances' | 'places' | 'emergency'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'wifi' | 'access' | 'distances' | 'rules' | 'appliances' | 'places' | 'emergency'>('all');
   const [copiedCode, setCopiedCode] = useState(false);
 
   if (isLoading || !guide) {
@@ -147,6 +148,7 @@ export default function GuestPortal() {
             { id: 'all', label: 'Todo' },
             { id: 'wifi', label: '📶 Wi-Fi' },
             { id: 'access', label: '🔑 Acceso y Llaves' },
+            { id: 'distances', label: '📍 Distancias' },
             { id: 'rules', label: '📋 Normas' },
             { id: 'appliances', label: '💡 Electrodomésticos' },
             { id: 'places', label: '🍽️ Lugares' },
@@ -320,14 +322,21 @@ export default function GuestPortal() {
           </section>
         )}
 
-        {/* 6. Local Recommendations */}
+        {/* 6. Key Distances & Points of Interest */}
+        {(activeTab === 'all' || activeTab === 'distances') && (
+          <section>
+            <KeyDistancesSection distances={guide.key_distances || []} />
+          </section>
+        )}
+
+        {/* 7. Local Recommendations */}
         {(activeTab === 'all' || activeTab === 'places') && (
           <section>
             <LocalRecommendationsSection recommendations={guide.recommendations || []} />
           </section>
         )}
 
-        {/* 7. Emergency Contacts & Airbnb Direct Chat */}
+        {/* 8. Emergency Contacts & Airbnb Direct Chat */}
         {(activeTab === 'all' || activeTab === 'emergency') && (
           <section>
             <EmergencyContactsSection

@@ -50,4 +50,20 @@ describe('GuestPortal', () => {
     expect(screen.getByText(/Código de acceso privado/i)).toBeInTheDocument();
     expect(screen.getByText(/tu anfitrión te enviará el código exclusivo de acceso/i)).toBeInTheDocument();
   });
+
+  it('renders key distances section and places', () => {
+    (useGuestGuide as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {
+        ...INITIAL_GUEST_GUIDE,
+        welcome_title: 'Reserva del Mar II',
+      },
+      isLoading: false,
+    });
+
+    renderWithProviders(<GuestPortal />);
+
+    expect(screen.getByText('Distancias y Puntos de Interés')).toBeInTheDocument();
+    expect(screen.getByText(/Aeropuerto Internacional Simón Bolívar/i)).toBeInTheDocument();
+    expect(screen.getByText('Centro Histórico de Santa Marta')).toBeInTheDocument();
+  });
 });

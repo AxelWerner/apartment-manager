@@ -182,6 +182,17 @@ export interface EmergencyContact {
   icon?: string;
 }
 
+export interface KeyDistance {
+  id: string;
+  name: string;
+  category: 'airport' | 'beach' | 'center' | 'hospital' | 'attraction' | 'supermarket' | 'transport' | 'other';
+  distance: string;
+  travel_time?: string;
+  description?: string;
+  icon?: string;
+  maps_url?: string;
+}
+
 export interface GuestGuideData {
   id?: string;
   property_id: string;
@@ -212,9 +223,11 @@ export interface GuestGuideData {
   building_amenities: string[];
   house_rules: HouseRule[];
   appliances: ApplianceGuide[];
+  key_distances?: KeyDistance[];
   recommendations: GuideRecommendation[];
   emergency_contacts: EmergencyContact[];
   
   updated_at?: string;
 }
+
 
