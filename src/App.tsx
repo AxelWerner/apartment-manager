@@ -11,6 +11,7 @@ import Settings from '@/routes/Settings';
 import GuestPortal from '@/routes/GuestPortal';
 import GuestGuideAdmin from '@/routes/GuestGuideAdmin';
 import WifiCardPage from '@/routes/WifiCardPage';
+import GuestGuidePosterPage from '@/routes/GuestGuidePosterPage';
 
 export default function App() {
   return (
@@ -20,6 +21,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/guide" element={<GuestPortal />} />
         <Route path="/guide/:propertyId" element={<GuestPortal />} />
+        <Route path="/guide/poster" element={<GuestGuidePosterPage />} />
+        <Route path="/guide/poster/:propertyId" element={<GuestGuidePosterPage />} />
         <Route path="/wifi" element={<WifiCardPage />} />
         <Route path="/wifi/:propertyId" element={<WifiCardPage />} />
 

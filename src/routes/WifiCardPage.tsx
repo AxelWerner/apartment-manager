@@ -47,13 +47,7 @@ export default function WifiCardPage() {
 
   // Standard Wi-Fi connection string: WIFI:T:WPA;S:Network;P:Password;;
   const wifiConnectQr = `WIFI:T:WPA;S:${guide.wifi_ssid};P:${guide.wifi_password};;`;
-
-  // WhatsApp link format
-  const sanitizedPhone = guide.host_phone.replace(/[^0-9]/g, '');
-  const whatsappMessage = encodeURIComponent(
-    `¡Hola ${guide.host_name || 'Anfitrión'}! Me encuentro en ${guide.welcome_title} y tengo una duda sobre el Wi-Fi o mi estadía:`
-  );
-  const whatsappUrl = `https://wa.me/${sanitizedPhone}?text=${whatsappMessage}`;
+  const airbnbChatUrl = 'https://www.airbnb.com/guest/inbox';
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -191,13 +185,13 @@ export default function WifiCardPage() {
             </Link>
 
             <a
-              href={whatsappUrl}
+              href={airbnbChatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-bold border border-emerald-500/30 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 p-3 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/30 transition-colors"
             >
-              <MessageCircle className="w-4 h-4 text-emerald-400" />
-              <span>Ayuda Anfitrión</span>
+              <MessageCircle className="w-4 h-4 text-rose-400" />
+              <span>Chat de Airbnb</span>
             </a>
           </div>
         </div>

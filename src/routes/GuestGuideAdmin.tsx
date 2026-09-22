@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { useGuestGuide, useUpdateGuestGuide } from '@/hooks/use-guest-guide';
 import { QrCodeSvg } from '@/components/guide/QrCodeSvg';
 import {
+  QrPrintTemplate,
+  type FixedTemplateOptions,
+  type TemplateVariant,
+} from '@/components/guide/QrPrintTemplate';
+import {
   Sparkles,
   Save,
   ExternalLink,
@@ -14,20 +19,30 @@ import {
   MessageCircle,
   FileText,
   Printer,
+  LayoutTemplate,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { GuestGuideData } from '@/types/database';
-
 
 export default function GuestGuideAdmin() {
   const { data: guide, isLoading } = useGuestGuide();
   const updateGuideMutation = useUpdateGuestGuide();
 
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview' | 'share'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview' | 'share' | 'poster'>('editor');
   const [formData, setFormData] = useState<GuestGuideData | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedWifiLink, setCopiedWifiLink] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
+
+  const [posterOptions, setPosterOptions] = useState<FixedTemplateOptions>({
+    variant: 'essential',
+    size: 'a5',
+    language: 'bilingual',
+    theme: 'sage',
+  });
+
+
 
   // Initialize form state once loaded
   if (guide && !formData) {
@@ -88,7 +103,7 @@ Allí encontrarás:
 💡 Uso de aire acondicionado y servicios
 🍽️ Recomendaciones de restaurantes y supermercados cercanos
 
-¡Cualquier duda que tengas, quedamos a tu completa disposición!`;
+¡Cualquier duda o asistencia que necesites, escríbenos directamente por este chat de Airbnb!`;
 
   const handleCopyMessage = async () => {
     try {
@@ -125,7 +140,17 @@ Allí encontrarás:
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/guide/poster"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold shadow-xs hover:opacity-90 transition-opacity"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir Lámina QR</span>
+          </a>
+
           <a
             href="/guide"
             target="_blank"
@@ -148,11 +173,11 @@ Allí encontrarás:
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('editor')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'editor'
               ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -164,21 +189,34 @@ Allí encontrarás:
 
         <button
           type="button"
+          onClick={() => setActiveTab('poster')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+            activeTab === 'poster'
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <LayoutTemplate className="w-4 h-4 text-rose-500" />
+          <span>Plantilla Imprimible QR</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('share')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'share'
               ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <QrCode className="w-4 h-4" />
-          <span>Código QR y Compartir</span>
+          <span>Enlaces y QR Rápido</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('preview')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'preview'
               ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -188,6 +226,7 @@ Allí encontrarás:
           <span>Previsualización Móvil</span>
         </button>
       </div>
+
 
       {/* TAB 1: EDITOR */}
       {activeTab === 'editor' && (
@@ -324,7 +363,7 @@ Allí encontrarás:
                   ¿Mostrar código de cerradura públicamente en la guía?
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Si lo desactivas, los huéspedes verán un mensaje indicando que el código se enviará en privado por el chat de Airbnb/WhatsApp.
+                  Si lo desactivas, los huéspedes verán un mensaje indicando que el código se enviará en privado por el chat de Airbnb.
                 </p>
               </div>
 
@@ -405,13 +444,17 @@ Allí encontrarás:
             </div>
           </div>
 
-          {/* 4. Host & WhatsApp Contact */}
+          {/* 4. Host & Airbnb Contact */}
           <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
-              <MessageCircle className="w-4 h-4 text-emerald-500" />
+              <MessageCircle className="w-4 h-4 text-rose-500" />
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                Contacto del Anfitrión (Botón WhatsApp)
+                Contacto del Anfitrión (Chat de Airbnb)
               </h2>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300">
+              Todas las consultas y solicitudes de los huéspedes en la guía digital se canalizan directamente al chat oficial de la reserva en Airbnb.
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -424,12 +467,13 @@ Allí encontrarás:
                   value={formData.host_name}
                   onChange={(e) => setFormData({ ...formData, host_name: e.target.value })}
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  placeholder="Ej: Axel Werner"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Número de WhatsApp (con código de país) *
+                  Teléfono de Respaldo / Emergencias
                 </label>
                 <input
                   type="text"
@@ -437,7 +481,6 @@ Allí encontrarás:
                   onChange={(e) => setFormData({ ...formData, host_phone: e.target.value })}
                   className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                   placeholder="+57 300 123 4567"
-                  required
                 />
               </div>
             </div>
@@ -457,9 +500,190 @@ Allí encontrarás:
         </form>
       )}
 
-      {/* TAB 2: SHARE & QR CODE */}
+      {/* TAB: PRINTABLE QR POSTER TEMPLATE */}
+      {activeTab === 'poster' && (
+        <div className="space-y-6">
+          {/* Header & Quick actions for Poster */}
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
+                  Lámina de Bienvenida para Marco o Mesa
+                </span>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Plantillas Fijas de Lámina Imprimible con QR
+                </h2>
+                <p className="text-xs text-slate-500 max-w-xl mt-0.5">
+                  Elige entre las 3 variantes listas para imprimir según la información que deseas destacar en el apartamento.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="/guide/poster"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Pantalla Completa</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => window.open('/guide/poster', '_blank')}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir Lámina</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2 Fixed Variants Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(
+                [
+                  {
+                    id: 'essential' as TemplateVariant,
+                    title: '1. Guía Digital e Información Clave',
+                    desc: 'QR Guía + Horarios de Entrada/Salida + Normas del Apto + Contacto',
+                    icon: Clock,
+                  },
+                  {
+                    id: 'wifi_only' as TemplateVariant,
+                    title: '2. Solo Conexión Wi-Fi',
+                    desc: 'QR Wi-Fi Directo + Red (SSID) y Clave en grande',
+                    icon: Wifi,
+                  },
+                ]
+              ).map((v) => {
+
+                const Icon = v.icon;
+                const isSelected = posterOptions.variant === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setPosterOptions({ ...posterOptions, variant: v.id })}
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                      isSelected
+                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? 'bg-white/20 text-white dark:bg-slate-900/15 dark:text-slate-900'
+                          : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold">{v.title}</p>
+                      <p
+                        className={`text-[10px] mt-0.5 leading-snug ${
+                          isSelected
+                            ? 'text-slate-300 dark:text-slate-600'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {v.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Fixed Format & Theme Picker */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Formato:</span>
+                <span className="px-2.5 py-1 rounded-lg font-semibold text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                  A5 • Bilingüe (Español + English)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Tema Pastel:</span>
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: 'sage' as const, label: 'Salvia', dot: 'bg-emerald-500' },
+                    { id: 'sky' as const, label: 'Cielo', dot: 'bg-sky-500' },
+                    { id: 'sand' as const, label: 'Arena', dot: 'bg-amber-400' },
+                    { id: 'lavender' as const, label: 'Lavanda', dot: 'bg-purple-400' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setPosterOptions({ ...posterOptions, theme: t.id })}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-xs border transition-colors cursor-pointer ${
+                        (posterOptions.theme || 'sage') === t.id
+                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${t.dot}`} />
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview of the Sheet */}
+          <div className="flex justify-center p-4 sm:p-8 bg-slate-100 dark:bg-slate-950/60 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+            <QrPrintTemplate
+              guide={formData}
+              options={posterOptions}
+              guideUrl={publicUrl}
+            />
+          </div>
+        </div>
+      )}
+
+
+      {/* TAB 3: SHARE & QUICK QR CODE */}
       {activeTab === 'share' && (
         <div className="space-y-6">
+          {/* Highlight Banner: Complete Printable Poster */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 text-white shadow-lg space-y-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-widest bg-white/20 px-2.5 py-0.5 rounded-full">
+                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                Recomendado para el Apartamento
+              </span>
+              <h3 className="text-xl font-extrabold tracking-tight">
+                Plantilla Imprimible con QR e Información Clave
+              </h3>
+              <p className="text-xs text-rose-100 max-w-xl">
+                Diseñada para marcos de fotos o atriles. Muestra el Wi-Fi, horarios, normas y contacto directamente en papel, con el QR hacia la guía interactiva completa.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('poster')}
+                className="px-4 py-2.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 text-xs font-bold shadow-md transition-all cursor-pointer"
+              >
+                Personalizar Plantilla
+              </button>
+              <a
+                href="/guide/poster"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2.5 rounded-xl bg-black/20 hover:bg-black/30 text-white transition-colors"
+                title="Abrir en pantalla completa e imprimir"
+              >
+                <Printer className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 1. In-Apartment Physical Wi-Fi QR Card */}
             <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-md flex flex-col items-center text-center space-y-4 relative overflow-hidden">
@@ -478,6 +702,7 @@ Allí encontrarás:
                   Código QR directo para imprimir y colocar en el salón o mesita de noche. Al escanearlo, el huésped entra a la página exclusiva de Wi-Fi y conexión instantánea.
                 </p>
               </div>
+
 
               {/* QR Code */}
               <div className="p-3 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 shadow-inner">
@@ -534,7 +759,7 @@ Allí encontrarás:
                   Guía Digital del Huésped
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm">
-                  Enlace completo para compartir por chat de Airbnb/WhatsApp con normas, electrodomésticos, mapas, horarios y contactos.
+                  Enlace completo para compartir por el chat de Airbnb con normas, electrodomésticos, mapas, horarios y servicios.
                 </p>
               </div>
 
@@ -574,20 +799,20 @@ Allí encontrarás:
             </div>
           </div>
 
-          {/* Airbnb / WhatsApp Welcome Template */}
+          {/* Airbnb Welcome Template */}
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-emerald-500" />
+                <MessageCircle className="w-4 h-4 text-rose-500" />
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Plantilla de Mensaje para Enviar al Huésped (Airbnb / WhatsApp)
+                  Plantilla de Mensaje para Enviar al Huésped (Chat de Airbnb)
                 </h3>
               </div>
 
               <button
                 type="button"
                 onClick={handleCopyMessage}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
                 {copiedMessage ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedMessage ? '¡Copiado!' : 'Copiar Mensaje'}</span>

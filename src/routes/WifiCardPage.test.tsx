@@ -28,6 +28,6 @@ describe('WifiCardPage', () => {
     expect(screen.getByText('Conexión Wi-Fi')).toBeInTheDocument();
     expect(screen.getByText('ReservaMar_502_5G')).toBeInTheDocument();
     expect(screen.getByText('Ver Guía Completa')).toBeInTheDocument();
-    expect(screen.getByText('Ayuda Anfitrión')).toBeInTheDocument();
+    expect(screen.getByText('Chat de Airbnb')).toBeInTheDocument();
   });
 });

@@ -252,7 +252,7 @@ export default function GuestPortal() {
                       Código de acceso privado
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Por seguridad, tu anfitrión te enviará el código exclusivo de acceso a través del chat de Airbnb o WhatsApp antes de tu llegada.
+                      Por seguridad, tu anfitrión te enviará el código exclusivo de acceso a través del chat de Airbnb antes de tu llegada.
                     </p>
                   </div>
                 </div>
@@ -327,7 +327,7 @@ export default function GuestPortal() {
           </section>
         )}
 
-        {/* 7. Emergency Contacts & WhatsApp Direct Chat */}
+        {/* 7. Emergency Contacts & Airbnb Direct Chat */}
         {(activeTab === 'all' || activeTab === 'emergency') && (
           <section>
             <EmergencyContactsSection

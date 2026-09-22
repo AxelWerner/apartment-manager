@@ -258,10 +258,10 @@ export const INITIAL_GUEST_GUIDE: import('@/types/database').GuestGuideData = {
     },
     {
       id: 'em-2',
-      title: 'WhatsApp Anfitrión (Soporte Directo)',
-      phone: '+57 300 123 4567',
-      description: 'Axel Werner - Atención y dudas de la estadía',
-      icon: 'PhoneCall',
+      title: 'Chat de Airbnb (Soporte Directo)',
+      phone: 'Chat de la Reserva',
+      description: 'Axel Werner - Atención prioritaria y dudas de la estadía',
+      icon: 'MessageSquare',
     },
     {
       id: 'em-3',
