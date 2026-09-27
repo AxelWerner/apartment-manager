@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import {
   CalendarDays,
   Plus,
@@ -16,6 +16,8 @@ import {
   ArrowDown,
   Calculator,
   Eye,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useBookings, useDeleteBooking, useClearBookings } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
@@ -23,6 +25,7 @@ import { CsvImportModal } from '@/components/bookings/CsvImportModal';
 import {
   formatCOP,
   formatDate,
+  formatMonthYear,
   BOOKING_STATUS_CONFIG,
   resolveBookingStatus,
   getBookingSourceInfo,
@@ -154,6 +157,79 @@ export default function Bookings() {
     }
     return sortDirection === 'asc' ? cmp : -cmp;
   });
+
+  // Group by month state
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+
+  const toggleMonthCollapse = (monthKey: string) => {
+    setCollapsedMonths((prev) => ({
+      ...prev,
+      [monthKey]: !prev[monthKey],
+    }));
+  };
+
+  const collapseAllMonths = () => {
+    const allCollapsed: Record<string, boolean> = {};
+    groupedBookings.forEach((g) => {
+      allCollapsed[g.monthKey] = true;
+    });
+    setCollapsedMonths(allCollapsed);
+  };
+
+  const expandAllMonths = () => {
+    setCollapsedMonths({});
+  };
+
+  const groupedBookings = useMemo(() => {
+
+    const groups: {
+      monthKey: string;
+      monthLabel: string;
+      bookings: typeof sortedBookings;
+      totalNights: number;
+      totalOwnerNet: number;
+      confirmedCount: number;
+    }[] = [];
+
+    const map = new Map<string, (typeof groups)[0]>();
+
+    sortedBookings.forEach((b) => {
+      const monthKey = b.check_in.substring(0, 7);
+      let group = map.get(monthKey);
+      if (!group) {
+        group = {
+          monthKey,
+          monthLabel: formatMonthYear(monthKey),
+          bookings: [],
+          totalNights: 0,
+          totalOwnerNet: 0,
+          confirmedCount: 0,
+        };
+        map.set(monthKey, group);
+        groups.push(group);
+      }
+      group.bookings.push(b);
+      group.totalNights += Number(b.number_of_nights) || 0;
+      group.totalOwnerNet += getOwnerNet(b);
+      if (b.status === 'confirmed' || b.status === 'checked_in') {
+        group.confirmedCount += 1;
+      }
+    });
+
+    // Sort month groups:
+    // If user is sorting by check_in, respect sortDirection
+    // Otherwise default to newest month first (desc)
+    groups.sort((a, b) => {
+      if (sortField === 'check_in') {
+        return sortDirection === 'asc'
+          ? a.monthKey.localeCompare(b.monthKey)
+          : b.monthKey.localeCompare(a.monthKey);
+      }
+      return b.monthKey.localeCompare(a.monthKey);
+    });
+
+    return groups;
+  }, [sortedBookings, sortField, sortDirection]);
 
   // KPI aggregates
   const totalManagementFee = bookings.reduce((sum, b) => sum + getManagementFee(b), 0);
@@ -474,7 +550,26 @@ export default function Bookings() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={expandAllMonths}
+                className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                title="Expandir todos los meses"
+              >
+                Expandir
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllMonths}
+                className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                title="Colapsar todos los meses"
+              >
+                Colapsar
+              </button>
+            </div>
+
             <Filter className="w-4 h-4 text-slate-400 shrink-0" />
             <select
               value={selectedChannel}
@@ -548,188 +643,240 @@ export default function Bookings() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {sortedBookings.map((b) => {
-                  const statusInfo = BOOKING_STATUS_CONFIG[b.status as BookingStatus] || {
-                    label: b.status,
-                    badgeClass: 'bg-slate-100 text-slate-800',
-                  };
+                {(() => {
+                  const renderBookingRow = (b: typeof sortedBookings[0]) => {
+                    const statusInfo = BOOKING_STATUS_CONFIG[b.status as BookingStatus] || {
+                      label: b.status,
+                      badgeClass: 'bg-slate-100 text-slate-800',
+                    };
 
-                  const sourceInfo = getBookingSourceInfo(b.source);
-                  const ownerNet = getOwnerNet(b);
-                  const realNightlyRate =
-                    b.number_of_nights > 0 ? Math.round(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
-                  const isBreakdown = isRowInBreakdownMode(b.id);
-                  const bruto = Number(b.net_payout) || 0;
-                  const aseo = Number(b.cleaning_fee_collected) || 0;
-                  const admFee = getManagementFee(b);
-                  const commissionPercent = Math.round(sourceInfo.commissionRate * 100);
+                    const sourceInfo = getBookingSourceInfo(b.source);
+                    const ownerNet = getOwnerNet(b);
+                    const realNightlyRate =
+                      b.number_of_nights > 0 ? Math.round(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
+                    const isBreakdown = isRowInBreakdownMode(b.id);
+                    const bruto = Number(b.net_payout) || 0;
+                    const aseo = Number(b.cleaning_fee_collected) || 0;
+                    const admFee = getManagementFee(b);
+                    const commissionPercent = Math.round(sourceInfo.commissionRate * 100);
 
-                  return (
-                    <tr
-                      key={b.id}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          booking: b,
-                        });
-                      }}
-                      className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      {/* Guest & Channel / Code */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${
-                              b.source === 'direct_25'
-                                ? 'bg-violet-100 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300'
-                                : b.source === 'direct' || b.source === 'direct_10'
-                                ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-                                : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
-                            }`}
-                          >
-                            {b.guest_name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-900 dark:text-white leading-tight">
-                              {b.guest_name}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                              <span className={`inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold ${sourceInfo.badgeClass}`}>
-                                {sourceInfo.label}
-                              </span>
-                              {b.airbnb_confirmation_code && (
-                                <span className="text-[11px] font-mono text-slate-400">
-                                  {b.airbnb_confirmation_code}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Dates */}
-                      <td className="px-4 py-3.5 text-xs">
-                        <div className="flex flex-col space-y-0.5">
-                          <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-                            <span className="text-[10px] font-semibold text-slate-400">Entrada:</span>
-                            <span className="font-medium">{formatDate(b.check_in)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                            <span className="text-[10px] font-semibold text-slate-400">Salida:</span>
-                            <span className="font-medium">{formatDate(b.check_out)}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Nights */}
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          <span>{b.number_of_nights}</span>
-                          <Moon className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30" />
-                        </span>
-                      </td>
-
-                      {/* Nightly Rate (Neto Dueño / Noches) */}
-                      <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
-                        <div className="flex flex-col items-end">
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            {formatCOP(realNightlyRate)}
-                          </span>
-                          <span className="text-[10px] text-slate-400">neta/noche</span>
-                        </div>
-                      </td>
-
-                      {/* Net Payout (Neto de Alojamiento / Desglose de Cálculo) */}
-                      <td
-                        className="px-4 py-3.5 text-right font-bold text-xs cursor-pointer select-none"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleRowBreakdown(b.id);
+                    return (
+                      <tr
+                        key={b.id}
+                        data-testid="booking-row"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            booking: b,
+                          });
                         }}
-                        title={
-                          isBreakdown
-                            ? 'Clic para ver solo neto'
-                            : 'Clic para ver desglose de cálculo'
-                        }
+                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                       >
-                        {isBreakdown ? (
-                          <div className="flex flex-col items-end space-y-1 font-mono text-xs select-text">
-                            <div className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-300 w-full min-w-[150px]">
-                              <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400 font-normal">
-                                Bruto:
-                              </span>
-                              <span className="font-medium text-slate-800 dark:text-slate-200">
-                                {formatCOP(bruto)}
-                              </span>
+                        {/* Guest & Channel / Code */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${
+                                b.source === 'direct_25'
+                                  ? 'bg-violet-100 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300'
+                                  : b.source === 'direct' || b.source === 'direct_10'
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+                              }`}
+                            >
+                              {b.guest_name.charAt(0).toUpperCase()}
                             </div>
-                            <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 w-full min-w-[150px]">
-                              <span className="text-[11px] font-sans text-rose-500 dark:text-rose-400 font-normal">
-                                Aseo:
-                              </span>
-                              <span className="font-medium">
-                                -{formatCOP(aseo)}
-                              </span>
+                            <div>
+                              <p className="font-semibold text-slate-900 dark:text-white leading-tight">
+                                {b.guest_name}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <span className={`inline-flex px-1.5 py-0.5 rounded-md text-[10px] font-bold ${sourceInfo.badgeClass}`}>
+                                  {sourceInfo.label}
+                                </span>
+                                {b.airbnb_confirmation_code && (
+                                  <span className="text-[11px] font-mono text-slate-400">
+                                    {b.airbnb_confirmation_code}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between gap-3 text-amber-600 dark:text-amber-400 w-full min-w-[150px]">
-                              <span className="text-[11px] font-sans text-amber-600 dark:text-amber-400 font-normal">
-                                Adm ({commissionPercent}%):
-                              </span>
-                              <span className="font-medium">
-                                -{formatCOP(admFee)}
-                              </span>
+                          </div>
+                        </td>
+
+                        {/* Dates */}
+                        <td className="px-4 py-3.5 text-xs">
+                          <div className="flex flex-col space-y-0.5">
+                            <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                              <span className="text-[10px] font-semibold text-slate-400">Entrada:</span>
+                              <span className="font-medium">{formatDate(b.check_in)}</span>
                             </div>
-                            <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-700/80 text-emerald-600 dark:text-emerald-400 w-full min-w-[150px]">
-                              <span className="text-xs font-sans font-bold">Neto:</span>
-                              <span className="text-sm font-bold font-sans">
+                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                              <span className="text-[10px] font-semibold text-slate-400">Salida:</span>
+                              <span className="font-medium">{formatDate(b.check_out)}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Nights */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            <span>{b.number_of_nights}</span>
+                            <Moon className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30" />
+                          </span>
+                        </td>
+
+                        {/* Nightly Rate (Neto Dueño / Noches) */}
+                        <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
+                          <div className="flex flex-col items-end">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              {formatCOP(realNightlyRate)}
+                            </span>
+                            <span className="text-[10px] text-slate-400">neta/noche</span>
+                          </div>
+                        </td>
+
+                        {/* Net Payout (Neto de Alojamiento / Desglose de Cálculo) */}
+                        <td
+                          className="px-4 py-3.5 text-right font-bold text-xs cursor-pointer select-none"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRowBreakdown(b.id);
+                          }}
+                          title={
+                            isBreakdown
+                              ? 'Clic para ver solo neto'
+                              : 'Clic para ver desglose de cálculo'
+                          }
+                        >
+                          {isBreakdown ? (
+                            <div className="flex flex-col items-end space-y-1 font-mono text-xs select-text">
+                              <div className="flex items-center justify-between gap-3 text-slate-600 dark:text-slate-300 w-full min-w-[150px]">
+                                <span className="text-[11px] font-sans text-slate-500 dark:text-slate-400 font-normal">
+                                  Bruto:
+                                </span>
+                                <span className="font-medium text-slate-800 dark:text-slate-200">
+                                  {formatCOP(bruto)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 w-full min-w-[150px]">
+                                <span className="text-[11px] font-sans text-rose-500 dark:text-rose-400 font-normal">
+                                  Aseo:
+                                </span>
+                                <span className="font-medium">
+                                  -{formatCOP(aseo)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 text-amber-600 dark:text-amber-400 w-full min-w-[150px]">
+                                <span className="text-[11px] font-sans text-amber-600 dark:text-amber-400 font-normal">
+                                  Adm ({commissionPercent}%):
+                                </span>
+                                <span className="font-medium">
+                                  -{formatCOP(admFee)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-200 dark:border-slate-700/80 text-emerald-600 dark:text-emerald-400 w-full min-w-[150px]">
+                                <span className="text-xs font-sans font-bold">Neto:</span>
+                                <span className="text-sm font-bold font-sans">
+                                  {formatCOP(ownerNet)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-end group/cell">
+                              <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold transition-transform group-hover/cell:scale-105">
                                 {formatCOP(ownerNet)}
                               </span>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end group/cell">
-                            <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold transition-transform group-hover/cell:scale-105">
-                              {formatCOP(ownerNet)}
-                            </span>
-                          </div>
-                        )}
-                      </td>
+                          )}
+                        </td>
 
-                      {/* Status */}
-                      <td className="px-4 py-3.5 text-center">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusInfo.badgeClass}`}>
-                          {statusInfo.label}
-                        </span>
-                      </td>
+                        {/* Status */}
+                        <td className="px-4 py-3.5 text-center">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusInfo.badgeClass}`}>
+                            {statusInfo.label}
+                          </span>
+                        </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBookingToEdit(b);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(b.id, b.guest_name)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        {/* Actions */}
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBookingToEdit(b);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(b.id, b.guest_name)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  };
+
+                  return groupedBookings.map((group) => {
+                    const isCollapsed = !!collapsedMonths[group.monthKey];
+                    return (
+                      <Fragment key={group.monthKey}>
+                        <tr
+                          onClick={() => toggleMonthCollapse(group.monthKey)}
+                          data-testid="month-group-row"
+                          data-month-key={group.monthKey}
+                          aria-expanded={!isCollapsed}
+                          className="bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors border-y border-slate-200 dark:border-slate-700/80 font-medium"
+                        >
+                          <td colSpan={7} className="px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="p-0.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-transform">
+                                  {isCollapsed ? (
+                                    <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                                  )}
+                                </div>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white tracking-wide">
+                                  {group.monthLabel}
+                                </span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                  {group.bookings.length} {group.bookings.length === 1 ? 'reserva' : 'reservas'}
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                  <Moon className="w-3 h-3 text-amber-500 fill-amber-500/30" />
+                                  {group.totalNights} {group.totalNights === 1 ? 'noche' : 'noches'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  Subtotal neto:
+                                </span>
+                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                  {formatCOP(group.totalOwnerNet)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        {!isCollapsed && group.bookings.map((b) => renderBookingRow(b))}
+                      </Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>

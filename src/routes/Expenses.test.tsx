@@ -126,7 +126,7 @@ describe('Expenses Route Sorting', () => {
     renderWithProviders(<Expenses />);
     await user.click(screen.getByRole('button', { name: /Libro Completo de Gastos/i }));
 
-    const rows = screen.getAllByRole('row').slice(1); // exclude header row
+    const rows = screen.getAllByTestId('expense-row');
     expect(within(rows[0]).getByText('WiFi Fibra Óptica')).toBeInTheDocument(); // 2026-03-10
     expect(within(rows[1]).getByText('Café y Jabones')).toBeInTheDocument(); // 2026-03-05
     expect(within(rows[2]).getByText('Administración Edificio')).toBeInTheDocument(); // 2026-03-01
@@ -135,7 +135,7 @@ describe('Expenses Route Sorting', () => {
     const dateHeader = screen.getByRole('columnheader', { name: /Fecha/i });
     await user.click(dateHeader);
 
-    const ascRows = screen.getAllByRole('row').slice(1);
+    const ascRows = screen.getAllByTestId('expense-row');
     expect(within(ascRows[0]).getByText('Administración Edificio')).toBeInTheDocument(); // 2026-03-01
     expect(within(ascRows[1]).getByText('Café y Jabones')).toBeInTheDocument(); // 2026-03-05
     expect(within(ascRows[2]).getByText('WiFi Fibra Óptica')).toBeInTheDocument(); // 2026-03-10
@@ -155,14 +155,14 @@ describe('Expenses Route Sorting', () => {
     const amountHeader = screen.getByRole('columnheader', { name: /Monto COP/i });
     await user.click(amountHeader);
 
-    let rows = screen.getAllByRole('row').slice(1);
+    let rows = screen.getAllByTestId('expense-row');
     expect(within(rows[0]).getByText('Administración Edificio')).toBeInTheDocument(); // 380,000
     expect(within(rows[1]).getByText('WiFi Fibra Óptica')).toBeInTheDocument(); // 125,000
     expect(within(rows[2]).getByText('Café y Jabones')).toBeInTheDocument(); // 45,000
 
     // Click Monto COP again -> toggles to asc
     await user.click(amountHeader);
-    rows = screen.getAllByRole('row').slice(1);
+    rows = screen.getAllByTestId('expense-row');
     expect(within(rows[0]).getByText('Café y Jabones')).toBeInTheDocument(); // 45,000
     expect(within(rows[1]).getByText('WiFi Fibra Óptica')).toBeInTheDocument(); // 125,000
     expect(within(rows[2]).getByText('Administración Edificio')).toBeInTheDocument(); // 380,000
@@ -182,16 +182,110 @@ describe('Expenses Route Sorting', () => {
     await user.click(descHeader);
 
     // Initial click on text column sorts asc: Administración Edificio, Café y Jabones, WiFi Fibra Óptica
-    let rows = screen.getAllByRole('row').slice(1);
+    let rows = screen.getAllByTestId('expense-row');
     expect(within(rows[0]).getByText('Administración Edificio')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Café y Jabones')).toBeInTheDocument();
     expect(within(rows[2]).getByText('WiFi Fibra Óptica')).toBeInTheDocument();
 
     // Toggle desc
     await user.click(descHeader);
-    rows = screen.getAllByRole('row').slice(1);
+    rows = screen.getAllByTestId('expense-row');
     expect(within(rows[0]).getByText('WiFi Fibra Óptica')).toBeInTheDocument();
     expect(within(rows[1]).getByText('Café y Jabones')).toBeInTheDocument();
     expect(within(rows[2]).getByText('Administración Edificio')).toBeInTheDocument();
   });
+
+  describe('Month Grouping and Collapsing in Ledger', () => {
+    const multiMonthExpenses: Expense[] = [
+      ...mockExpenses,
+      {
+        id: 'exp-feb-1',
+        property_id: 'prop-1',
+        category: 'electricity',
+        description: 'EPM Luz Febrero',
+        amount: 210000,
+        date: '2026-02-15',
+        due_date: null,
+        billing_month: '2026-02',
+        expense_type: 'utility_monthly',
+        payment_status: 'paid',
+        is_recurring: true,
+        recurrence_period: 'monthly',
+        linked_booking_id: null,
+        receipt_url: null,
+        notes: null,
+        created_at: '2026-02-15T00:00:00Z',
+        updated_at: '2026-02-15T00:00:00Z',
+      },
+    ];
+
+    it('renders expenses grouped by month with month headers showing label, count, and subtotal', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useExpenses).mockReturnValue({
+        data: multiMonthExpenses,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useExpenses>);
+
+      renderWithProviders(<Expenses />);
+      await user.click(screen.getByRole('button', { name: /Libro Completo de Gastos/i }));
+
+      const monthHeaders = screen.getAllByTestId('month-group-row');
+      expect(monthHeaders).toHaveLength(2); // Marzo 2026 and Febrero 2026
+
+      expect(screen.getByText('Marzo 2026')).toBeInTheDocument();
+      expect(screen.getByText('3 gastos')).toBeInTheDocument();
+      expect(screen.getByText('Febrero 2026')).toBeInTheDocument();
+      expect(screen.getByText('1 gasto')).toBeInTheDocument();
+    });
+
+    it('collapses a month when clicking the month group header, hiding its expenses, and expands when clicked again', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useExpenses).mockReturnValue({
+        data: multiMonthExpenses,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useExpenses>);
+
+      renderWithProviders(<Expenses />);
+      await user.click(screen.getByRole('button', { name: /Libro Completo de Gastos/i }));
+
+      // All 4 expenses initially visible
+      expect(screen.getAllByTestId('expense-row')).toHaveLength(4);
+      expect(screen.getByText('EPM Luz Febrero')).toBeInTheDocument();
+      expect(screen.getByText('WiFi Fibra Óptica')).toBeInTheDocument();
+
+      // Click on Febrero 2026 group header to collapse it
+      const febHeader = screen.getByText('Febrero 2026').closest('tr')!;
+      await user.click(febHeader);
+
+      // Now Febrero's expense should be hidden, but Marzo's remain
+      expect(screen.queryByText('EPM Luz Febrero')).not.toBeInTheDocument();
+      expect(screen.getByText('WiFi Fibra Óptica')).toBeInTheDocument();
+      expect(screen.getAllByTestId('expense-row')).toHaveLength(3);
+
+      // Click again to expand
+      await user.click(febHeader);
+      expect(screen.getByText('EPM Luz Febrero')).toBeInTheDocument();
+      expect(screen.getAllByTestId('expense-row')).toHaveLength(4);
+    });
+
+    it('collapses and expands all months using quick action buttons', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useExpenses).mockReturnValue({
+        data: multiMonthExpenses,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useExpenses>);
+
+      renderWithProviders(<Expenses />);
+      await user.click(screen.getByRole('button', { name: /Libro Completo de Gastos/i }));
+
+      // Click "Colapsar" button
+      await user.click(screen.getByRole('button', { name: /Colapsar/i }));
+      expect(screen.queryAllByTestId('expense-row')).toHaveLength(0);
+
+      // Click "Expandir" button
+      await user.click(screen.getByRole('button', { name: /Expandir/i }));
+      expect(screen.getAllByTestId('expense-row')).toHaveLength(4);
+    });
+  });
 });
+

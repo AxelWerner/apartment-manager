@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   Plus,
   ShoppingBag,
@@ -14,13 +14,15 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useExpenses, useDeleteExpense } from '@/hooks/use-expenses';
 import { MonthlyChecklistView } from '@/components/expenses/MonthlyChecklistView';
 import { AnnualInsuranceView } from '@/components/expenses/AnnualInsuranceView';
 import { ExpenseModal } from '@/components/expenses/ExpenseModal';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, CATEGORY_LABELS, EXPENSE_TYPE_LABELS } from '@/lib/formatters';
+import { formatCOP, formatDate, formatMonthYear, CATEGORY_LABELS, EXPENSE_TYPE_LABELS } from '@/lib/formatters';
 import type { Expense, ExpenseCategory } from '@/types/database';
 import { toast } from 'sonner';
 
@@ -87,6 +89,80 @@ export default function Expenses() {
     }
     return sortDirection === 'asc' ? cmp : -cmp;
   });
+
+  // Group by month state
+  const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
+
+  const groupedExpenses = useMemo(() => {
+
+    const groups: {
+      monthKey: string;
+      monthLabel: string;
+      expenses: Expense[];
+      totalAmount: number;
+      paidCount: number;
+      pendingCount: number;
+    }[] = [];
+
+    const map = new Map<string, (typeof groups)[0]>();
+
+    sortedExpenses.forEach((exp) => {
+      const monthKey = exp.billing_month || exp.date.substring(0, 7);
+      let group = map.get(monthKey);
+      if (!group) {
+        group = {
+          monthKey,
+          monthLabel: formatMonthYear(monthKey),
+          expenses: [],
+          totalAmount: 0,
+          paidCount: 0,
+          pendingCount: 0,
+        };
+        map.set(monthKey, group);
+        groups.push(group);
+      }
+      group.expenses.push(exp);
+      group.totalAmount += Number(exp.amount) || 0;
+      if (exp.payment_status === 'paid') {
+        group.paidCount += 1;
+      } else {
+        group.pendingCount += 1;
+      }
+    });
+
+    // Sort month groups:
+    // If user is sorting by date, match sortDirection (asc or desc)
+    // Otherwise, default to newest month first (desc)
+    groups.sort((a, b) => {
+      if (sortField === 'date') {
+        return sortDirection === 'asc'
+          ? a.monthKey.localeCompare(b.monthKey)
+          : b.monthKey.localeCompare(a.monthKey);
+      }
+      return b.monthKey.localeCompare(a.monthKey);
+    });
+
+    return groups;
+  }, [sortedExpenses, sortField, sortDirection]);
+
+  const toggleMonthCollapse = (monthKey: string) => {
+    setCollapsedMonths((prev) => ({
+      ...prev,
+      [monthKey]: !prev[monthKey],
+    }));
+  };
+
+  const collapseAllMonths = () => {
+    const allCollapsed: Record<string, boolean> = {};
+    groupedExpenses.forEach((g) => {
+      allCollapsed[g.monthKey] = true;
+    });
+    setCollapsedMonths(allCollapsed);
+  };
+
+  const expandAllMonths = () => {
+    setCollapsedMonths({});
+  };
 
   const renderSortHeader = (
     field: SortField,
@@ -238,7 +314,7 @@ export default function Expenses() {
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
@@ -261,6 +337,25 @@ export default function Expenses() {
                 <option value="paid">Pagado</option>
                 <option value="pending">Pendiente</option>
               </select>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={expandAllMonths}
+                  className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  title="Expandir todos los meses"
+                >
+                  Expandir
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAllMonths}
+                  className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  title="Colapsar todos los meses"
+                >
+                  Colapsar
+                </button>
+              </div>
             </div>
           </div>
 
@@ -287,84 +382,135 @@ export default function Expenses() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {sortedExpenses.map((exp) => {
-                      const catInfo = CATEGORY_LABELS[exp.category] || { label: exp.category };
-                      const typeLabel = EXPENSE_TYPE_LABELS[exp.expense_type] || exp.expense_type;
-
+                    {groupedExpenses.map((group) => {
+                      const isCollapsed = !!collapsedMonths[group.monthKey];
                       return (
-                        <tr
-                          key={exp.id}
-                          className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
-                        >
-                          <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
-                            {formatDate(exp.date)}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {catInfo.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3.5 font-medium text-slate-900 dark:text-white">
-                            {exp.description}
-                            {exp.linked_booking_id && (
-                              <span className="block text-[11px] text-slate-400">
-                                Vinculado a huésped
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-xs text-slate-500">
-                            {typeLabel}
-                          </td>
-                          <td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">
-                            {formatCOP(exp.amount)}
-                          </td>
-                          <td className="px-4 py-3.5 text-center">
-                            {exp.payment_status === 'paid' ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                <CheckCircle2 className="w-3 h-3" />
-                                Pagado
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                                <Clock className="w-3 h-3" />
-                                Pendiente
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              {exp.receipt_url && (
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveReceiptUrl(exp.receipt_url!)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                                  title="Ver Recibo"
+                        <Fragment key={group.monthKey}>
+                          <tr
+                            onClick={() => toggleMonthCollapse(group.monthKey)}
+                            data-testid="month-group-row"
+                            data-month-key={group.monthKey}
+                            aria-expanded={!isCollapsed}
+                            className="bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors border-y border-slate-200 dark:border-slate-700/80"
+                          >
+                            <td colSpan={7} className="px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-0.5 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-transform">
+                                    {isCollapsed ? (
+                                      <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-rose-500 dark:text-rose-400" />
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-900 dark:text-white tracking-wide">
+                                    {group.monthLabel}
+                                  </span>
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                                    {group.expenses.length} {group.expenses.length === 1 ? 'gasto' : 'gastos'}
+                                  </span>
+                                  {group.pendingCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                      <Clock className="w-3 h-3" />
+                                      {group.pendingCount} pendiente{group.pendingCount > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Subtotal:
+                                  </span>
+                                  <span className="text-xs font-black text-slate-900 dark:text-white">
+                                    {formatCOP(group.totalAmount)}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {!isCollapsed &&
+                            group.expenses.map((exp) => {
+                              const catInfo = CATEGORY_LABELS[exp.category] || { label: exp.category };
+                              const typeLabel = EXPENSE_TYPE_LABELS[exp.expense_type] || exp.expense_type;
+
+                              return (
+                                <tr
+                                  key={exp.id}
+                                  data-testid="expense-row"
+                                  className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                                 >
-                                  <ExternalLink className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setExpenseToEdit(exp);
-                                  setIsModalOpen(true);
-                                }}
-                                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                                title="Editar"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(exp.id, exp.description)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                                  <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                                    {formatDate(exp.date)}
+                                  </td>
+                                  <td className="px-4 py-3.5">
+                                    <span className="inline-flex px-2 py-0.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                      {catInfo.label}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3.5 font-medium text-slate-900 dark:text-white">
+                                    {exp.description}
+                                    {exp.linked_booking_id && (
+                                      <span className="block text-[11px] text-slate-400">
+                                        Vinculado a huésped
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-xs text-slate-500">
+                                    {typeLabel}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-right font-bold text-slate-900 dark:text-white">
+                                    {formatCOP(exp.amount)}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-center">
+                                    {exp.payment_status === 'paid' ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        Pagado
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                        <Clock className="w-3 h-3" />
+                                        Pendiente
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3.5 text-right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {exp.receipt_url && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setActiveReceiptUrl(exp.receipt_url!)}
+                                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                          title="Ver Recibo"
+                                        >
+                                          <ExternalLink className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setExpenseToEdit(exp);
+                                          setIsModalOpen(true);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                        title="Editar"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDelete(exp.id, exp.description)}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                                        title="Eliminar"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </Fragment>
                       );
                     })}
                   </tbody>

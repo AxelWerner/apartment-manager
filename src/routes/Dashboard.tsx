@@ -42,7 +42,7 @@ import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 
-type TimeRange = 'this_month' | 'last_month' | 'ytd' | 'all_time';
+type TimeRange = 'this_month' | 'next_month' | 'last_month' | 'ytd' | 'all_time';
 
 export default function Dashboard() {
   const { data: bookings = [] } = useBookings();
@@ -59,10 +59,10 @@ export default function Dashboard() {
   const currentMonth = parseInt(colMonthStr, 10) - 1; // 0-indexed
 
   const currentMonthStr = `${currentYear}-${colMonthStr}`;
-  const currentMonthName = formatMonthYear(currentMonthStr).split(' ')[0];
-  const lastMonthStr = currentMonth === 0
-    ? `${currentYear - 1}-12`
-    : `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+  const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+  const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
   // Filter items according to selected time range
   const { filteredBookings, filteredExpenses, totalExpenses } = useMemo(() => {
@@ -76,6 +76,13 @@ export default function Dashboard() {
       eList = expenses.filter((e) =>
         e.billing_month ? e.billing_month === currentMonthStr : e.date.startsWith(currentMonthStr)
       );
+    } else if (timeRange === 'next_month') {
+      bList = bookings.filter(
+        (b) => b.check_in.startsWith(nextMonthStr) && resolveBookingStatus(b) !== 'cancelled'
+      );
+      eList = expenses.filter((e) =>
+        e.billing_month ? e.billing_month === nextMonthStr : e.date.startsWith(nextMonthStr)
+      );
     } else if (timeRange === 'last_month') {
       bList = bookings.filter(
         (b) => b.check_in.startsWith(lastMonthStr) && resolveBookingStatus(b) !== 'cancelled'
@@ -88,12 +95,12 @@ export default function Dashboard() {
       bList = bookings.filter(
         (b) =>
           b.check_in.startsWith(yearPrefix) &&
-          b.check_in.substring(0, 7) <= currentMonthStr &&
+          b.check_in <= colDateStr &&
           resolveBookingStatus(b) !== 'cancelled'
       );
       eList = expenses.filter((e) => {
-        const m = e.billing_month || e.date.substring(0, 7);
-        return m.startsWith(yearPrefix) && m <= currentMonthStr;
+        const d = e.date || (e.billing_month ? `${e.billing_month}-01` : '');
+        return d.startsWith(yearPrefix) && d <= colDateStr;
       });
     } else {
       // all_time
@@ -103,7 +110,7 @@ export default function Dashboard() {
 
     const calculatedTotal = eList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     return { filteredBookings: bList, filteredExpenses: eList, totalExpenses: calculatedTotal };
-  }, [bookings, expenses, timeRange, currentMonthStr, lastMonthStr, currentYear]);
+  }, [bookings, expenses, timeRange, currentMonthStr, nextMonthStr, lastMonthStr, currentYear, colDateStr]);
 
   // Aggregate financials
   const getBookingMgmtFee = (b: Booking) => {
@@ -205,17 +212,18 @@ export default function Dashboard() {
     if (timeRange === 'this_month') {
       return new Date(currentYear, currentMonth + 1, 0).getDate();
     }
+    if (timeRange === 'next_month') {
+      return new Date(currentYear, currentMonth + 2, 0).getDate();
+    }
     if (timeRange === 'last_month') {
-      const lastMonthNum = currentMonth === 0 ? 12 : currentMonth;
-      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-      return new Date(lastMonthYear, lastMonthNum, 0).getDate();
+      return new Date(currentYear, currentMonth, 0).getDate();
     }
     if (timeRange === 'ytd') {
       const colDay = parseInt(colDateStr.split('-')[2], 10) || 1;
       const now = new Date(currentYear, currentMonth, colDay);
       const startOfYear = new Date(currentYear, 0, 1);
       const diffTime = Math.abs(now.getTime() - startOfYear.getTime());
-      return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      return Math.max(1, Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1);
     }
     if (bookings.length > 0) {
       const sortedCheckIns = bookings
@@ -355,11 +363,21 @@ export default function Dashboard() {
         </div>
 
         {/* Time Range Selector */}
-        <div className="flex items-center gap-1 p-1 bg-slate-200/60 dark:bg-slate-800/60 rounded-2xl w-fit">
+        <div className="flex items-center gap-1 p-1 bg-slate-200/60 dark:bg-slate-800/60 rounded-2xl w-fit max-w-full overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setTimeRange('next_month')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${timeRange === 'next_month'
+                ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
+              }`}
+          >
+            Próximo Mes
+          </button>
           <button
             type="button"
             onClick={() => setTimeRange('this_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${timeRange === 'this_month'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${timeRange === 'this_month'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
               }`}
@@ -369,7 +387,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setTimeRange('last_month')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${timeRange === 'last_month'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${timeRange === 'last_month'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
               }`}
@@ -379,17 +397,17 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setTimeRange('ytd')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${timeRange === 'ytd'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${timeRange === 'ytd'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
               }`}
           >
-            Todo {currentYear} hasta {currentMonthName}
+            Todo {currentYear} hasta HOY
           </button>
           <button
             type="button"
             onClick={() => setTimeRange('all_time')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${timeRange === 'all_time'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${timeRange === 'all_time'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
               }`}

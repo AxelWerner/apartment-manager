@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import Dashboard from './Dashboard';
 import { renderWithProviders } from '@/test/test-utils';
 
@@ -174,10 +174,91 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('Sin reservas en el período')).toBeInTheDocument();
   });
 
-  it('renders dynamic Todo {year} hasta {month} button and filters out future months', async () => {
+  it('renders dynamic Todo {year} hasta HOY button and filters out future check-ins', async () => {
     renderWithProviders(<Dashboard />);
 
-    const ytdButton = screen.getByText(/Todo \d{4} hasta/i);
+    const ytdButton = screen.getByText(/Todo \d{4} hasta HOY/i);
     expect(ytdButton).toBeInTheDocument();
   });
+
+  it('renders "Próximo Mes" in the first position and "Este Mes" as default active range', () => {
+    renderWithProviders(<Dashboard />);
+
+    const buttons = screen.getAllByRole('button');
+    const rangeButtons = buttons.filter((btn) =>
+      ['Próximo Mes', 'Este Mes', 'Mes Pasado', 'Todo', 'Histórico'].some((label) =>
+        btn.textContent?.includes(label)
+      )
+    );
+
+    // Próximo Mes is in first position
+    expect(rangeButtons[0]).toHaveTextContent('Próximo Mes');
+    expect(rangeButtons[1]).toHaveTextContent('Este Mes');
+
+    // Este Mes has active highlight classes by default
+    expect(rangeButtons[1]).toHaveClass('text-rose-600');
+    expect(rangeButtons[0]).not.toHaveClass('text-rose-600');
+  });
+
+  it('filters data correctly when switching to "Próximo Mes"', () => {
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'book-current',
+          property_id: 'prop-1',
+          guest_name: 'Carlos Ruiz',
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          number_of_nights: 4,
+          gross_amount: 1500000,
+          platform_fee: 45000,
+          net_payout: 1455000,
+          cleaning_fee_collected: 100000,
+          management_fee: 271000,
+          owner_payout: 1084000,
+          payout_status: 'paid',
+          booking_status: 'confirmed',
+          channel: 'airbnb',
+          created_at: '2026-09-01T00:00:00Z',
+          updated_at: '2026-09-01T00:00:00Z',
+        },
+        {
+          id: 'book-next',
+          property_id: 'prop-1',
+          guest_name: 'Ana Beltrán',
+          check_in: '2026-10-10',
+          check_out: '2026-10-17',
+          number_of_nights: 7,
+          gross_amount: 2500000,
+          platform_fee: 75000,
+          net_payout: 2425000,
+          cleaning_fee_collected: 120000,
+          management_fee: 461000,
+          owner_payout: 1844000,
+          payout_status: 'pending',
+          booking_status: 'confirmed',
+          channel: 'airbnb',
+          created_at: '2026-09-20T00:00:00Z',
+          updated_at: '2026-09-20T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useBookings>);
+
+    renderWithProviders(<Dashboard />);
+
+    // Default "Este Mes" shows September booking (4/30)
+    expect(screen.getByText('4/30')).toBeInTheDocument();
+    expect(screen.getByText('4 de 30 noches reservadas')).toBeInTheDocument();
+
+    // Click "Próximo Mes"
+    const nextMonthBtn = screen.getByRole('button', { name: 'Próximo Mes' });
+    fireEvent.click(nextMonthBtn);
+
+    // Now Próximo Mes should be active and display October booking (7/31)
+    expect(nextMonthBtn).toHaveClass('text-rose-600');
+    expect(screen.getByText('7/31')).toBeInTheDocument();
+    expect(screen.getByText('7 de 31 noches reservadas')).toBeInTheDocument();
+  });
 });
+
