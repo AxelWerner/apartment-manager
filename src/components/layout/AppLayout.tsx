@@ -13,28 +13,60 @@ import {
 } from 'lucide-react';
 import { useProperty } from '@/hooks/use-property';
 import { useAuth } from '@/hooks/use-auth';
+import type { UserRole } from '@/types/database';
+
+const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
+  SUPER_USER: {
+    label: 'Super User',
+    badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+  },
+  ADMINISTRATOR: {
+    label: 'Admin',
+    badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800',
+  },
+  OWNER: {
+    label: 'Dueño',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+  },
+  CLEANER: {
+    label: 'Limpieza',
+    badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+  },
+  VIEWER: {
+    label: 'Lector',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+  },
+};
 
 export function AppLayout() {
   const { data: property } = useProperty();
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const location = useLocation();
 
-  const navItems = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  const currentRole: UserRole = role || 'VIEWER';
+
+  const allNavItems: Array<{
+    to: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    roles?: UserRole[];
+  }> = [
+    { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
     { to: '/bookings', label: 'Reservas', icon: CalendarDays },
-    { to: '/expenses', label: 'Gastos y Servicios', icon: Receipt },
+    { to: '/expenses', label: 'Gastos y Servicios', icon: Receipt, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
     { to: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
     { to: '/guest-guide', label: 'Guía Huésped', icon: Compass },
-    { to: '/settings', label: 'Configuración', icon: Settings },
+    { to: '/settings', label: 'Configuración', icon: Settings, roles: ['SUPER_USER', 'ADMINISTRATOR'] },
   ];
 
+  const navItems = allNavItems.filter((item) => !item.roles || item.roles.includes(currentRole));
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0">
+      <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0 z-20">
         {/* Brand Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
               <Building2 className="w-5 h-5" />
@@ -60,7 +92,7 @@ export function AppLayout() {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto min-h-0">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.to;
@@ -82,7 +114,7 @@ export function AppLayout() {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3 shrink-0 bg-white dark:bg-slate-900 mt-auto">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span>Moneda: <strong>Pesos (COP)</strong></span>
@@ -91,12 +123,21 @@ export function AppLayout() {
           {user && (
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0 pr-2">
-                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-slate-500">
+                <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 text-slate-500">
                   <UserIcon className="w-3.5 h-3.5" />
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate" title={user.email}>
-                  {user.email}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate" title={user.email}>
+                    {user.email}
+                  </p>
+                  <span
+                    className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded border ${
+                      roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {roleConfig[currentRole]?.label || currentRole}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
@@ -126,9 +167,12 @@ export function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Activo
+            <span
+              className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {roleConfig[currentRole]?.label || currentRole}
             </span>
             {user && (
               <button

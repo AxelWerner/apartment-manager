@@ -237,6 +237,20 @@ pnpm seed            # Pobla la base de datos Supabase con datos iniciales de pr
 
 ---
 
+## 👥 Roles y Permisos (RBAC)
+
+La plataforma cuenta con un sistema de control de acceso por roles para diferentes perfiles del equipo:
+- **`SUPER_USER`**: Acceso total e irrestricto, configuración del sistema y gestión de usuarios.
+- **`ADMINISTRATOR`**: Gestión operativa y financiera de reservas, gastos, checklist de servicios y daños.
+- **`OWNER`**: Propietario del apartamento con supervisión de rentabilidad, comisiones y pagos netos.
+- **`CLEANER`**: Personal operativo de aseo e inspección con vista logística de entradas/salidas y reporte de daños (sin acceso financiero).
+- **`VIEWER`**: Perfil de solo lectura para auditorías y consultas.
+
+Consulta la [**Matriz Completa de Roles y Permisos**](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/ROLES_PERMISSIONS.md) para más detalles.
+
+---
+
 ## 📄 Licencia
 
 Este proyecto es privado y de uso personal. Todos los derechos reservados.
+

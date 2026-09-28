@@ -7,11 +7,15 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 // Helper component to consume auth
 function TestConsumer() {
-  const { user, loading, signIn, signOut } = useAuth();
+  const { user, role, isSuperUser, isCleaner, hasRole, loading, signIn, signOut } = useAuth();
   return (
     <div>
       <div data-testid="loading">{loading ? 'loading' : 'idle'}</div>
       <div data-testid="user">{user ? user.email : 'anonymous'}</div>
+      <div data-testid="role">{role ?? 'none'}</div>
+      <div data-testid="is-super">{isSuperUser ? 'yes' : 'no'}</div>
+      <div data-testid="is-cleaner">{isCleaner ? 'yes' : 'no'}</div>
+      <div data-testid="has-owner">{hasRole?.('OWNER') ? 'yes' : 'no'}</div>
       <button
         onClick={() => signIn('test@user.com', 'password123')}
         data-testid="signin-btn"
@@ -37,6 +41,13 @@ describe('AuthContext and Provider', () => {
       data: { session: null },
       error: null,
     });
+
+    vi.spyOn(supabase, 'from').mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    } as never);
 
     vi.spyOn(supabase.auth, 'onAuthStateChange').mockImplementation((callback) => {
       authStateCallback = callback;
@@ -173,4 +184,62 @@ describe('AuthContext and Provider', () => {
     unmount();
     expect(unsubscribeMock).toHaveBeenCalled();
   });
+
+  it('resuelve correctamente roles específicos y helpers cuando se suministra en metadata', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          user: {
+            id: 'u-super',
+            email: 'super@admin.com',
+            user_metadata: { role: 'SUPER_USER' },
+          },
+        } as never,
+      },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('idle');
+      expect(screen.getByTestId('role')).toHaveTextContent('SUPER_USER');
+      expect(screen.getByTestId('is-super')).toHaveTextContent('yes');
+      expect(screen.getByTestId('has-owner')).toHaveTextContent('yes'); // SUPER_USER tiene acceso a todo
+    });
+  });
+
+  it('resuelve rol CLEANER y sus helpers adecuadamente', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          user: {
+            id: 'u-cleaner',
+            email: 'cleaner@staff.com',
+            user_metadata: { role: 'CLEANER' },
+          },
+        } as never,
+      },
+      error: null,
+    });
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('idle');
+      expect(screen.getByTestId('role')).toHaveTextContent('CLEANER');
+      expect(screen.getByTestId('is-cleaner')).toHaveTextContent('yes');
+      expect(screen.getByTestId('is-super')).toHaveTextContent('no');
+      expect(screen.getByTestId('has-owner')).toHaveTextContent('no');
+    });
+  });
 });
+

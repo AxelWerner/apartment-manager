@@ -26,16 +26,45 @@ export default function App() {
         <Route path="/wifi" element={<WifiCardPage />} />
         <Route path="/wifi/:propertyId" element={<WifiCardPage />} />
 
-
         {/* Rutas privadas protegidas */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
+            {/* Dashboard accesible a Super User, Admin, Owner y Viewer */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER']}>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            {/* Reservas accesible a todos los roles autenticados */}
             <Route path="/bookings" element={<Bookings />} />
-            <Route path="/expenses" element={<Expenses />} />
+
+            {/* Gastos y Finanzas reservado para Super User, Admin y Owner */}
+            <Route
+              path="/expenses"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER']}>
+                  <Expenses />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Daños y Guía accesibles a todo el equipo */}
             <Route path="/damages" element={<Damages />} />
             <Route path="/guest-guide" element={<GuestGuideAdmin />} />
-            <Route path="/settings" element={<Settings />} />
+
+            {/* Configuración reservada para Super User y Administrator */}
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR']}>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>
@@ -43,4 +72,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

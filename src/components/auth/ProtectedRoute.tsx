@@ -1,9 +1,16 @@
+import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
+import type { UserRole } from '@/types/database';
 
-export function ProtectedRoute() {
-  const { user, loading } = useAuth();
+interface ProtectedRouteProps {
+  allowedRoles?: UserRole[];
+  children?: React.ReactNode;
+}
+
+export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps = {}) {
+  const { user, role, loading, hasRole } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -23,5 +30,27 @@ export function ProtectedRoute() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <Outlet />;
+  if (allowedRoles && allowedRoles.length > 0) {
+    const isAllowed = hasRole
+      ? hasRole(allowedRoles)
+      : (role && (role === 'SUPER_USER' || allowedRoles.includes(role)));
+
+    if (!isAllowed) {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 mb-4 shadow-sm">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            Acceso no autorizado
+          </h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-md">
+            Tu rol actual ({role || 'Sin rol'}) no cuenta con permisos suficientes para acceder a este módulo.
+          </p>
+        </div>
+      );
+    }
+  }
+
+  return children ? <>{children}</> : <Outlet />;
 }

@@ -6,6 +6,23 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type UserRole =
+  | 'SUPER_USER'
+  | 'OWNER'
+  | 'ADMINISTRATOR'
+  | 'CLEANER'
+  | 'VIEWER';
+
+export interface UserProfile {
+  id: string;
+  role: UserRole;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type BookingStatus = 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
 export type PayoutStatus = 'pending' | 'paid';
 
