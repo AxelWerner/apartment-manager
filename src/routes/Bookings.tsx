@@ -10,7 +10,6 @@ import {
   Moon,
   DollarSign,
   Percent,
-  RotateCcw,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -18,8 +17,10 @@ import {
   Eye,
   ChevronDown,
   ChevronRight,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
-import { useBookings, useDeleteBooking, useClearBookings } from '@/hooks/use-bookings';
+import { useBookings, useDeleteBooking } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
 import { CsvImportModal } from '@/components/bookings/CsvImportModal';
 import {
@@ -29,6 +30,9 @@ import {
   BOOKING_STATUS_CONFIG,
   resolveBookingStatus,
   getBookingSourceInfo,
+  getColombiaDateTime,
+  isBookingReal,
+  isBookingFuture,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
@@ -37,8 +41,9 @@ import { toast } from 'sonner';
 export default function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
   const deleteBookingMutation = useDeleteBooking();
-  const clearBookingsMutation = useClearBookings();
 
+  const { dateStr: colDateStr } = getColombiaDateTime();
+  const [financialHorizon, setFinancialHorizon] = useState<'all' | 'real' | 'future'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedChannel, setSelectedChannel] = useState<string>('all');
@@ -117,7 +122,7 @@ export default function Bookings() {
     return Math.round(accommodation * rate);
   };
 
-  // Filtered list with dynamically resolved status
+  // Filtered list with dynamically resolved status and financial horizon
   const filteredBookings = bookings.map((b) => ({
     ...b,
     status: resolveBookingStatus(b),
@@ -133,7 +138,11 @@ export default function Bookings() {
       (selectedChannel === 'direct_all' && b.source?.startsWith('direct')) ||
       (selectedChannel === 'direct_10' && (b.source === 'direct' || b.source === 'direct_10')) ||
       (selectedChannel === 'direct_25' && b.source === 'direct_25');
-    return matchesSearch && matchesStatus && matchesChannel;
+    const matchesHorizon =
+      financialHorizon === 'all' ||
+      (financialHorizon === 'real' && isBookingReal(b, colDateStr)) ||
+      (financialHorizon === 'future' && isBookingFuture(b, colDateStr));
+    return matchesSearch && matchesStatus && matchesChannel && matchesHorizon;
   });
 
   // Sorted list derived from filtered bookings
@@ -181,13 +190,16 @@ export default function Bookings() {
   };
 
   const groupedBookings = useMemo(() => {
-
     const groups: {
       monthKey: string;
       monthLabel: string;
       bookings: typeof sortedBookings;
       totalNights: number;
       totalOwnerNet: number;
+      realOwnerNet: number;
+      futureOwnerNet: number;
+      realCount: number;
+      futureCount: number;
       confirmedCount: number;
     }[] = [];
 
@@ -203,6 +215,10 @@ export default function Bookings() {
           bookings: [],
           totalNights: 0,
           totalOwnerNet: 0,
+          realOwnerNet: 0,
+          futureOwnerNet: 0,
+          realCount: 0,
+          futureCount: 0,
           confirmedCount: 0,
         };
         map.set(monthKey, group);
@@ -210,7 +226,17 @@ export default function Bookings() {
       }
       group.bookings.push(b);
       group.totalNights += Number(b.number_of_nights) || 0;
-      group.totalOwnerNet += getOwnerNet(b);
+      const ownerNet = getOwnerNet(b);
+      group.totalOwnerNet += ownerNet;
+      if (b.status !== 'cancelled') {
+        if (isBookingReal(b, colDateStr)) {
+          group.realOwnerNet += ownerNet;
+          group.realCount += 1;
+        } else if (isBookingFuture(b, colDateStr)) {
+          group.futureOwnerNet += ownerNet;
+          group.futureCount += 1;
+        }
+      }
       if (b.status === 'confirmed' || b.status === 'checked_in') {
         group.confirmedCount += 1;
       }
@@ -229,46 +255,121 @@ export default function Bookings() {
     });
 
     return groups;
-  }, [sortedBookings, sortField, sortDirection]);
+  }, [sortedBookings, sortField, sortDirection, colDateStr]);
 
-  // KPI aggregates
-  const totalManagementFee = bookings.reduce((sum, b) => sum + getManagementFee(b), 0);
-  const totalOwnerPayout = bookings.reduce((sum, b) => sum + getOwnerNet(b), 0);
-  const totalNights = bookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  // Real vs Future aggregates (excluding cancelled bookings)
+  const activeBookings = useMemo(
+    () => bookings.filter((b) => resolveBookingStatus(b) !== 'cancelled'),
+    [bookings]
+  );
+  const realBookingsList = useMemo(
+    () => activeBookings.filter((b) => isBookingReal(b, colDateStr)),
+    [activeBookings, colDateStr]
+  );
+  const futureBookingsList = useMemo(
+    () => activeBookings.filter((b) => isBookingFuture(b, colDateStr)),
+    [activeBookings, colDateStr]
+  );
 
-  const managementFeeAirbnb = bookings
+  const realOwnerPayout = useMemo(
+    () => realBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0),
+    [realBookingsList]
+  );
+  const futureOwnerPayout = useMemo(
+    () => futureBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0),
+    [futureBookingsList]
+  );
+  const totalOwnerPayout = realOwnerPayout + futureOwnerPayout;
+
+  const realManagementFee = useMemo(
+    () => realBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0),
+    [realBookingsList]
+  );
+  const futureManagementFee = useMemo(
+    () => futureBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0),
+    [futureBookingsList]
+  );
+  const totalManagementFee = realManagementFee + futureManagementFee;
+
+  const realNights = useMemo(
+    () => realBookingsList.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0),
+    [realBookingsList]
+  );
+  const futureNights = useMemo(
+    () => futureBookingsList.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0),
+    [futureBookingsList]
+  );
+  const totalNights = realNights + futureNights;
+
+  // Active displayed values according to financialHorizon
+  const displayedCount =
+    financialHorizon === 'real'
+      ? realBookingsList.length
+      : financialHorizon === 'future'
+      ? futureBookingsList.length
+      : bookings.length;
+
+  const displayedNights =
+    financialHorizon === 'real'
+      ? realNights
+      : financialHorizon === 'future'
+      ? futureNights
+      : totalNights;
+
+  const displayedManagementFee =
+    financialHorizon === 'real'
+      ? realManagementFee
+      : financialHorizon === 'future'
+      ? futureManagementFee
+      : totalManagementFee;
+
+  const displayedOwnerPayout =
+    financialHorizon === 'real'
+      ? realOwnerPayout
+      : financialHorizon === 'future'
+      ? futureOwnerPayout
+      : totalOwnerPayout;
+
+  const activeHorizonBookings =
+    financialHorizon === 'real'
+      ? realBookingsList
+      : financialHorizon === 'future'
+      ? futureBookingsList
+      : activeBookings;
+
+  const managementFeeAirbnb = activeHorizonBookings
     .filter((b) => !b.source || b.source === 'airbnb')
     .reduce((sum, b) => sum + getManagementFee(b), 0);
-  const managementFeeDirect10 = bookings
+  const managementFeeDirect10 = activeHorizonBookings
     .filter((b) => b.source === 'direct' || b.source === 'direct_10')
     .reduce((sum, b) => sum + getManagementFee(b), 0);
-  const managementFeeDirect25 = bookings
+  const managementFeeDirect25 = activeHorizonBookings
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getManagementFee(b), 0);
 
-  const ownerPayoutAirbnb = bookings
+  const ownerPayoutAirbnb = activeHorizonBookings
     .filter((b) => !b.source || b.source === 'airbnb')
     .reduce((sum, b) => sum + getOwnerNet(b), 0);
-  const ownerPayoutDirect10 = bookings
+  const ownerPayoutDirect10 = activeHorizonBookings
     .filter((b) => b.source === 'direct' || b.source === 'direct_10')
     .reduce((sum, b) => sum + getOwnerNet(b), 0);
-  const ownerPayoutDirect25 = bookings
+  const ownerPayoutDirect25 = activeHorizonBookings
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getOwnerNet(b), 0);
 
   // Pie chart datasets for Bookings KPI cards
-  const bookingsCountAirbnb = bookings.filter((b) => !b.source || b.source === 'airbnb').length;
-  const bookingsCountDirect10 = bookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').length;
-  const bookingsCountDirect25 = bookings.filter((b) => b.source === 'direct_25').length;
+  const bookingsCountAirbnb = activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb').length;
+  const bookingsCountDirect10 = activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').length;
+  const bookingsCountDirect25 = activeHorizonBookings.filter((b) => b.source === 'direct_25').length;
   const bookingsCountPieData = [
     { name: 'Airbnb', value: bookingsCountAirbnb, color: '#f43f5e' },
     { name: 'Directas (10%)', value: bookingsCountDirect10, color: '#10b981' },
     { name: 'Directas (25%)', value: bookingsCountDirect25, color: '#8b5cf6' },
   ];
 
-  const nightsAirbnb = bookings.filter((b) => !b.source || b.source === 'airbnb').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
-  const nightsDirect10 = bookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
-  const nightsDirect25 = bookings.filter((b) => b.source === 'direct_25').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsAirbnb = activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsDirect10 = activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsDirect25 = activeHorizonBookings.filter((b) => b.source === 'direct_25').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
   const nightsPieData = [
     { name: 'Airbnb', value: nightsAirbnb, color: '#f43f5e' },
     { name: 'Directas (10%)', value: nightsDirect10, color: '#10b981' },
@@ -294,17 +395,6 @@ export default function Bookings() {
         toast.success('Reserva eliminada');
       } catch {
         toast.error('No se pudo eliminar la reserva');
-      }
-    }
-  };
-
-  const handleClearAll = async () => {
-    if (confirm('¿Deseas vaciar todas las reservas registradas para probar la importación desde cero?')) {
-      try {
-        await clearBookingsMutation.mutateAsync();
-        toast.success('Lista de reservas vaciada');
-      } catch {
-        toast.error('No se pudo vaciar la lista');
       }
     }
   };
@@ -362,16 +452,6 @@ export default function Bookings() {
         </div>
 
         <div className="flex items-center gap-2">
-          {import.meta.env.DEV && bookings.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClearAll}
-              title="Vaciar reservas para probar importación (Solo DEV)"
-              className="p-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
           <button
             type="button"
             onClick={() => setIsCsvModalOpen(true)}
@@ -415,10 +495,24 @@ export default function Bookings() {
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-xl font-bold text-slate-900 dark:text-white">{bookings.length}</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white">{displayedCount}</p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              {bookings.length === 1 ? 'Reserva registrada' : 'Reservas registradas'}
+              {financialHorizon === 'real'
+                ? 'Reservas cobradas / activas'
+                : financialHorizon === 'future'
+                ? 'Reservas futuras por cobrar'
+                : bookings.length === 1
+                ? 'Reserva registrada'
+                : 'Reservas registradas'}
             </span>
+            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Reservas con dinero cobrado o huésped en apto">
+                ✓ {realBookingsList.length} reales
+              </span>
+              <span className="text-blue-600 dark:text-blue-400 font-semibold" title="Reservas con fecha de check-in en el futuro">
+                ⏳ {futureBookingsList.length} futuras
+              </span>
+            </div>
           </div>
         </div>
 
@@ -441,10 +535,18 @@ export default function Bookings() {
             </div>
           </div>
           <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-xl font-bold text-slate-900 dark:text-white">{totalNights} noches</p>
+            <p className="text-xl font-bold text-slate-900 dark:text-white">{displayedNights} noches</p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Noches vendidas
             </span>
+            <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                ✓ {realNights} noches reales
+              </span>
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                ⏳ {futureNights} noches futuras
+              </span>
+            </div>
           </div>
         </div>
 
@@ -466,11 +568,19 @@ export default function Bookings() {
           </div>
           <div className="pt-2.5 mt-2 border-t border-amber-100 dark:border-amber-900/40">
             <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
-              -{formatCOP(totalManagementFee)}
+              -{formatCOP(displayedManagementFee)}
             </p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Comisión acumulada
             </span>
+            <div className="mt-2 pt-2 border-t border-amber-100 dark:border-amber-900/40 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                ✓ Real: -{formatCOP(realManagementFee)}
+              </span>
+              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                ⏳ Futuro: -{formatCOP(futureManagementFee)}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -492,11 +602,19 @@ export default function Bookings() {
           </div>
           <div className="pt-2.5 mt-2 border-t border-emerald-100 dark:border-emerald-900/40">
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-              {formatCOP(totalOwnerPayout)}
+              {formatCOP(displayedOwnerPayout)}
             </p>
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Neto acumulado
             </span>
+            <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Dinero ya recibido en cuenta de reservas en curso o completadas">
+                ✓ Real en caja: {formatCOP(realOwnerPayout)}
+              </span>
+              <span className="text-blue-600 dark:text-blue-400 font-semibold" title="Dinero proyectado de reservas futuras sujetas a posible cancelación">
+                ⏳ Futuro: {formatCOP(futureOwnerPayout)}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -515,6 +633,47 @@ export default function Bookings() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+          {/* Financial Horizon Toggle: Todas / Solo Real / Solo Futuro */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setFinancialHorizon('all')}
+              className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                financialHorizon === 'all'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+              }`}
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => setFinancialHorizon('real')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                financialHorizon === 'real'
+                  ? 'bg-emerald-600 text-white shadow-xs font-semibold'
+                  : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+              }`}
+              title="Ver solo reservas con dinero ya cobrado (en curso o completadas)"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Solo Real</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFinancialHorizon('future')}
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
+                financialHorizon === 'future'
+                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                  : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+              }`}
+              title="Ver solo reservas futuras por cobrar (sujetas a posible cancelación)"
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>Solo Futuro</span>
+            </button>
+          </div>
+
           {/* Toggle Vista Neto / Desglose */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
             <button
@@ -783,12 +942,40 @@ export default function Bookings() {
                                   {formatCOP(ownerNet)}
                                 </span>
                               </div>
+                              <div className="pt-0.5">
+                                {b.status === 'cancelled' ? (
+                                  <span className="text-[10px] text-rose-500 font-medium">Cancelada</span>
+                                ) : isBookingReal(b, colDateStr) ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>Cobrado (Real)</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400" title="Reserva futura. Aún no cobrada porque puede cancelarse">
+                                    <Clock className="w-3 h-3" />
+                                    <span>Por cobrar (Futuro)</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div className="flex flex-col items-end group/cell">
                               <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold transition-transform group-hover/cell:scale-105">
                                 {formatCOP(ownerNet)}
                               </span>
+                              {b.status === 'cancelled' ? (
+                                <span className="text-[10px] text-rose-500 font-medium">Cancelada</span>
+                              ) : isBookingReal(b, colDateStr) ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Cobrado (Real)</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400" title="Reserva futura. Aún no cobrada porque puede cancelarse">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Por cobrar (Futuro)</span>
+                                </span>
+                              )}
                             </div>
                           )}
                         </td>
@@ -861,13 +1048,33 @@ export default function Bookings() {
                                 </span>
                               </div>
 
-                              <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                  Subtotal neto:
-                                </span>
-                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                                  {formatCOP(group.totalOwnerNet)}
-                                </span>
+                              <div className="flex items-center gap-2 flex-wrap justify-end">
+                                {group.realOwnerNet > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/40"
+                                    title="Ingresos cobrados de reservas pasadas o en curso"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>Real: {formatCOP(group.realOwnerNet)}</span>
+                                  </span>
+                                )}
+                                {group.futureOwnerNet > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-800/40"
+                                    title="Ingresos proyectados de reservas futuras que aún no han hecho check-in"
+                                  >
+                                    <Clock className="w-3 h-3 text-blue-600" />
+                                    <span>Futuro: {formatCOP(group.futureOwnerNet)}</span>
+                                  </span>
+                                )}
+                                <div className="flex items-center gap-1 pl-1">
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Subtotal neto:
+                                  </span>
+                                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                    {formatCOP(group.totalOwnerNet)}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>

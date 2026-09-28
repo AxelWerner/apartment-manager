@@ -35,8 +35,8 @@ const BILL_CONFIG: Record<
   string,
   { label: string; icon: React.ComponentType<{ className?: string }>; category: ExpenseCategory; defaultAmount: number }
 > = {
-  hoa_administration: { label: 'Administración', icon: Building2, category: 'hoa_administration', defaultAmount: 380000 },
-  internet_cable: { label: 'Internet y TV', icon: Wifi, category: 'internet_cable', defaultAmount: 125000 },
+  hoa_administration: { label: 'Administración', icon: Building2, category: 'hoa_administration', defaultAmount: 303887 },
+  internet_cable: { label: 'Internet y TV', icon: Wifi, category: 'internet_cable', defaultAmount: 104900 },
   electricity: { label: 'Energía / Luz (EPM)', icon: Zap, category: 'electricity', defaultAmount: 290000 },
   water: { label: 'Agua / Acueducto (EPM)', icon: Droplets, category: 'water', defaultAmount: 110000 },
   gas: { label: 'Gas Natural (EPM)', icon: Flame, category: 'gas', defaultAmount: 35000 },
@@ -291,26 +291,24 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
             return (
               <div
                 key={catKey}
-                className={`p-5 rounded-2xl border transition-all duration-150 flex flex-col justify-between ${
-                  isPaid
-                    ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs'
-                    : isPending
+                className={`p-5 rounded-2xl border transition-all duration-150 flex flex-col justify-between ${isPaid
+                  ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs'
+                  : isPending
                     ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/60 shadow-xs'
                     : 'bg-slate-50/80 dark:bg-slate-900/40 border-dashed border-slate-300 dark:border-slate-800'
-                }`}
+                  }`}
               >
                 {/* Card Header */}
                 <div>
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          isPaid
-                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
-                            : isPending
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPaid
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
+                          : isPending
                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
                             : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                        }`}
+                          }`}
                       >
                         <Icon className="w-5 h-5" />
                       </div>
@@ -371,11 +369,10 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
                       <button
                         type="button"
                         onClick={() => handleTogglePaid(existing)}
-                        className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-xl border transition-colors ${
-                          isPaid
-                            ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                            : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                        }`}
+                        className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded-xl border transition-colors ${isPaid
+                          ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                          }`}
                       >
                         {isPaid ? 'Cambiar a Pendiente' : 'Marcar Pagado'}
                       </button>
@@ -654,21 +651,19 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
               return (
                 <div
                   key={exp.id}
-                  className={`p-5 rounded-2xl border transition-all duration-150 flex flex-col justify-between ${
-                    isPaid
-                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs'
-                      : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/60 shadow-xs'
-                  }`}
+                  className={`p-5 rounded-2xl border transition-all duration-150 flex flex-col justify-between ${isPaid
+                    ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xs'
+                    : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/60 shadow-xs'
+                    }`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-3 mb-2.5">
                       <div className="flex items-center gap-2.5">
                         <div
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                            isPaid
-                              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                          }`}
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid
+                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                            }`}
                         >
                           <Icon className="w-4 h-4" />
                         </div>
@@ -718,11 +713,10 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
                     <button
                       type="button"
                       onClick={() => handleTogglePaid(exp)}
-                      className={`flex-1 py-1 px-2.5 text-xs font-semibold rounded-xl border transition-colors ${
-                        isPaid
-                          ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                          : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                      }`}
+                      className={`flex-1 py-1 px-2.5 text-xs font-semibold rounded-xl border transition-colors ${isPaid
+                        ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                        }`}
                     >
                       {isPaid ? 'Cambiar a Pendiente' : 'Marcar Pagado'}
                     </button>

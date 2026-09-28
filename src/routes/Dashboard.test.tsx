@@ -260,5 +260,29 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('7/31')).toBeInTheDocument();
     expect(screen.getByText('7 de 31 noches reservadas')).toBeInTheDocument();
   });
+
+  it('renders financial horizon buttons (Todo, Solo Real, Solo Futuro) and switches view', () => {
+    renderWithProviders(<Dashboard />);
+
+    const todoBtn = screen.getByRole('button', { name: /Todo \(Proyectado\)/i });
+    const realBtn = screen.getByRole('button', { name: /Solo Real \(En Caja\)/i });
+    const futureBtn = screen.getByRole('button', { name: /Solo Futuro \(Por Cobrar\)/i });
+
+    expect(todoBtn).toBeInTheDocument();
+    expect(realBtn).toBeInTheDocument();
+    expect(futureBtn).toBeInTheDocument();
+
+    // Default is 'all' (Todo Proyectado)
+    expect(todoBtn).toHaveClass('text-slate-900');
+
+    // Switch to 'real'
+    fireEvent.click(realBtn);
+    expect(realBtn).toHaveClass('bg-emerald-600');
+
+    // Switch to 'future'
+    fireEvent.click(futureBtn);
+    expect(futureBtn).toHaveClass('bg-blue-600');
+  });
 });
+
 

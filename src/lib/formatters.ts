@@ -279,3 +279,69 @@ export function resolveBookingStatus(booking: {
   return 'completed';
 }
 
+/**
+ * Checks if a booking's financial revenue is realized / received in hand ("Real"):
+ * - Payout has been marked as paid (money already received in bank account)
+ * - OR the guest is currently in the apartment or has completed their stay
+ * - OR the check-in date is today or in the past (host payout triggered by Airbnb)
+ * Cancelled bookings return false.
+ */
+export function isBookingReal(
+  booking: {
+    status?: BookingStatus;
+    check_in: string;
+    check_out: string;
+    payout_status?: string | null;
+  },
+  referenceDateStr?: string
+): boolean {
+  if (booking.status === 'cancelled') return false;
+  if (booking.payout_status === 'paid') return true;
+  const status = resolveBookingStatus(booking);
+  if (status === 'cancelled') return false;
+  if (status === 'checked_in' || status === 'completed') return true;
+
+  const todayStr = referenceDateStr || getColombiaDateTime().dateStr;
+  return booking.check_in <= todayStr;
+}
+
+/**
+ * Checks if a booking's financial revenue is in the future / projected ("Futuro"):
+ * - Not cancelled
+ * - Check-in date is in the future AND payout has not been received yet
+ */
+export function isBookingFuture(
+  booking: {
+    status?: BookingStatus;
+    check_in: string;
+    check_out: string;
+    payout_status?: string | null;
+  },
+  referenceDateStr?: string
+): boolean {
+  if (booking.status === 'cancelled') return false;
+  return !isBookingReal(booking, referenceDateStr);
+}
+
+/**
+ * Checks if an expense has been paid / disbursed ("Real"):
+ * - `payment_status === 'paid'`
+ */
+export function isExpenseReal(expense: {
+  payment_status?: string | null;
+  date?: string | null;
+}): boolean {
+  return expense.payment_status === 'paid';
+}
+
+/**
+ * Checks if an expense is pending / scheduled for future payment ("Futuro"):
+ * - `payment_status !== 'paid'`
+ */
+export function isExpenseFuture(expense: {
+  payment_status?: string | null;
+  date?: string | null;
+}): boolean {
+  return expense.payment_status !== 'paid';
+}
+

@@ -5,6 +5,10 @@ import {
   formatDate,
   formatMonthYear,
   resolveBookingStatus,
+  isBookingReal,
+  isBookingFuture,
+  isExpenseReal,
+  isExpenseFuture,
 } from './formatters';
 
 describe('formatters', () => {
@@ -156,6 +160,93 @@ describe('formatters', () => {
         check_out: '2026-09-15',
       });
       expect(status).toBe('completed');
+    });
+  });
+
+  describe('Real vs Future Financial Classification', () => {
+    it('identifies past or completed bookings as real', () => {
+      expect(
+        isBookingReal({
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          status: 'completed',
+        }, '2026-09-28')
+      ).toBe(true);
+
+      expect(
+        isBookingFuture({
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          status: 'completed',
+        }, '2026-09-28')
+      ).toBe(false);
+    });
+
+    it('identifies paid bookings as real regardless of date', () => {
+      expect(
+        isBookingReal({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          payout_status: 'paid',
+        }, '2026-09-28')
+      ).toBe(true);
+
+      expect(
+        isBookingFuture({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          payout_status: 'paid',
+        }, '2026-09-28')
+      ).toBe(false);
+    });
+
+    it('identifies future unpaid bookings as future', () => {
+      expect(
+        isBookingReal({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          payout_status: 'pending',
+          status: 'confirmed',
+        }, '2026-09-28')
+      ).toBe(false);
+
+      expect(
+        isBookingFuture({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          payout_status: 'pending',
+          status: 'confirmed',
+        }, '2026-09-28')
+      ).toBe(true);
+    });
+
+    it('identifies cancelled bookings as neither real nor future revenue', () => {
+      expect(
+        isBookingReal({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          status: 'cancelled',
+        }, '2026-09-28')
+      ).toBe(false);
+
+      expect(
+        isBookingFuture({
+          check_in: '2026-10-15',
+          check_out: '2026-10-20',
+          status: 'cancelled',
+        }, '2026-09-28')
+      ).toBe(false);
+    });
+
+    it('classifies expenses based on payment status', () => {
+      expect(isExpenseReal({ payment_status: 'paid' })).toBe(true);
+      expect(isExpenseFuture({ payment_status: 'paid' })).toBe(false);
+
+      expect(isExpenseReal({ payment_status: 'pending' })).toBe(false);
+      expect(isExpenseFuture({ payment_status: 'pending' })).toBe(true);
+
+      expect(isExpenseReal({ payment_status: 'scheduled' })).toBe(false);
+      expect(isExpenseFuture({ payment_status: 'scheduled' })).toBe(true);
     });
   });
 });

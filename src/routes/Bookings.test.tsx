@@ -239,5 +239,113 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(screen.getAllByTestId('booking-row')).toHaveLength(2);
     });
   });
+
+  describe('Financial Horizon (Real vs Futuro)', () => {
+    const horizonBookings: Booking[] = [
+      {
+        id: 'b-real',
+        property_id: 'prop-1',
+        airbnb_confirmation_code: 'HMREAL',
+        guest_name: 'Huésped Real',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-09-01',
+        check_out: '2026-09-05',
+        number_of_nights: 4,
+        nightly_rate: 100000,
+        gross_amount: 400000,
+        cleaning_fee_collected: 50000,
+        airbnb_service_fee: 10000,
+        taxes_withheld: 0,
+        net_payout: 390000,
+        management_fee: 34000,
+        owner_payout: 306000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: '2026-09-02',
+        source: 'direct_10',
+        notes: null,
+      },
+      {
+        id: 'b-future',
+        property_id: 'prop-1',
+        airbnb_confirmation_code: 'HMFUTURE',
+        guest_name: 'Huésped Futuro',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-11-20',
+        check_out: '2026-11-25',
+        number_of_nights: 5,
+        nightly_rate: 100000,
+        gross_amount: 500000,
+        cleaning_fee_collected: 50000,
+        airbnb_service_fee: 15000,
+        taxes_withheld: 0,
+        net_payout: 485000,
+        management_fee: 43500,
+        owner_payout: 391500,
+        status: 'confirmed',
+        payout_status: 'pending',
+        payout_date: null,
+        source: 'direct_10',
+        notes: null,
+      },
+    ];
+
+    it('displays Real and Futuro badges on booking rows and filters correctly with horizon buttons', async () => {
+      const user = userEvent.setup();
+      vi.mocked(useBookings).mockReturnValue({
+        data: horizonBookings,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      // Both should be visible in 'Todas'
+      expect(screen.getByText('Huésped Real')).toBeInTheDocument();
+      expect(screen.getByText('Huésped Futuro')).toBeInTheDocument();
+
+      // Check badges exist
+      expect(screen.getByText('Cobrado (Real)')).toBeInTheDocument();
+      expect(screen.getByText('Por cobrar (Futuro)')).toBeInTheDocument();
+
+      // Click "Solo Real"
+      const realButton = screen.getByRole('button', { name: 'Solo Real' });
+      await user.click(realButton);
+
+      expect(screen.getByText('Huésped Real')).toBeInTheDocument();
+      expect(screen.queryByText('Huésped Futuro')).not.toBeInTheDocument();
+
+      // Click "Solo Futuro"
+      const futureButton = screen.getByRole('button', { name: 'Solo Futuro' });
+      await user.click(futureButton);
+
+      expect(screen.queryByText('Huésped Real')).not.toBeInTheDocument();
+      expect(screen.getByText('Huésped Futuro')).toBeInTheDocument();
+
+      // Click "Todas" to restore
+      const allButton = screen.getByRole('button', { name: 'Todas' });
+      await user.click(allButton);
+
+      expect(screen.getByText('Huésped Real')).toBeInTheDocument();
+      expect(screen.getByText('Huésped Futuro')).toBeInTheDocument();
+    });
+
+    it('displays Real vs Futuro breakdowns in the KPI summary cards', () => {
+      vi.mocked(useBookings).mockReturnValue({
+        data: horizonBookings,
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      // Should display real and future sublabels in the KPI cards
+      expect(screen.getAllByText(/reales/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/futuras/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(/Real en caja:/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/Futuro:/i).length).toBeGreaterThan(0);
+    });
+  });
 });
+
 

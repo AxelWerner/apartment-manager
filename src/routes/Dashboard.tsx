@@ -10,6 +10,7 @@ import {
   Clock,
   Sparkles,
   Moon,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -37,12 +38,17 @@ import {
   resolveBookingStatus,
   getColombiaDateTime,
   getBookingSourceInfo,
+  isBookingReal,
+  isBookingFuture,
+  isExpenseReal,
+  isExpenseFuture,
 } from '@/lib/formatters';
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 
 type TimeRange = 'this_month' | 'next_month' | 'last_month' | 'ytd' | 'all_time';
+type FinancialHorizon = 'all' | 'real' | 'future';
 
 export default function Dashboard() {
   const { data: bookings = [] } = useBookings();
@@ -51,6 +57,7 @@ export default function Dashboard() {
   const { data: property } = useProperty();
 
   const [timeRange, setTimeRange] = useState<TimeRange>('this_month');
+  const [financialHorizon, setFinancialHorizon] = useState<FinancialHorizon>('all');
 
   // Compute date filter boundary using Colombia timezone
   const { dateStr: colDateStr } = getColombiaDateTime();
@@ -65,7 +72,7 @@ export default function Dashboard() {
   const lastMonthStr = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
 
   // Filter items according to selected time range
-  const { filteredBookings, filteredExpenses, totalExpenses } = useMemo(() => {
+  const { filteredBookings, filteredExpenses } = useMemo(() => {
     let bList: typeof bookings;
     let eList: typeof expenses;
 
@@ -112,7 +119,7 @@ export default function Dashboard() {
     return { filteredBookings: bList, filteredExpenses: eList, totalExpenses: calculatedTotal };
   }, [bookings, expenses, timeRange, currentMonthStr, nextMonthStr, lastMonthStr, currentYear, colDateStr]);
 
-  // Aggregate financials
+  // Aggregate helpers
   const getBookingMgmtFee = (b: Booking) => {
     if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
     const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
@@ -127,49 +134,157 @@ export default function Dashboard() {
     return Math.round(accommodation * rate);
   };
 
-  const totalManagementFee = filteredBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+  // Real vs Future breakdown for the period
+  const realBookings = useMemo(
+    () => filteredBookings.filter((b) => isBookingReal(b, colDateStr)),
+    [filteredBookings, colDateStr]
+  );
+  const futureBookings = useMemo(
+    () => filteredBookings.filter((b) => isBookingFuture(b, colDateStr)),
+    [filteredBookings, colDateStr]
+  );
+  const realExpensesList = useMemo(
+    () => filteredExpenses.filter((e) => isExpenseReal(e)),
+    [filteredExpenses]
+  );
+  const futureExpensesList = useMemo(
+    () => filteredExpenses.filter((e) => isExpenseFuture(e)),
+    [filteredExpenses]
+  );
 
-  const managementFeeAirbnb = filteredBookings
+  // Financial aggregates: Real (Cobrado / Pagado)
+  const realOwnerPayout = realBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+  const realManagementFee = realBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+  const realGrossAccommodation = realOwnerPayout + realManagementFee;
+  const realCleaningFee = realBookings.reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
+  const realExpensesTotal = realExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const realNetProfit = realOwnerPayout - realExpensesTotal;
+  const realBookedNights = realBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+
+  // Financial aggregates: Futuro (Por cobrar / Pendiente)
+  const futureOwnerPayout = futureBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+  const futureManagementFee = futureBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
+  const futureGrossAccommodation = futureOwnerPayout + futureManagementFee;
+  const futureCleaningFee = futureBookings.reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
+  const futureExpensesTotal = futureExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const futureNetProfit = futureOwnerPayout - futureExpensesTotal;
+  const futureBookedNights = futureBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+
+  // Financial aggregates: Total (Consolidado Proyectado)
+  const totalOwnerPayout = realOwnerPayout + futureOwnerPayout;
+  const totalManagementFee = realManagementFee + futureManagementFee;
+  const totalGrossAccommodation = realGrossAccommodation + futureGrossAccommodation;
+  const totalGuestCleaningFee = realCleaningFee + futureCleaningFee;
+  const totalExpenses = realExpensesTotal + futureExpensesTotal;
+  const netProfit = totalOwnerPayout - totalExpenses;
+  const bookedNights = realBookedNights + futureBookedNights;
+
+  // Active dataset for cards and mini pie charts according to financialHorizon
+  const activeBookingsList =
+    financialHorizon === 'real'
+      ? realBookings
+      : financialHorizon === 'future'
+      ? futureBookings
+      : filteredBookings;
+
+  const activeExpensesList =
+    financialHorizon === 'real'
+      ? realExpensesList
+      : financialHorizon === 'future'
+      ? futureExpensesList
+      : filteredExpenses;
+
+  const displayedNetProfit =
+    financialHorizon === 'real'
+      ? realNetProfit
+      : financialHorizon === 'future'
+      ? futureNetProfit
+      : netProfit;
+
+  const displayedOwnerPayout =
+    financialHorizon === 'real'
+      ? realOwnerPayout
+      : financialHorizon === 'future'
+      ? futureOwnerPayout
+      : totalOwnerPayout;
+
+  const displayedGrossAccommodation =
+    financialHorizon === 'real'
+      ? realGrossAccommodation
+      : financialHorizon === 'future'
+      ? futureGrossAccommodation
+      : totalGrossAccommodation;
+
+  const displayedManagementFee =
+    financialHorizon === 'real'
+      ? realManagementFee
+      : financialHorizon === 'future'
+      ? futureManagementFee
+      : totalManagementFee;
+
+  const displayedCleaningFee =
+    financialHorizon === 'real'
+      ? realCleaningFee
+      : financialHorizon === 'future'
+      ? futureCleaningFee
+      : totalGuestCleaningFee;
+
+  const displayedExpenses =
+    financialHorizon === 'real'
+      ? realExpensesTotal
+      : financialHorizon === 'future'
+      ? futureExpensesTotal
+      : totalExpenses;
+
+  // Pie chart datasets for cards
+  const ownerPayoutAirbnb = activeBookingsList
+    .filter((b) => !b.source || b.source === 'airbnb')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const ownerPayoutDirect10 = activeBookingsList
+    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const ownerPayoutDirect25 = activeBookingsList
+    .filter((b) => b.source === 'direct_25')
+    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+
+  const managementFeeAirbnb = activeBookingsList
     .filter((b) => !b.source || b.source === 'airbnb')
     .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
 
-  const managementFeeDirect10 = filteredBookings
+  const managementFeeDirect10 = activeBookingsList
     .filter((b) => b.source === 'direct' || b.source === 'direct_10')
     .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
 
-  const managementFeeDirect25 = filteredBookings
+  const managementFeeDirect25 = activeBookingsList
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
 
-  const ownerPayoutAirbnb = filteredBookings
+  const cleaningFeeAirbnb = activeBookingsList
     .filter((b) => !b.source || b.source === 'airbnb')
-    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
 
-  const ownerPayoutDirect10 = filteredBookings
+  const cleaningFeeDirect10 = activeBookingsList
     .filter((b) => b.source === 'direct' || b.source === 'direct_10')
-    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
 
-  const ownerPayoutDirect25 = filteredBookings
+  const cleaningFeeDirect25 = activeBookingsList
     .filter((b) => b.source === 'direct_25')
-    .reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
+    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
 
-  const hoaExpenses = filteredExpenses
+  const hoaExpenses = activeExpensesList
     .filter((e) => e.category === 'hoa_administration')
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-  const utilitiesExpenses = filteredExpenses
+  const utilitiesExpenses = activeExpensesList
     .filter((e) => ['electricity', 'water', 'gas'].includes(e.category))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-  const otherExpenses = filteredExpenses
+  const otherExpenses = activeExpensesList
     .filter((e) => !['hoa_administration', 'electricity', 'water', 'gas'].includes(e.category))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
-  const totalOwnerPayout = filteredBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
-  const totalGrossAccommodation = totalOwnerPayout + totalManagementFee;
-  const netProfit = totalOwnerPayout - totalExpenses;
-
-  // Pie chart datasets for cards
   const accommodationRevenuePieData = useMemo(() => [
     { name: 'Airbnb', value: ownerPayoutAirbnb, color: '#f43f5e' },
     { name: 'Directas (10%)', value: ownerPayoutDirect10, color: '#10b981' },
@@ -181,18 +296,6 @@ export default function Dashboard() {
     { name: 'Directas (10%)', value: managementFeeDirect10, color: '#10b981' },
     { name: 'Directas (25%)', value: managementFeeDirect25, color: '#8b5cf6' },
   ], [managementFeeAirbnb, managementFeeDirect10, managementFeeDirect25]);
-
-  const cleaningFeeAirbnb = useMemo(() => filteredBookings
-    .filter((b) => !b.source || b.source === 'airbnb')
-    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
-
-  const cleaningFeeDirect10 = useMemo(() => filteredBookings
-    .filter((b) => b.source === 'direct' || b.source === 'direct_10')
-    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
-
-  const cleaningFeeDirect25 = useMemo(() => filteredBookings
-    .filter((b) => b.source === 'direct_25')
-    .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0), [filteredBookings]);
 
   const cleaningFeePieData = useMemo(() => [
     { name: 'Airbnb', value: cleaningFeeAirbnb, color: '#f43f5e' },
@@ -207,7 +310,6 @@ export default function Dashboard() {
   ], [hoaExpenses, utilitiesExpenses, otherExpenses]);
 
   // Hospitality KPIs with exact calendar days per period
-  const bookedNights = filteredBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
   const calendarDays = useMemo(() => {
     if (timeRange === 'this_month') {
       return new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -242,12 +344,6 @@ export default function Dashboard() {
 
   const occupancyRate = Math.min(100, Math.round((bookedNights / calendarDays) * 100));
 
-  // Cleaning fees generated by guests for the period
-  const totalGuestCleaningFee = filteredBookings.reduce(
-    (sum, b) => sum + (Number(b.cleaning_fee_collected) || 0),
-    0
-  );
-
   // Active guest in house
   const activeGuest = bookings.find((b) => resolveBookingStatus(b) === 'checked_in');
 
@@ -257,18 +353,33 @@ export default function Dashboard() {
       return {
         display: `${bookedNights}/${calendarDays}`,
         subtitle: `${bookedNights} de ${calendarDays} noches reservadas`,
+        breakdownText: `${realBookedNights} reales · ${futureBookedNights} futuras`,
       };
     }
 
     return {
       display: '-',
       subtitle: 'Sin reservas en el período',
+      breakdownText: '',
     };
-  }, [filteredBookings.length, bookedNights, calendarDays]);
+  }, [filteredBookings.length, bookedNights, calendarDays, realBookedNights, futureBookedNights]);
 
   // Monthly Cash Flow Chart Data (last 6 months)
   const cashFlowData = useMemo(() => {
-    const monthsMap: Record<string, { month: string; monthLabel: string; income: number; expenses: number; profit: number }> = {};
+    const monthsMap: Record<
+      string,
+      {
+        month: string;
+        monthLabel: string;
+        income: number;
+        realIncome: number;
+        futureIncome: number;
+        expenses: number;
+        realExpenses: number;
+        futureExpenses: number;
+        profit: number;
+      }
+    > = {};
 
     // Generate last 6 months keys
     for (let i = 5; i >= 0; i--) {
@@ -278,7 +389,11 @@ export default function Dashboard() {
         month: key,
         monthLabel: formatMonthYear(key).split(' ')[0],
         income: 0,
+        realIncome: 0,
+        futureIncome: 0,
         expenses: 0,
+        realExpenses: 0,
+        futureExpenses: 0,
         profit: 0,
       };
     }
@@ -287,13 +402,18 @@ export default function Dashboard() {
       if (resolveBookingStatus(b) === 'cancelled') return;
       const m = b.check_in.substring(0, 7);
       if (monthsMap[m]) {
-        if (b.owner_payout !== undefined && b.owner_payout !== null) {
-          monthsMap[m].income += Number(b.owner_payout);
+        const ownerAmount =
+          b.owner_payout !== undefined && b.owner_payout !== null
+            ? Number(b.owner_payout)
+            : Math.round(
+                Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+                  getBookingSourceInfo(b.source).ownerRate
+              );
+        monthsMap[m].income += ownerAmount;
+        if (isBookingReal(b, colDateStr)) {
+          monthsMap[m].realIncome += ownerAmount;
         } else {
-          const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-          const rate = getBookingSourceInfo(b.source).ownerRate;
-          const ownerAmount = Math.round(accommodation * rate);
-          monthsMap[m].income += ownerAmount;
+          monthsMap[m].futureIncome += ownerAmount;
         }
       }
     });
@@ -301,7 +421,13 @@ export default function Dashboard() {
     expenses.forEach((e) => {
       const m = e.billing_month || e.date.substring(0, 7);
       if (monthsMap[m]) {
-        monthsMap[m].expenses += Number(e.amount) || 0;
+        const amt = Number(e.amount) || 0;
+        monthsMap[m].expenses += amt;
+        if (isExpenseReal(e)) {
+          monthsMap[m].realExpenses += amt;
+        } else {
+          monthsMap[m].futureExpenses += amt;
+        }
       }
     });
 
@@ -309,13 +435,13 @@ export default function Dashboard() {
       ...item,
       profit: item.income - item.expenses,
     }));
-  }, [bookings, expenses, currentYear, currentMonth]);
+  }, [bookings, expenses, currentYear, currentMonth, colDateStr]);
 
   // Expense Category Distribution Data
   const expenseCategoryData = useMemo(() => {
     const catMap: Record<string, number> = {};
 
-    filteredExpenses.forEach((e) => {
+    activeExpensesList.forEach((e) => {
       const cat = e.category;
       catMap[cat] = (catMap[cat] || 0) + (Number(e.amount) || 0);
     });
@@ -329,7 +455,7 @@ export default function Dashboard() {
         color: colors[idx % colors.length],
       }))
       .sort((a, b) => b.amount - a.amount);
-  }, [filteredExpenses]);
+  }, [activeExpensesList]);
 
   // Pending Actions / Operational Alerts
   const openDamages = damages.filter((d) => d.claim_status !== 'reimbursed' && d.claim_status !== 'written_off');
@@ -443,7 +569,7 @@ export default function Dashboard() {
           <div className="hidden sm:block w-px h-10 bg-slate-200 dark:bg-slate-800" />
 
           {/* Right side: Nights Tracker */}
-          <div className="flex items-center justify-between sm:justify-end gap-3 sm:min-w-[240px]">
+          <div className="flex items-center justify-between sm:justify-end gap-3 sm:min-w-[260px]">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 text-left sm:text-right">
                 Noches en el Período
@@ -451,6 +577,11 @@ export default function Dashboard() {
               <p className="text-[11px] text-slate-400 text-left sm:text-right">
                 {periodNightsProgress.subtitle}
               </p>
+              {periodNightsProgress.breakdownText && (
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium text-left sm:text-right">
+                  {periodNightsProgress.breakdownText}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400">
@@ -466,33 +597,107 @@ export default function Dashboard() {
 
       {/* Large Consolidated Financial Breakdown Card */}
       <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-rose-500" />
-              <span>Desglose Financiero y Gastos del Período</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Ingresos de alojamiento (bruto y neto), comisión de administración, aseo y gastos mensuales (servicios públicos/fijos)
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 rounded-xl border border-slate-100 dark:border-slate-800 shrink-0">
-            <div className={`p-2 rounded-lg ${
-              netProfit >= 0
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300'
-                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
-            }`}>
-              <TrendingUp className="w-5 h-5" />
-            </div>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="space-y-2">
             <div>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">
-                Ganancia Neta
-              </span>
-              <p className={`text-xl sm:text-2xl font-black tracking-tight ${
-                netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-              }`}>
-                {formatCOP(netProfit)}
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-rose-500" />
+                <span>Desglose Financiero y Gastos del Período</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Ingresos de alojamiento (bruto y neto), comisión de administración, aseo y gastos mensuales (servicios públicos/fijos)
               </p>
+            </div>
+
+            {/* Financial View Horizon Switcher */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-fit border border-slate-200/80 dark:border-slate-700/80">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 px-2">
+                Vista:
+              </span>
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('all')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  financialHorizon === 'all'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                }`}
+              >
+                Todo (Proyectado)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('real')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  financialHorizon === 'real'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                }`}
+                title="Mostrar únicamente reservas cobradas/activas y gastos pagados"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Solo Real (En Caja)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('future')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  financialHorizon === 'future'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                }`}
+                title="Mostrar reservas futuras por cobrar y facturas pendientes"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Solo Futuro (Por Cobrar)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Ganancia Neta & Real vs Future Box */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                displayedNetProfit >= 0
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300'
+                  : 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
+              }`}>
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">
+                  Ganancia Neta
+                </span>
+                <p className={`text-xl sm:text-2xl font-black tracking-tight ${
+                  displayedNetProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {formatCOP(displayedNetProfit)}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick 2-result summary (Real vs Futuro) */}
+            <div className="flex flex-col gap-1 sm:pl-3 sm:border-l border-slate-200 dark:border-slate-700 text-[11px]">
+              <div
+                className="flex items-center justify-between gap-3 text-emerald-700 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/40"
+                title="Ganancia de reservas ya en el apartamento o completadas menos gastos pagados"
+              >
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Real (en caja):</span>
+                </span>
+                <span>{formatCOP(realNetProfit)}</span>
+              </div>
+              <div
+                className="flex items-center justify-between gap-3 text-blue-700 dark:text-blue-400 font-semibold bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-800/40"
+                title="Ganancia proyectada de reservas futuras menos gastos pendientes"
+              >
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-blue-600" />
+                  <span>Futuro (por cobrar):</span>
+                </span>
+                <span>{formatCOP(futureNetProfit)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -517,12 +722,21 @@ export default function Dashboard() {
             </div>
             <div className="pt-2.5 mt-2 border-t border-blue-200/60 dark:border-blue-800/40">
               <p className="text-xl font-bold text-slate-900 dark:text-white">
-                {formatCOP(totalOwnerPayout)}
+                {formatCOP(displayedOwnerPayout)}
               </p>
               <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 <span>Neto dueños</span>
-                <span className="text-[10px] text-slate-400" title={`Bruto: ${formatCOP(totalGrossAccommodation)}`}>
-                  Bruto: {formatCOP(totalGrossAccommodation)}
+                <span className="text-[10px] text-slate-400" title={`Bruto: ${formatCOP(displayedGrossAccommodation)}`}>
+                  Bruto: {formatCOP(displayedGrossAccommodation)}
+                </span>
+              </div>
+              {/* Real vs Future Sub-pills */}
+              <div className="mt-2 pt-2 border-t border-blue-200/50 dark:border-blue-800/30 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold" title="Dinero ya cobrado de reservas en curso o completadas">
+                  ✓ Real: {formatCOP(realOwnerPayout)}
+                </span>
+                <span className="text-blue-700 dark:text-blue-400 font-semibold" title="Dinero proyectado de reservas futuras que aún no han hecho check-in">
+                  ⏳ Futuro: {formatCOP(futureOwnerPayout)}
                 </span>
               </div>
             </div>
@@ -546,11 +760,20 @@ export default function Dashboard() {
             </div>
             <div className="pt-2.5 mt-2 border-t border-amber-200/60 dark:border-amber-800/40">
               <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
-                -{formatCOP(totalManagementFee)}
+                -{formatCOP(displayedManagementFee)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 Comisión total de gestión
               </span>
+              {/* Real vs Future Sub-pills */}
+              <div className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/30 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                  ✓ Real: -{formatCOP(realManagementFee)}
+                </span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                  ⏳ Futuro: -{formatCOP(futureManagementFee)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -572,11 +795,20 @@ export default function Dashboard() {
             </div>
             <div className="pt-2.5 mt-2 border-t border-teal-200/60 dark:border-teal-800/40">
               <p className="text-xl font-bold text-slate-900 dark:text-white">
-                {formatCOP(totalGuestCleaningFee)}
+                {formatCOP(displayedCleaningFee)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Recaudado ({filteredBookings.length} {filteredBookings.length === 1 ? 'estadía' : 'estadías'})
+                Recaudado ({activeBookingsList.length} {activeBookingsList.length === 1 ? 'estadía' : 'estadías'})
               </span>
+              {/* Real vs Future Sub-pills */}
+              <div className="mt-2 pt-2 border-t border-teal-200/50 dark:border-teal-800/30 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                  ✓ Real: {formatCOP(realCleaningFee)}
+                </span>
+                <span className="text-teal-700 dark:text-teal-400 font-semibold">
+                  ⏳ Futuro: {formatCOP(futureCleaningFee)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -598,11 +830,20 @@ export default function Dashboard() {
             </div>
             <div className="pt-2.5 mt-2 border-t border-rose-200/60 dark:border-rose-800/40">
               <p className="text-xl font-bold text-rose-600 dark:text-rose-400">
-                -{formatCOP(totalExpenses)}
+                -{formatCOP(displayedExpenses)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 Total gastos del período
               </span>
+              {/* Real vs Future Sub-pills */}
+              <div className="mt-2 pt-2 border-t border-rose-200/50 dark:border-rose-800/30 flex items-center justify-between text-[11px]">
+                <span className="text-emerald-700 dark:text-emerald-400 font-semibold" title="Facturas ya pagadas">
+                  ✓ Pagado: -{formatCOP(realExpensesTotal)}
+                </span>
+                <span className="text-rose-700 dark:text-rose-400 font-semibold" title="Facturas pendientes de pago">
+                  ⏳ Por pagar: -{formatCOP(futureExpensesTotal)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -625,7 +866,9 @@ export default function Dashboard() {
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 Flujo de Caja Mensual (Ingresos vs. Gastos)
               </h2>
-              <p className="text-xs text-slate-400">Comparativa histórica de los últimos 6 meses en COP</p>
+              <p className="text-xs text-slate-400">
+                Comparativa histórica con segmentación de cobrado real vs futuro proyectado en COP
+              </p>
             </div>
           </div>
 
@@ -641,7 +884,7 @@ export default function Dashboard() {
                   tickFormatter={(val) => `$${(val / 1000000).toFixed(1)}M`}
                 />
                 <Tooltip
-                  formatter={(value: unknown) => [formatCOP(Number(value)) + ' COP', '']}
+                  formatter={(value: unknown, name: unknown) => [formatCOP(Number(value)) + ' COP', String(name)]}
                   labelFormatter={(label) => `Mes: ${label}`}
                   contentStyle={{
                     borderRadius: '12px',
@@ -649,14 +892,16 @@ export default function Dashboard() {
                     boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                   }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                <Bar dataKey="income" name="Ingreso Neto" fill="#10b981" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="expenses" name="Gastos Totales" fill="#f43f5e" radius={[6, 6, 0, 0]} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                <Bar dataKey="realIncome" stackId="income" name="Ingreso Real (Cobrado)" fill="#10b981" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="futureIncome" stackId="income" name="Ingreso Futuro (Por cobrar)" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="realExpenses" stackId="expenses" name="Gastos Pagados" fill="#f43f5e" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="futureExpenses" stackId="expenses" name="Gastos Pendientes" fill="#fbbf24" radius={[4, 4, 0, 0]} />
                 <Line
                   type="monotone"
                   dataKey="profit"
-                  name="Ganancia Neta"
-                  stroke="#3b82f6"
+                  name="Ganancia Neta Total"
+                  stroke="#8b5cf6"
                   strokeWidth={3}
                   dot={{ r: 4 }}
                 />
