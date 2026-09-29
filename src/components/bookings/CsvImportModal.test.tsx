@@ -77,8 +77,8 @@ describe('CsvImportModal Component', () => {
     const user = userEvent.setup();
     const handleClose = vi.fn();
 
-    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
-09/12/2026,Buchung,HMTEST01,09/11/2026,09/14/2026,3,Juan Perez,300000,60000,360000,60000`;
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HMTEST01,09/09/2026,09/11/2026,09/14/2026,3,Juan Perez,300000,60000,360000,60000`;
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -98,8 +98,113 @@ describe('CsvImportModal Component', () => {
     await user.click(confirmButton);
 
     await waitFor(() => {
-      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookings: expect.arrayContaining([
+            expect.objectContaining({
+              guest_name: 'Juan Perez',
+              booking_date: '2026-09-09',
+            }),
+          ]),
+        })
+      );
       expect(handleClose).toHaveBeenCalled();
+    });
+  });
+
+  it('rejects files with multiple different years and displays an error alert', async () => {
+    const user = userEvent.setup();
+
+    // Multi-year sample: one row in 2025 and one row in 2026
+    const multiYearCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2025,Buchung,HMYEAR2025,09/11/2025,09/14/2025,3,Past Guest,300000,60000,360000,60000
+09/12/2026,Buchung,HMYEAR2026,09/11/2026,09/14/2026,3,Current Guest,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(multiYearCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Archivo rechazado: Múltiples años detectados/i)).toBeInTheDocument();
+      expect(screen.getByText(/2 años diferentes/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Total 2 reservas/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('detects existing bookings in the database missing from the full-year CSV and marks them for deletion', async () => {
+    const user = userEvent.setup();
+    const handleClose = vi.fn();
+
+    // Mock existing booking in DB for 2026
+    const { useBookings } = await import('@/hooks/use-bookings');
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'b-old-2026',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMOLD_DELETE',
+          guest_name: 'Antiguo Huésped',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-05-01',
+          check_out: '2026-05-04',
+          number_of_nights: 3,
+          nightly_rate: 100000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 310000,
+          status: 'confirmed' as const,
+          payout_status: 'paid' as const,
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ],
+    } as unknown as ReturnType<typeof useBookings>);
+
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HMNEW2026,09/11/2026,09/14/2026,3,Nuevo Huésped,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={handleClose} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Año 2026 \(Año Completo\)/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/1 reserva\(s\) en la base de datos se eliminarán porque ya no están en este archivo del año 2026/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/A eliminar de la BD:/i)).toBeInTheDocument();
+    });
+
+    const confirmButton = screen.getByRole('button', { name: /Confirmar e Importar.*1 a eliminar/i });
+    expect(confirmButton).toBeInTheDocument();
+
+    await user.click(confirmButton);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            syncYear: '2026',
+            deleteMissing: true,
+          }),
+        })
+      );
     });
   });
 
@@ -118,3 +223,4 @@ describe('CsvImportModal Component', () => {
     }
   });
 });
+

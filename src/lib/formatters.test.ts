@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   formatCOP,
   parseCOP,
   formatDate,
   formatMonthYear,
   resolveBookingStatus,
+  getBookingYear,
   isBookingReal,
   isBookingFuture,
   isExpenseReal,
@@ -247,6 +248,27 @@ describe('formatters', () => {
 
       expect(isExpenseReal({ payment_status: 'scheduled' })).toBe(false);
       expect(isExpenseFuture({ payment_status: 'scheduled' })).toBe(true);
+    });
+  });
+
+  describe('getBookingYear', () => {
+    it('extracts year from ISO date strings (YYYY-MM-DD)', () => {
+      expect(getBookingYear('2026-09-11')).toBe('2026');
+      expect(getBookingYear('2025-01-01')).toBe('2025');
+      expect(getBookingYear('2027-12-31')).toBe('2027');
+    });
+
+    it('extracts year from slash/period formatted dates (MM/DD/YYYY or DD.MM.YYYY)', () => {
+      expect(getBookingYear('09/11/2026')).toBe('2026');
+      expect(getBookingYear('11.09.2026')).toBe('2026');
+      expect(getBookingYear('2026/09/11')).toBe('2026');
+    });
+
+    it('returns null for empty, invalid, or missing date strings', () => {
+      expect(getBookingYear('')).toBeNull();
+      expect(getBookingYear(null)).toBeNull();
+      expect(getBookingYear(undefined)).toBeNull();
+      expect(getBookingYear('invalid-date')).toBeNull();
     });
   });
 });

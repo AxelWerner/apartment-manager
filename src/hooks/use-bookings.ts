@@ -6,6 +6,8 @@ import {
   updateBooking,
   deleteBooking,
   clearAllBookings,
+  type UpsertBatchOptions,
+  type UpsertBatchResult,
 } from '@/lib/api-service';
 import type { Booking } from '@/types/database';
 
@@ -29,9 +31,18 @@ export function useCreateBooking() {
 
 export function useCreateBookingsBatch() {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (bookings: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[]) =>
-      createBookingsBatch(bookings),
+  return useMutation<
+    UpsertBatchResult,
+    Error,
+    | Omit<Booking, 'id' | 'created_at' | 'updated_at'>[]
+    | { bookings: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[]; options?: UpsertBatchOptions }
+  >({
+    mutationFn: (args) => {
+      if (Array.isArray(args)) {
+        return createBookingsBatch(args);
+      }
+      return createBookingsBatch(args.bookings, args.options);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },

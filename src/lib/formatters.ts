@@ -58,6 +58,30 @@ export function formatDate(dateString: string | null | undefined): string {
 }
 
 /**
+ * Extract the 4-digit calendar year (YYYY) from any booking date string (ISO, US, or European formatted).
+ * Returns null if not determinable.
+ */
+export function getBookingYear(dateString: string | null | undefined): string | null {
+  if (!dateString) return null;
+  const trimmed = dateString.trim();
+  if (!trimmed) return null;
+
+  // 1. ISO format: "2026-09-15" or "2026/09/15"
+  const isoMatch = trimmed.match(/^(\d{4})[-/.]/);
+  if (isoMatch) return isoMatch[1];
+
+  // 2. Trailing year: "15/09/2026", "09-15-2026", "15.09.2026"
+  const trailingMatch = trimmed.match(/[-/.](\d{4})$/);
+  if (trailingMatch) return trailingMatch[1];
+
+  // 3. Fallback: search for any 4-digit token starting with 19 or 20
+  const anyYearMatch = trimmed.match(/\b(19\d{2}|20\d{2})\b/);
+  if (anyYearMatch) return anyYearMatch[1];
+
+  return null;
+}
+
+/**
  * Format month 'YYYY-MM' into readable Spanish month:
  * e.g., "2026-09" -> "Septiembre 2026"
  */

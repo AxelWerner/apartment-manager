@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import Papa from 'papaparse';
-import { UploadCloud, FileSpreadsheet, Check, Trash2, RefreshCw, Plus, Moon, Files, Sparkles } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Check, Trash2, RefreshCw, Plus, Moon, Files, Sparkles, AlertTriangle, Calendar } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, resolveBookingStatus } from '@/lib/formatters';
+import { formatCOP, formatDate, resolveBookingStatus, getBookingYear } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
@@ -16,6 +16,7 @@ interface CsvImportModalProps {
 interface ParsedBookingRow {
   airbnb_confirmation_code: string | null;
   guest_name: string;
+  booking_date?: string | null;
   check_in: string;
   check_out: string;
   number_of_nights: number;
@@ -69,8 +70,15 @@ const parseDate = (dStr: string) => {
   const parts = trimmed.split(/[/.-]/);
   if (parts.length === 3) {
     if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-    // MM/DD/YYYY from Airbnb exports
-    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    if (parts[2].length === 4) {
+      const p0 = parseInt(parts[0], 10);
+      const p1 = parseInt(parts[1], 10);
+      if (p0 > 12 && p1 <= 12) {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+      // MM/DD/YYYY from Airbnb exports
+      return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    }
   }
   return trimmed;
 };
@@ -82,6 +90,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   const [parsedRows, setParsedRows] = useState<ParsedBookingRow[]>([]);
   const [loadedFiles, setLoadedFiles] = useState<LoadedFileInfo[]>([]);
   const [loadingSample, setLoadingSample] = useState<string | null>(null);
+  const [detectedYear, setDetectedYear] = useState<string | null>(null);
+  const [yearError, setYearError] = useState<string | null>(null);
+  const [rowsToDelete, setRowsToDelete] = useState<Booking[]>([]);
+  const [showDeletedRows, setShowDeletedRows] = useState(false);
 
   const parseRawCsvFile = (file: File): Promise<{ fileName: string; rows: ParsedBookingRow[] }> => {
     return new Promise((resolve) => {
@@ -120,6 +132,15 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               'Código'
             );
             const name = getVal('Gast', 'Guest name', 'Nombre del huésped', 'Huésped', 'Guest');
+            const bookedDateStr = getVal(
+              'Buchungsdatum',
+              'Booked date',
+              'Booking date',
+              'Fecha de reserva',
+              'Fecha de la reserva',
+              'Reservation date',
+              'Date of reservation'
+            );
             const checkIn = getVal('Startdatum', 'Start date', 'Fecha de inicio', 'Check-in', 'Arrival date');
             const checkOut = getVal('Enddatum', 'End date', 'Fecha de finalización', 'Check-out', 'Departure date');
             const nightsStr = getVal('Nächte', 'Nights', 'Noches', '# of nights');
@@ -162,10 +183,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
 
             const normalizedIn = parseDate(checkIn);
             const normalizedOut = parseDate(checkOut);
+            const normalizedBookedDate = parseDate(bookedDateStr) || null;
 
             fileRows.push({
               airbnb_confirmation_code: code || null,
               guest_name: name || 'Huésped Airbnb',
+              booking_date: normalizedBookedDate,
               check_in: normalizedIn,
               check_out: normalizedOut,
               number_of_nights: validNights,
@@ -196,6 +219,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
     if (!files || files.length === 0) return;
 
     try {
+      setYearError(null);
       const results = await Promise.all(files.map((file) => parseRawCsvFile(file)));
 
       // Collect all rows and deduplicate across files
@@ -233,16 +257,59 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
 
       const mergedRows = [...Array.from(combinedByCode.values()), ...rowsWithoutCode];
 
+      if (mergedRows.length === 0) {
+        toast.error('No se encontraron registros de reservaciones válidos en los archivos seleccionados');
+        return;
+      }
+
+      // Check year of each row
+      const distinctYears = new Set<string>();
+      for (const r of mergedRows) {
+        const y = getBookingYear(r.check_in);
+        if (y) distinctYears.add(y);
+      }
+
+      if (distinctYears.size > 1) {
+        const yearsArr = Array.from(distinctYears).sort();
+        const errorMsg = `El archivo o lote contiene reservas de ${distinctYears.size} años diferentes (${yearsArr.join(', ')}). Cada importación debe corresponder exclusivamente a la información de un único AÑO COMPLETO de reservas.`;
+        setYearError(errorMsg);
+        toast.error(errorMsg, { duration: 6000 });
+        setParsedRows([]);
+        setLoadedFiles([]);
+        setRowsToDelete([]);
+        setDetectedYear(null);
+        return;
+      }
+
+      if (distinctYears.size === 0) {
+        const errorMsg = 'No se pudieron identificar las fechas de inicio (check-in) para determinar el año del archivo.';
+        setYearError(errorMsg);
+        toast.error(errorMsg);
+        return;
+      }
+
+      const singleYear = Array.from(distinctYears)[0];
+      setDetectedYear(singleYear);
+      setYearError(null);
+
       // Sort chronologically by check-in date
       mergedRows.sort((a, b) => (b.check_in || '').localeCompare(a.check_in || ''));
+
+      // Incoming confirmation codes set
+      const incomingCodes = new Set<string>();
+      mergedRows.forEach((r) => {
+        if (r.airbnb_confirmation_code) {
+          incomingCodes.add(r.airbnb_confirmation_code.trim().toUpperCase());
+        }
+      });
 
       // Compare against existing bookings in the database
       const finalRows: ParsedBookingRow[] = mergedRows.map((row) => {
         const codeUpper = row.airbnb_confirmation_code?.trim().toUpperCase();
         const existing = codeUpper
           ? existingBookings.find(
-            (b) => b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
-          )
+              (b) => b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
+            )
           : undefined;
 
         let importStatus: 'new' | 'updated' | 'unchanged' = 'new';
@@ -277,15 +344,31 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         };
       });
 
-      if (finalRows.length === 0) {
-        toast.error('No se encontraron registros de reservaciones válidos en los archivos seleccionados');
-        return;
-      }
+      // DEDUCE WHICH BOOKINGS IN DB FOR singleYear ARE MISSING FROM CSV:
+      // If DB has reservations A, B, C for singleYear, and we import C, D:
+      // A and B must be deleted!
+      const missingFromDb = existingBookings.filter((b) => {
+        const bYear = getBookingYear(b.check_in);
+        if (bYear !== singleYear) return false;
+
+        const isAirbnbOrCoded = Boolean(b.airbnb_confirmation_code) || b.source === 'airbnb' || !b.source;
+        if (!isAirbnbOrCoded) return false;
+
+        const code = b.airbnb_confirmation_code?.trim().toUpperCase();
+        if (code && incomingCodes.has(code)) {
+          return false;
+        }
+        return true;
+      });
 
       setLoadedFiles(fileSummaries);
       setParsedRows(finalRows);
+      setRowsToDelete(missingFromDb);
+
       toast.success(
-        `Se procesaron ${finalRows.length} reservas de ${fileSummaries.length} archivo(s)`
+        `Se procesaron ${finalRows.length} reservas del año ${singleYear}${
+          missingFromDb.length > 0 ? ` (${missingFromDb.length} se eliminarán de la BD)` : ''
+        }`
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -340,6 +423,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       toast.error('No hay reservas válidas para procesar');
       return;
     }
+    if (!detectedYear) {
+      toast.error('No se pudo identificar el año de las reservas para importar');
+      return;
+    }
 
     try {
       const bookingsToInsert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = validRows.map((r) => {
@@ -351,6 +438,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           guest_name: r.guest_name,
           guest_phone: null,
           number_of_guests: 2,
+          booking_date: r.booking_date || null,
           check_in: r.check_in,
           check_out: r.check_out,
           number_of_nights: r.number_of_nights,
@@ -373,28 +461,42 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         };
       });
 
-      const res = await createBatchMutation.mutateAsync(bookingsToInsert);
-      if (res.inserted > 0 && res.updated > 0) {
-        toast.success(`Importación completada: ${res.inserted} nuevas y ${res.updated} actualizadas`);
-      } else if (res.updated > 0) {
-        toast.success(`Se actualizaron con éxito ${res.updated} reservas existentes`);
-      } else if (res.inserted > 0) {
-        toast.success(`Se importaron con éxito ${res.inserted} nuevas reservas`);
+      const res = await createBatchMutation.mutateAsync({
+        bookings: bookingsToInsert,
+        options: {
+          syncYear: detectedYear,
+          deleteMissing: true,
+        },
+      });
+
+      const details: string[] = [];
+      if (res.inserted > 0) details.push(`${res.inserted} nuevas`);
+      if (res.updated > 0) details.push(`${res.updated} actualizadas`);
+      if (res.deleted > 0) details.push(`${res.deleted} eliminadas`);
+
+      if (details.length > 0) {
+        toast.success(`Año ${detectedYear}: Sincronización exitosa (${details.join(', ')})`);
       } else {
-        toast.info('Todas las reservas ya estaban al día (sin cambios)');
+        toast.info(`Año ${detectedYear}: Todas las reservas ya estaban al día (sin cambios)`);
       }
 
       handleReset();
       onClose();
-    } catch {
-      toast.error('Ocurrió un error al procesar las reservas');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Error al procesar las reservas: ${message}`);
     }
   };
 
   const handleReset = () => {
     setParsedRows([]);
     setLoadedFiles([]);
+    setRowsToDelete([]);
+    setDetectedYear(null);
+    setYearError(null);
+    setShowDeletedRows(false);
   };
+
 
   return (
     <Modal
@@ -407,6 +509,28 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       <div className="space-y-4">
         {parsedRows.length === 0 ? (
           <div className="space-y-4">
+            {yearError && (
+              <div className="p-4 rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50/90 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200 space-y-2 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 font-bold text-sm text-rose-700 dark:text-rose-300">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                  Archivo rechazado: Múltiples años detectados
+                </div>
+                <p className="text-xs text-rose-800 dark:text-rose-200 leading-relaxed">
+                  {yearError}
+                </p>
+                <div className="text-[11px] text-rose-700/90 dark:text-rose-400 bg-rose-100/60 dark:bg-rose-900/30 p-2.5 rounded-xl border border-rose-200/60 dark:border-rose-800/40">
+                  💡 <strong>Condición de importación:</strong> Cada archivo debe contener exclusivamente las reservas de un <em>único año completo</em>. Si necesitas importar reservas de años distintos, impórtalas en archivos separados por cada año.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
+                >
+                  Descartar y seleccionar otro archivo
+                </button>
+              </div>
+            )}
+
             {/* Drag and drop zone for multiple files */}
             <div
               onDragOver={(e) => e.preventDefault()}
@@ -541,6 +665,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                     </span>
                   ))}
                 </div>
+                {detectedYear && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 font-bold border border-rose-300 dark:border-rose-800 text-[11px]">
+                    <Calendar className="w-3 h-3" />
+                    Año {detectedYear} (Año Completo)
+                  </span>
+                )}
                 <span className="text-slate-500 font-bold ml-1">
                   • Total {parsedRows.length} reservas
                 </span>
@@ -554,6 +684,62 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                 Cambiar / Limpiar
               </button>
             </div>
+
+            {/* Warning when existing bookings from that year are missing and will be deleted */}
+            {rowsToDelete.length > 0 && (
+              <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/30 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-rose-900 dark:text-rose-200 font-bold">
+                    <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>
+                      {rowsToDelete.length} reserva(s) en la base de datos se eliminarán porque ya no están en este archivo del año {detectedYear}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletedRows(!showDeletedRows)}
+                    className="text-rose-700 dark:text-rose-300 font-semibold underline hover:text-rose-900 cursor-pointer text-[11px]"
+                  >
+                    {showDeletedRows ? 'Ocultar lista' : `Ver cuáles (${rowsToDelete.length})`}
+                  </button>
+                </div>
+                <p className="text-[11px] text-rose-700/90 dark:text-rose-300/80">
+                  Dado que la importación corresponde al año completo {detectedYear}, cualquier reserva de este año que no figure en este archivo será eliminada para mantener la sincronización exacta.
+                </p>
+                {showDeletedRows && (
+                  <div className="max-h-36 overflow-y-auto border border-rose-200 dark:border-rose-900/60 rounded-lg bg-white dark:bg-slate-900">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-rose-100/60 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 font-semibold sticky top-0">
+                        <tr>
+                          <th className="p-1.5">Código</th>
+                          <th className="p-1.5">Huésped</th>
+                          <th className="p-1.5">Fechas</th>
+                          <th className="p-1.5 text-right">Pago</th>
+                          <th className="p-1.5 text-center">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-rose-100 dark:divide-slate-800">
+                        {rowsToDelete.map((b) => (
+                          <tr key={b.id} className="text-slate-700 dark:text-slate-300">
+                            <td className="p-1.5 font-mono text-[10px]">{b.airbnb_confirmation_code || '—'}</td>
+                            <td className="p-1.5 font-medium">{b.guest_name}</td>
+                            <td className="p-1.5 text-slate-500 whitespace-nowrap">
+                              {formatDate(b.check_in)} - {formatDate(b.check_out)}
+                            </td>
+                            <td className="p-1.5 text-right font-medium">{formatCOP(b.net_payout)}</td>
+                            <td className="p-1.5 text-center">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                                <Trash2 className="w-2.5 h-2.5" /> Se eliminará
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Aggregate summary of batch */}
             <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 text-xs">
@@ -675,16 +861,28 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             </div>
 
             {/* Summary statistics */}
-            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-              <span>
-                Nuevas: <strong className="text-emerald-600 font-bold">{parsedRows.filter((r) => r.importStatus === 'new').length}</strong>
-              </span>
-              <span>
-                Por actualizar: <strong className="text-amber-600 font-bold">{parsedRows.filter((r) => r.importStatus === 'updated').length}</strong>
-              </span>
-              <span>
-                Sin cambios: <strong className="text-slate-500 font-bold">{parsedRows.filter((r) => r.importStatus === 'unchanged').length}</strong>
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 px-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <span>
+                  Nuevas: <strong className="text-emerald-600 font-bold">{parsedRows.filter((r) => r.importStatus === 'new').length}</strong>
+                </span>
+                <span>
+                  Por actualizar: <strong className="text-amber-600 font-bold">{parsedRows.filter((r) => r.importStatus === 'updated').length}</strong>
+                </span>
+                <span>
+                  Sin cambios: <strong className="text-slate-500 font-bold">{parsedRows.filter((r) => r.importStatus === 'unchanged').length}</strong>
+                </span>
+                {rowsToDelete.length > 0 && (
+                  <span>
+                    A eliminar de la BD: <strong className="text-rose-600 font-bold">{rowsToDelete.length}</strong>
+                  </span>
+                )}
+              </div>
+              {detectedYear && (
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Sincronización Año Completo {detectedYear}
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -707,11 +905,13 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             >
               {createBatchMutation.isPending
                 ? 'Procesando...'
-                : parsedRows.filter((r) => r.importStatus === 'updated').length > 0
-                  ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas, ${parsedRows.filter((r) => r.importStatus === 'updated').length} cambios)`
-                  : parsedRows.filter((r) => r.importStatus === 'new').length > 0
-                    ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas)`
-                    : 'Re-sincronizar Reservas (Al día)'}
+                : rowsToDelete.length > 0
+                  ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas, ${parsedRows.filter((r) => r.importStatus === 'updated').length} cambios, ${rowsToDelete.length} a eliminar)`
+                  : parsedRows.filter((r) => r.importStatus === 'updated').length > 0
+                    ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas, ${parsedRows.filter((r) => r.importStatus === 'updated').length} cambios)`
+                    : parsedRows.filter((r) => r.importStatus === 'new').length > 0
+                      ? `Confirmar e Importar (${parsedRows.filter((r) => r.importStatus === 'new').length} nuevas)`
+                      : 'Re-sincronizar Reservas (Al día)'}
             </button>
           )}
         </div>

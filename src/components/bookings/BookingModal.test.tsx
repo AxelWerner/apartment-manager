@@ -164,4 +164,38 @@ describe('BookingModal Component', () => {
       );
     });
   });
+
+  it('renders and saves booking_date (Fecha de Reserva) in booking form', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({ id: 'b-new-date' });
+    (apiService.createBooking as unknown as ReturnType<typeof vi.fn>).mockImplementation(mockCreate);
+
+    renderModal();
+
+    const bookingDateInput = screen.getByLabelText(/Fecha de Reserva/i);
+    expect(bookingDateInput).toBeInTheDocument();
+
+    const guestInput = screen.getByPlaceholderText(/Ej\. Juan Pérez/i);
+    fireEvent.change(guestInput, { target: { value: 'Laura Gomez' } });
+
+    fireEvent.change(bookingDateInput, { target: { value: '2026-09-09' } });
+
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-09-11' } });
+    fireEvent.change(checkOutInput, { target: { value: '2026-09-14' } });
+
+    const submitBtn = screen.getByRole('button', { name: /^Registrar Reserva Airbnb$/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guest_name: 'Laura Gomez',
+          booking_date: '2026-09-09',
+          check_in: '2026-09-11',
+          check_out: '2026-09-14',
+        })
+      );
+    });
+  });
 });

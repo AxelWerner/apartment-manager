@@ -163,6 +163,162 @@ describe('api-service', () => {
       expect(mockUpsert).toHaveBeenCalled();
     });
 
+    it('throws an error if the batch contains reservations from different years', async () => {
+      const multiYearBatch: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HM2025',
+          guest_name: 'Guest 2025',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2025-12-20',
+          check_out: '2025-12-24',
+          number_of_nights: 4,
+          nightly_rate: 150000,
+          gross_amount: 600000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 550000,
+          status: 'confirmed',
+          payout_status: 'paid',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HM2026',
+          guest_name: 'Guest 2026',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-01-10',
+          check_out: '2026-01-14',
+          number_of_nights: 4,
+          nightly_rate: 150000,
+          gross_amount: 600000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 550000,
+          status: 'confirmed',
+          payout_status: 'paid',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+
+      await expect(upsertBookingsBatch(multiYearBatch)).rejects.toThrow(
+        /múltiples años/i
+      );
+    });
+
+    it('deletes missing bookings for that year when importing full-year data (e.g. DB has A,B,C and imports C,D -> A,B deleted)', async () => {
+      const mockIn = vi.fn().mockResolvedValue({ error: null });
+      const mockDelete = vi.fn().mockReturnValue({ in: mockIn });
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        upsert: mockUpsert,
+        delete: mockDelete,
+      });
+
+      const baseBooking = {
+        property_id: DEFAULT_PROPERTY_ID,
+        guest_phone: null,
+        number_of_guests: 2,
+        number_of_nights: 3,
+        nightly_rate: 100000,
+        gross_amount: 360000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 50000,
+        taxes_withheld: 0,
+        net_payout: 310000,
+        status: 'confirmed' as const,
+        payout_status: 'paid' as const,
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      // Existing bookings in DB for 2026: A, B, C; and one for 2025: X
+      const booking2025: Booking = {
+        ...baseBooking,
+        id: 'b-2025-X',
+        airbnb_confirmation_code: 'HMX',
+        guest_name: 'Guest 2025 X',
+        check_in: '2025-11-01',
+        check_out: '2025-11-04',
+      };
+      const bookingA: Booking = {
+        ...baseBooking,
+        id: 'b-2026-A',
+        airbnb_confirmation_code: 'HMA',
+        guest_name: 'Guest A',
+        check_in: '2026-03-01',
+        check_out: '2026-03-04',
+      };
+      const bookingB: Booking = {
+        ...baseBooking,
+        id: 'b-2026-B',
+        airbnb_confirmation_code: 'HMB',
+        guest_name: 'Guest B',
+        check_in: '2026-05-01',
+        check_out: '2026-05-04',
+      };
+      const bookingC: Booking = {
+        ...baseBooking,
+        id: 'b-2026-C',
+        airbnb_confirmation_code: 'HMC',
+        guest_name: 'Guest C',
+        check_in: '2026-07-01',
+        check_out: '2026-07-04',
+      };
+
+      localStorage.setItem(
+        'apt_mgr_bookings_v2',
+        JSON.stringify([booking2025, bookingA, bookingB, bookingC])
+      );
+
+      // Incoming batch for 2026: C (updated net_payout) and D (new)
+      const incomingBatch: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          ...bookingC,
+          net_payout: 400000, // Updated payout
+        },
+        {
+          ...baseBooking,
+          airbnb_confirmation_code: 'HMD',
+          guest_name: 'Guest D',
+          check_in: '2026-09-01',
+          check_out: '2026-09-04',
+        },
+      ];
+
+      const result = await upsertBookingsBatch(incomingBatch);
+
+      // Result counts
+      expect(result.inserted).toBe(1); // D
+      expect(result.updated).toBe(1); // C
+      expect(result.deleted).toBe(2); // A and B deleted
+      expect(result.total).toBe(2);
+
+      // Verify localStorage: A and B are removed, C is updated, D is added, 2025-X is preserved
+      const storedBookings: Booking[] = JSON.parse(
+        localStorage.getItem('apt_mgr_bookings_v2') || '[]'
+      );
+      const codes = storedBookings.map((b) => b.airbnb_confirmation_code);
+      expect(codes).toContain('HMC');
+      expect(codes).toContain('HMD');
+      expect(codes).toContain('HMX'); // 2025 preserved
+      expect(codes).not.toContain('HMA'); // 2026 A deleted
+      expect(codes).not.toContain('HMB'); // 2026 B deleted
+
+      const updatedC = storedBookings.find((b) => b.airbnb_confirmation_code === 'HMC');
+      expect(updatedC?.net_payout).toBe(400000);
+    });
+
+
     it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
       const rawBooking: Booking = {
         id: 'b-calc-test',

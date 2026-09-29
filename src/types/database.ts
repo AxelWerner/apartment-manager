@@ -81,6 +81,7 @@ export interface Booking {
   guest_name: string;
   guest_phone: string | null;
   number_of_guests: number;
+  booking_date?: string | null; // YYYY-MM-DD (Buchungsdatum / fecha en que se realizó la reserva)
   check_in: string; // YYYY-MM-DD
   check_out: string; // YYYY-MM-DD
   number_of_nights: number;
