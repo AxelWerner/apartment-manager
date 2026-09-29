@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { AppLayout } from '@/components/layout/AppLayout';
 import Login from '@/routes/Login';
 import Dashboard from '@/routes/Dashboard';
+import Analytics from '@/routes/Analytics';
 import Bookings from '@/routes/Bookings';
 import Expenses from '@/routes/Expenses';
 import Damages from '@/routes/Damages';
@@ -35,6 +36,15 @@ export default function App() {
               element={
                 <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER']}>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            {/* Analíticas del Apto accesible a Super User, Admin, Owner y Viewer */}
+            <Route
+              path="/analytics"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER']}>
+                  <Analytics />
                 </ProtectedRoute>
               }
             />

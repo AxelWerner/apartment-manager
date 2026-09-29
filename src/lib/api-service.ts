@@ -7,7 +7,7 @@ import {
   INITIAL_DAMAGES,
   INITIAL_TEMPLATES,
 } from './mock-data';
-import { resolveBookingStatus, getBookingSourceInfo, getBookingYear } from './formatters';
+import { resolveBookingStatus, getBookingSourceInfo, getBookingYear, isAirbnbBooking } from './formatters';
 
 const STORAGE_KEYS = {
   property: 'apt_mgr_property',
@@ -273,9 +273,8 @@ export async function upsertBookingsBatch(
       const bYear = getBookingYear(b.check_in);
       if (bYear !== targetYear) return false;
 
-      // Only delete Airbnb bookings or bookings with confirmation code
-      const isAirbnbOrCoded = Boolean(b.airbnb_confirmation_code) || b.source === 'airbnb' || !b.source;
-      if (!isAirbnbOrCoded) return false;
+      // CRITICAL: ONLY Airbnb bookings can be deleted. Direct bookings must NEVER be deleted!
+      if (!isAirbnbBooking(b)) return false;
 
       const code = b.airbnb_confirmation_code?.trim().toUpperCase();
       if (code && incomingCodes.has(code)) {
@@ -334,9 +333,10 @@ export async function upsertBookingsBatch(
   let unchanged = 0;
 
   // Build map of remaining bookings by confirmation code
+  // CRITICAL: ONLY Airbnb bookings can be matched for update! Direct bookings must NEVER be updated by CSV import
   const existingMap = new Map<string, { booking: Booking; index: number }>();
   remaining.forEach((b, index) => {
-    if (b.airbnb_confirmation_code) {
+    if (isAirbnbBooking(b) && b.airbnb_confirmation_code) {
       existingMap.set(b.airbnb_confirmation_code.trim().toUpperCase(), { booking: b, index });
     }
   });

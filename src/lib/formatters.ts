@@ -227,6 +227,25 @@ export function getBookingSourceInfo(source?: string | null): BookingSourceConfi
 }
 
 /**
+ * Checks if a booking source or booking object represents a direct booking (direct, direct_10, direct_25, etc.).
+ */
+export function isDirectBooking(sourceOrBooking?: string | null | { source?: string | null }): boolean {
+  if (!sourceOrBooking) return false;
+  const source = typeof sourceOrBooking === 'string' ? sourceOrBooking : sourceOrBooking.source;
+  if (!source) return false;
+  return source.startsWith('direct') || Boolean(BOOKING_SOURCE_CONFIG[source]?.isDirect);
+}
+
+/**
+ * Checks if a booking source or booking object represents an Airbnb booking.
+ * Direct bookings are NEVER considered Airbnb bookings.
+ * Unspecified or 'airbnb' sources are considered Airbnb.
+ */
+export function isAirbnbBooking(sourceOrBooking?: string | null | { source?: string | null }): boolean {
+  return !isDirectBooking(sourceOrBooking);
+}
+
+/**
  * Get current date and time components in Colombia timezone (America/Bogota, UTC-5).
  */
 export function getColombiaDateTime(): {

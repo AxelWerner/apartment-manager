@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Papa from 'papaparse';
 import { UploadCloud, FileSpreadsheet, Check, Trash2, RefreshCw, Plus, Moon, Files, Sparkles, AlertTriangle, Calendar } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, resolveBookingStatus, getBookingYear } from '@/lib/formatters';
+import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
@@ -304,11 +304,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       });
 
       // Compare against existing bookings in the database
+      // CRITICAL: Only Airbnb bookings are compared for updates. Direct bookings are never updated by CSV import.
       const finalRows: ParsedBookingRow[] = mergedRows.map((row) => {
         const codeUpper = row.airbnb_confirmation_code?.trim().toUpperCase();
         const existing = codeUpper
           ? existingBookings.find(
-              (b) => b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
+              (b) => isAirbnbBooking(b) && b.airbnb_confirmation_code?.trim().toUpperCase() === codeUpper
             )
           : undefined;
 
@@ -347,17 +348,27 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       // DEDUCE WHICH BOOKINGS IN DB FOR singleYear ARE MISSING FROM CSV:
       // If DB has reservations A, B, C for singleYear, and we import C, D:
       // A and B must be deleted!
+      // CRITICAL: ONLY Airbnb bookings are deleted. Direct bookings must NEVER be deleted!
       const missingFromDb = existingBookings.filter((b) => {
         const bYear = getBookingYear(b.check_in);
         if (bYear !== singleYear) return false;
 
-        const isAirbnbOrCoded = Boolean(b.airbnb_confirmation_code) || b.source === 'airbnb' || !b.source;
-        if (!isAirbnbOrCoded) return false;
+        // Never delete direct bookings
+        if (!isAirbnbBooking(b)) return false;
 
         const code = b.airbnb_confirmation_code?.trim().toUpperCase();
         if (code && incomingCodes.has(code)) {
           return false;
         }
+
+        // If it doesn't have a code but has check_in/check_out matching an incoming booking, keep it
+        if (!code) {
+          const matchesIncoming = mergedRows.some(
+            (inc) => inc.check_in === b.check_in && inc.check_out === b.check_out && inc.guest_name === b.guest_name
+          );
+          if (matchesIncoming) return false;
+        }
+
         return true;
       });
 
@@ -692,7 +703,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   <div className="flex items-center gap-2 text-rose-900 dark:text-rose-200 font-bold">
                     <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>
-                      {rowsToDelete.length} reserva(s) en la base de datos se eliminarán porque ya no están en este archivo del año {detectedYear}
+                      {rowsToDelete.length} reserva(s) de Airbnb en la base de datos se eliminarán porque ya no están en este archivo del año {detectedYear}
                     </span>
                   </div>
                   <button
@@ -704,7 +715,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   </button>
                 </div>
                 <p className="text-[11px] text-rose-700/90 dark:text-rose-300/80">
-                  Dado que la importación corresponde al año completo {detectedYear}, cualquier reserva de este año que no figure en este archivo será eliminada para mantener la sincronización exacta.
+                  Dado que la importación corresponde al año completo {detectedYear}, cualquier reserva de Airbnb de este año que no figure en este archivo será eliminada para mantener la sincronización exacta. Las reservas directas no se modifican ni se eliminan.
                 </p>
                 {showDeletedRows && (
                   <div className="max-h-36 overflow-y-auto border border-rose-200 dark:border-rose-900/60 rounded-lg bg-white dark:bg-slate-900">

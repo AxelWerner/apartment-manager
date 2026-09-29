@@ -10,6 +10,8 @@ import {
   isBookingFuture,
   isExpenseReal,
   isExpenseFuture,
+  isDirectBooking,
+  isAirbnbBooking,
 } from './formatters';
 
 describe('formatters', () => {
@@ -269,6 +271,39 @@ describe('formatters', () => {
       expect(getBookingYear(null)).toBeNull();
       expect(getBookingYear(undefined)).toBeNull();
       expect(getBookingYear('invalid-date')).toBeNull();
+    });
+  });
+
+  describe('isDirectBooking and isAirbnbBooking', () => {
+    it('identifies direct bookings correctly', () => {
+      expect(isDirectBooking('direct')).toBe(true);
+      expect(isDirectBooking('direct_10')).toBe(true);
+      expect(isDirectBooking('direct_25')).toBe(true);
+      expect(isDirectBooking('direct_custom')).toBe(true);
+      expect(isDirectBooking({ source: 'direct' })).toBe(true);
+      expect(isDirectBooking({ source: 'direct_10' })).toBe(true);
+      expect(isDirectBooking({ source: 'direct_25' })).toBe(true);
+    });
+
+    it('identifies airbnb bookings correctly', () => {
+      expect(isDirectBooking('airbnb')).toBe(false);
+      expect(isDirectBooking(null)).toBe(false);
+      expect(isDirectBooking(undefined)).toBe(false);
+      expect(isDirectBooking({ source: 'airbnb' })).toBe(false);
+      expect(isDirectBooking({ source: null })).toBe(false);
+      expect(isDirectBooking({})).toBe(false);
+
+      expect(isAirbnbBooking('airbnb')).toBe(true);
+      expect(isAirbnbBooking(null)).toBe(true);
+      expect(isAirbnbBooking(undefined)).toBe(true);
+      expect(isAirbnbBooking({ source: 'airbnb' })).toBe(true);
+      expect(isAirbnbBooking({ source: null })).toBe(true);
+      expect(isAirbnbBooking({})).toBe(true);
+
+      expect(isAirbnbBooking('direct')).toBe(false);
+      expect(isAirbnbBooking({ source: 'direct' })).toBe(false);
+      expect(isAirbnbBooking({ source: 'direct_10' })).toBe(false);
+      expect(isAirbnbBooking({ source: 'direct_25' })).toBe(false);
     });
   });
 });

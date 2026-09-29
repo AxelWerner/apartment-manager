@@ -318,6 +318,172 @@ describe('api-service', () => {
       expect(updatedC?.net_payout).toBe(400000);
     });
 
+    it('never deletes or updates direct bookings when importing Airbnb bookings for that year', async () => {
+      const mockIn = vi.fn().mockResolvedValue({ error: null });
+      const mockDelete = vi.fn().mockReturnValue({ in: mockIn });
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        upsert: mockUpsert,
+        delete: mockDelete,
+      });
+
+      // Existing bookings in DB for 2026:
+      // 1. Direct booking without code
+      const directBooking1: Booking = {
+        id: 'b-dir-1',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: null,
+        guest_name: 'Direct Guest 1',
+        guest_phone: '+57 300 111 2222',
+        number_of_guests: 2,
+        check_in: '2026-04-10',
+        check_out: '2026-04-15',
+        number_of_nights: 5,
+        nightly_rate: 200000,
+        gross_amount: 1060000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 0,
+        taxes_withheld: 0,
+        net_payout: 1060000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'direct',
+        notes: 'Reserva directa WhatsApp',
+      };
+
+      // 2. Direct booking with reference code
+      const directBooking2: Booking = {
+        id: 'b-dir-2',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'DIR-2026-02',
+        guest_name: 'Direct Guest 2',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-06-01',
+        check_out: '2026-06-05',
+        number_of_nights: 4,
+        nightly_rate: 250000,
+        gross_amount: 1060000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 0,
+        taxes_withheld: 0,
+        net_payout: 1060000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'direct_25',
+        notes: 'Reserva directa 25%',
+      };
+
+      // 3. Airbnb booking that is missing from new file (should be deleted)
+      const oldAirbnbBooking: Booking = {
+        id: 'b-ab-old',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HMOLD_TO_DELETE',
+        guest_name: 'Old Airbnb Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-02-01',
+        check_out: '2026-02-04',
+        number_of_nights: 3,
+        nightly_rate: 100000,
+        gross_amount: 360000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 50000,
+        taxes_withheld: 0,
+        net_payout: 310000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      // 4. Airbnb booking that is present in new file (should be updated)
+      const existingAirbnbBooking: Booking = {
+        id: 'b-ab-keep',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HMKEEP',
+        guest_name: 'Keep Airbnb Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-08-01',
+        check_out: '2026-08-05',
+        number_of_nights: 4,
+        nightly_rate: 150000,
+        gross_amount: 660000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 60000,
+        taxes_withheld: 0,
+        net_payout: 600000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      localStorage.setItem(
+        'apt_mgr_bookings_v2',
+        JSON.stringify([directBooking1, directBooking2, oldAirbnbBooking, existingAirbnbBooking])
+      );
+
+      // Incoming batch from Airbnb CSV for 2026: only HMKEEP (updated payout) and HMNEW
+      const incomingBatch: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          ...existingAirbnbBooking,
+          net_payout: 650000,
+        },
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMNEW',
+          guest_name: 'New Airbnb Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-09-01',
+          check_out: '2026-09-04',
+          number_of_nights: 3,
+          nightly_rate: 120000,
+          gross_amount: 420000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 370000,
+          status: 'confirmed',
+          payout_status: 'paid',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+
+      const result = await upsertBookingsBatch(incomingBatch);
+
+      // Only oldAirbnbBooking should be deleted (count = 1)
+      expect(result.deleted).toBe(1);
+      expect(result.inserted).toBe(1); // HMNEW
+      expect(result.updated).toBe(1); // HMKEEP
+
+      const storedBookings: Booking[] = JSON.parse(
+        localStorage.getItem('apt_mgr_bookings_v2') || '[]'
+      );
+      const storedIds = storedBookings.map((b) => b.id);
+      expect(storedIds).toContain('b-dir-1'); // Direct booking preserved
+      expect(storedIds).toContain('b-dir-2'); // Direct booking with code preserved
+      expect(storedIds).toContain('b-ab-keep'); // Airbnb booking updated
+      expect(storedIds).not.toContain('b-ab-old'); // Old Airbnb booking deleted
+
+      // Verify that direct bookings retained their source and details
+      const dir1 = storedBookings.find((b) => b.id === 'b-dir-1');
+      expect(dir1?.source).toBe('direct');
+      const dir2 = storedBookings.find((b) => b.id === 'b-dir-2');
+      expect(dir2?.source).toBe('direct_25');
+
+      // Verify that mockDelete was called with ONLY the old Airbnb booking ID
+      expect(mockIn).toHaveBeenCalledWith('id', ['b-ab-old']);
+    });
+
 
     it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
       const rawBooking: Booking = {

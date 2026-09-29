@@ -186,7 +186,7 @@ describe('CsvImportModal Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Año 2026 \(Año Completo\)/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/1 reserva\(s\) en la base de datos se eliminarán porque ya no están en este archivo del año 2026/i)
+        screen.getByText(/1 reserva\(s\) de Airbnb en la base de datos se eliminarán porque ya no están en este archivo del año 2026/i)
       ).toBeInTheDocument();
       expect(screen.getByText(/A eliminar de la BD:/i)).toBeInTheDocument();
     });
@@ -205,6 +205,82 @@ describe('CsvImportModal Component', () => {
           }),
         })
       );
+    });
+  });
+
+  it('does NOT mark direct bookings for deletion or update when importing an Airbnb CSV', async () => {
+    const user = userEvent.setup();
+
+    // Mock existing bookings: 1 direct booking and 1 airbnb booking
+    const { useBookings } = await import('@/hooks/use-bookings');
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'b-direct-stay',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'DIR-2026-X',
+          guest_name: 'Huésped Reserva Directa',
+          guest_phone: '+57 300 123 4567',
+          number_of_guests: 2,
+          check_in: '2026-06-10',
+          check_out: '2026-06-15',
+          number_of_nights: 5,
+          nightly_rate: 180000,
+          gross_amount: 960000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 0,
+          taxes_withheld: 0,
+          net_payout: 960000,
+          status: 'confirmed' as const,
+          payout_status: 'paid' as const,
+          payout_date: null,
+          source: 'direct_10',
+          notes: 'Reserva directa teléfono',
+        },
+        {
+          id: 'b-airbnb-stay',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HM_AIRBNB_OLD',
+          guest_name: 'Antiguo Airbnb',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-07-01',
+          check_out: '2026-07-04',
+          number_of_nights: 3,
+          nightly_rate: 100000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 310000,
+          status: 'confirmed' as const,
+          payout_status: 'paid' as const,
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ],
+    } as unknown as ReturnType<typeof useBookings>);
+
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HM_NEW_CSV,09/11/2026,09/14/2026,3,Nuevo Huésped Airbnb,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      // Only 1 booking should be marked for deletion (the old Airbnb booking), NOT the direct booking!
+      expect(
+        screen.getByText(/1 reserva\(s\) de Airbnb en la base de datos se eliminarán/i)
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Huésped Reserva Directa/i)).not.toBeInTheDocument();
     });
   });
 

@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  BarChart3,
   CalendarDays,
   Receipt,
   ShieldAlert,
@@ -52,6 +53,7 @@ export function AppLayout() {
     roles?: UserRole[];
   }> = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
+    { to: '/analytics', label: 'Analíticas', icon: BarChart3, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
     { to: '/bookings', label: 'Reservas', icon: CalendarDays },
     { to: '/expenses', label: 'Gastos y Servicios', icon: Receipt, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
     { to: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
