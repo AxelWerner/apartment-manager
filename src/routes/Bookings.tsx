@@ -33,6 +33,8 @@ import {
   getColombiaDateTime,
   isBookingReal,
   isBookingFuture,
+  isSameStay,
+  calculateUniqueBookedNights,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
@@ -225,7 +227,6 @@ export default function Bookings() {
         groups.push(group);
       }
       group.bookings.push(b);
-      group.totalNights += Number(b.number_of_nights) || 0;
       const ownerNet = getOwnerNet(b);
       group.totalOwnerNet += ownerNet;
       if (b.status !== 'cancelled') {
@@ -240,6 +241,11 @@ export default function Bookings() {
       if (b.status === 'confirmed' || b.status === 'checked_in') {
         group.confirmedCount += 1;
       }
+    });
+
+    // Calculate unique booked nights per month group (deduplicating duplicate rows for same stay)
+    groups.forEach((group) => {
+      group.totalNights = calculateUniqueBookedNights(group.bookings);
     });
 
     // Sort month groups:
@@ -292,12 +298,17 @@ export default function Bookings() {
   const totalManagementFee = realManagementFee + futureManagementFee;
 
   const realNights = useMemo(
-    () => realBookingsList.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0),
+    () => calculateUniqueBookedNights(realBookingsList),
     [realBookingsList]
   );
   const futureNights = useMemo(
-    () => futureBookingsList.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0),
-    [futureBookingsList]
+    () => {
+      const uniqueFuture = futureBookingsList.filter(
+        (fb) => !realBookingsList.some((rb) => isSameStay(rb, fb))
+      );
+      return calculateUniqueBookedNights(uniqueFuture);
+    },
+    [futureBookingsList, realBookingsList]
   );
   const totalNights = realNights + futureNights;
 
@@ -367,9 +378,9 @@ export default function Bookings() {
     { name: 'Directas (25%)', value: bookingsCountDirect25, color: '#8b5cf6' },
   ];
 
-  const nightsAirbnb = activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
-  const nightsDirect10 = activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
-  const nightsDirect25 = activeHorizonBookings.filter((b) => b.source === 'direct_25').reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const nightsAirbnb = calculateUniqueBookedNights(activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb'));
+  const nightsDirect10 = calculateUniqueBookedNights(activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10'));
+  const nightsDirect25 = calculateUniqueBookedNights(activeHorizonBookings.filter((b) => b.source === 'direct_25'));
   const nightsPieData = [
     { name: 'Airbnb', value: nightsAirbnb, color: '#f43f5e' },
     { name: 'Directas (10%)', value: nightsDirect10, color: '#10b981' },

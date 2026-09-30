@@ -95,10 +95,11 @@ describe('api-service', () => {
   });
 
   describe('upsertBookingsBatch', () => {
-    it('accurately categorizes inserted, updated, and unchanged bookings', async () => {
-      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+    it('deletes all existing Airbnb bookings for that year and inserts all bookings from the batch', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
       (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-        upsert: mockUpsert,
+        insert: mockInsert,
+        delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
       });
 
       const existingBooking: Booking = {
@@ -126,9 +127,9 @@ describe('api-service', () => {
       localStorage.setItem('apt_mgr_bookings_v2', JSON.stringify([existingBooking]));
 
       const batchToImport: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
-        // 1. Unchanged
+        // 1. Same details
         { ...existingBooking },
-        // 2. Updated: payout changed
+        // 2. Updated payout
         { ...existingBooking, airbnb_confirmation_code: 'HMOLD123', net_payout: 580000 },
         // 3. New booking
         {
@@ -156,14 +157,15 @@ describe('api-service', () => {
 
       const result = await upsertBookingsBatch(batchToImport);
 
-      expect(result.inserted).toBe(1);
-      expect(result.updated).toBe(1);
-      expect(result.unchanged).toBe(1);
+      expect(result.inserted).toBe(3);
+      expect(result.updated).toBe(0);
+      expect(result.unchanged).toBe(0);
+      expect(result.deleted).toBe(1);
       expect(result.total).toBe(3);
-      expect(mockUpsert).toHaveBeenCalled();
+      expect(mockInsert).toHaveBeenCalled();
     });
 
-    it('throws an error if the batch contains reservations from different years', async () => {
+    it('imports reservations spanning multiple years without restriction', async () => {
       const multiYearBatch: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
         {
           property_id: DEFAULT_PROPERTY_ID,
@@ -209,9 +211,72 @@ describe('api-service', () => {
         },
       ];
 
-      await expect(upsertBookingsBatch(multiYearBatch)).rejects.toThrow(
-        /múltiples años/i
-      );
+      const res = await upsertBookingsBatch(multiYearBatch);
+      expect(res.inserted).toBe(2);
+      expect(res.total).toBe(2);
+    });
+
+    it('imports and stores bookings even if airbnb_confirmation_code or guest_name is duplicated', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        insert: mockInsert,
+        delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
+      });
+
+      const batchWithDuplicates: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HM_DUPLICATE',
+          guest_name: 'Ana Maria',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-04-01',
+          check_out: '2026-04-04',
+          number_of_nights: 3,
+          nightly_rate: 100000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 310000,
+          status: 'confirmed',
+          payout_status: 'paid',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HM_DUPLICATE',
+          guest_name: 'Ana Maria',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-04-05',
+          check_out: '2026-04-08',
+          number_of_nights: 3,
+          nightly_rate: 100000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 310000,
+          status: 'confirmed',
+          payout_status: 'paid',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+
+      const result = await upsertBookingsBatch(batchWithDuplicates);
+
+      expect(result.inserted).toBe(2);
+      expect(result.total).toBe(2);
+
+      const stored: Booking[] = JSON.parse(localStorage.getItem('apt_mgr_bookings_v2') || '[]');
+      const matching = stored.filter((b) => b.airbnb_confirmation_code === 'HM_DUPLICATE');
+      expect(matching.length).toBe(2);
+      expect(matching[0].id).not.toBe(matching[1].id);
     });
 
     it('deletes missing bookings for that year when importing full-year data (e.g. DB has A,B,C and imports C,D -> A,B deleted)', async () => {
@@ -295,12 +360,12 @@ describe('api-service', () => {
         },
       ];
 
-      const result = await upsertBookingsBatch(incomingBatch);
+      const result = await upsertBookingsBatch(incomingBatch, { syncYear: '2026' });
 
-      // Result counts
-      expect(result.inserted).toBe(1); // D
-      expect(result.updated).toBe(1); // C
-      expect(result.deleted).toBe(2); // A and B deleted
+      // Result counts: all existing Airbnb bookings in 2026 (A, B, C) are deleted, and all incoming (C, D) inserted
+      expect(result.inserted).toBe(2); // C and D inserted
+      expect(result.updated).toBe(0);
+      expect(result.deleted).toBe(3); // A, B, and C deleted
       expect(result.total).toBe(2);
 
       // Verify localStorage: A and B are removed, C is updated, D is added, 2025-X is preserved
@@ -316,6 +381,68 @@ describe('api-service', () => {
 
       const updatedC = storedBookings.find((b) => b.airbnb_confirmation_code === 'HMC');
       expect(updatedC?.net_payout).toBe(400000);
+    });
+
+    it('wipes ALL existing Airbnb bookings across all years by default when importing', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      const mockEq = vi.fn().mockResolvedValue({ error: null });
+      const mockDelete = vi.fn().mockReturnValue({ eq: mockEq, in: vi.fn().mockResolvedValue({ error: null }) });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        insert: mockInsert,
+        delete: mockDelete,
+      });
+
+      const baseBooking: Booking = {
+        id: 'b-base',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HM',
+        guest_name: 'Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-01-01',
+        check_out: '2026-01-04',
+        number_of_nights: 3,
+        nightly_rate: 100000,
+        gross_amount: 360000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 50000,
+        taxes_withheld: 0,
+        net_payout: 310000,
+        status: 'confirmed',
+        payout_status: 'paid',
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      const booking2024 = { ...baseBooking, id: 'b-2024', check_in: '2024-05-01', check_out: '2024-05-04' };
+      const booking2025 = { ...baseBooking, id: 'b-2025', check_in: '2025-05-01', check_out: '2025-05-04' };
+      const directBooking = { ...baseBooking, id: 'b-direct', source: 'direct' };
+
+      localStorage.setItem(
+        'apt_mgr_bookings_v2',
+        JSON.stringify([booking2024, booking2025, directBooking])
+      );
+
+      const incomingBatch: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          ...baseBooking,
+          airbnb_confirmation_code: 'HMNEW',
+          check_in: '2026-10-01',
+          check_out: '2026-10-04',
+        },
+      ];
+
+      const res = await upsertBookingsBatch(incomingBatch);
+
+      // Deletes 2 airbnb bookings (2024 and 2025), keeps directBooking
+      expect(res.deleted).toBe(2);
+      expect(res.inserted).toBe(1);
+
+      const stored: Booking[] = JSON.parse(localStorage.getItem('apt_mgr_bookings_v2') || '[]');
+      expect(stored.map((b) => b.id)).toContain('b-direct');
+      expect(stored.map((b) => b.id)).not.toContain('b-2024');
+      expect(stored.map((b) => b.id)).not.toContain('b-2025');
     });
 
     it('never deletes or updates direct bookings when importing Airbnb bookings for that year', async () => {
@@ -460,10 +587,10 @@ describe('api-service', () => {
 
       const result = await upsertBookingsBatch(incomingBatch);
 
-      // Only oldAirbnbBooking should be deleted (count = 1)
-      expect(result.deleted).toBe(1);
-      expect(result.inserted).toBe(1); // HMNEW
-      expect(result.updated).toBe(1); // HMKEEP
+      // Both old Airbnb bookings in 2026 should be deleted (count = 2)
+      expect(result.deleted).toBe(2);
+      expect(result.inserted).toBe(2); // HMKEEP and HMNEW
+      expect(result.updated).toBe(0);
 
       const storedBookings: Booking[] = JSON.parse(
         localStorage.getItem('apt_mgr_bookings_v2') || '[]'
@@ -471,8 +598,12 @@ describe('api-service', () => {
       const storedIds = storedBookings.map((b) => b.id);
       expect(storedIds).toContain('b-dir-1'); // Direct booking preserved
       expect(storedIds).toContain('b-dir-2'); // Direct booking with code preserved
-      expect(storedIds).toContain('b-ab-keep'); // Airbnb booking updated
       expect(storedIds).not.toContain('b-ab-old'); // Old Airbnb booking deleted
+      expect(storedIds).not.toContain('b-ab-keep'); // Old Airbnb booking record replaced with incoming
+
+      const storedCodes = storedBookings.map((b) => b.airbnb_confirmation_code);
+      expect(storedCodes).toContain('HMKEEP');
+      expect(storedCodes).toContain('HMNEW');
 
       // Verify that direct bookings retained their source and details
       const dir1 = storedBookings.find((b) => b.id === 'b-dir-1');
@@ -480,8 +611,10 @@ describe('api-service', () => {
       const dir2 = storedBookings.find((b) => b.id === 'b-dir-2');
       expect(dir2?.source).toBe('direct_25');
 
-      // Verify that mockDelete was called with ONLY the old Airbnb booking ID
-      expect(mockIn).toHaveBeenCalledWith('id', ['b-ab-old']);
+      // Verify that mockDelete was called with ONLY the Airbnb booking IDs, never direct bookings
+      expect(mockIn).toHaveBeenCalledWith('id', expect.arrayContaining(['b-ab-old', 'b-ab-keep']));
+      expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-dir-1']));
+      expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-dir-2']));
     });
 
 

@@ -42,6 +42,8 @@ import {
   isBookingFuture,
   isExpenseReal,
   isExpenseFuture,
+  isSameStay,
+  calculateUniqueBookedNights,
 } from '@/lib/formatters';
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
@@ -159,7 +161,7 @@ export default function Dashboard() {
   const realCleaningFee = realBookings.reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
   const realExpensesTotal = realExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const realNetProfit = realOwnerPayout - realExpensesTotal;
-  const realBookedNights = realBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const realBookedNights = calculateUniqueBookedNights(realBookings);
 
   // Financial aggregates: Futuro (Por cobrar / Pendiente)
   const futureOwnerPayout = futureBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
@@ -168,7 +170,9 @@ export default function Dashboard() {
   const futureCleaningFee = futureBookings.reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
   const futureExpensesTotal = futureExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const futureNetProfit = futureOwnerPayout - futureExpensesTotal;
-  const futureBookedNights = futureBookings.reduce((sum, b) => sum + (Number(b.number_of_nights) || 0), 0);
+  const futureBookedNights = calculateUniqueBookedNights(
+    futureBookings.filter((fb) => !realBookings.some((rb) => isSameStay(rb, fb)))
+  );
 
   // Financial aggregates: Total (Consolidado Proyectado)
   const totalOwnerPayout = realOwnerPayout + futureOwnerPayout;

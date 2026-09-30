@@ -388,3 +388,96 @@ export function isExpenseFuture(expense: {
   return expense.payment_status !== 'paid';
 }
 
+/**
+ * Determines whether two bookings represent the same guest stay/reservation:
+ * - Must share the same check_in and check_out dates.
+ * - If both have property_id, they must match.
+ * - Either share the same non-empty confirmation code (case-insensitive)
+ *   OR share the same non-empty guest name (case-insensitive).
+ */
+export function isSameStay(
+  a: {
+    property_id?: string | null;
+    check_in: string;
+    check_out: string;
+    airbnb_confirmation_code?: string | null;
+    guest_name?: string | null;
+  },
+  b: {
+    property_id?: string | null;
+    check_in: string;
+    check_out: string;
+    airbnb_confirmation_code?: string | null;
+    guest_name?: string | null;
+  }
+): boolean {
+  if (!a.check_in || !a.check_out || !b.check_in || !b.check_out) return false;
+  if (a.check_in !== b.check_in || a.check_out !== b.check_out) return false;
+  if (a.property_id && b.property_id && a.property_id !== b.property_id) return false;
+
+  const codeA = a.airbnb_confirmation_code?.trim().toUpperCase();
+  const codeB = b.airbnb_confirmation_code?.trim().toUpperCase();
+  const nameA = a.guest_name?.trim().toLowerCase();
+  const nameB = b.guest_name?.trim().toLowerCase();
+
+  const codeMatch = Boolean(codeA && codeB && codeA === codeB);
+  const nameMatch = Boolean(nameA && nameB && nameA === nameB);
+
+  return codeMatch || nameMatch;
+}
+
+/**
+ * Calculates total booked nights for a list of bookings, ensuring that
+ * duplicate rows representing the same stay (same confirmation code or guest name,
+ * with identical check-in and check-out dates) only count their nights once.
+ */
+export function calculateUniqueBookedNights(
+  bookingsList: Array<{
+    property_id?: string | null;
+    check_in: string;
+    check_out: string;
+    number_of_nights?: number | null;
+    airbnb_confirmation_code?: string | null;
+    guest_name?: string | null;
+    status?: BookingStatus;
+  }>
+): number {
+  if (!bookingsList || bookingsList.length === 0) return 0;
+
+  const validBookings = bookingsList.filter(
+    (b) => resolveBookingStatus(b) !== 'cancelled'
+  );
+
+  const stayGroups: Array<typeof validBookings> = [];
+
+  for (const b of validBookings) {
+    const matchingGroup = stayGroups.find((group) =>
+      group.some((existing) => isSameStay(existing, b))
+    );
+
+    if (matchingGroup) {
+      matchingGroup.push(b);
+    } else {
+      stayGroups.push([b]);
+    }
+  }
+
+  let totalNights = 0;
+  for (const group of stayGroups) {
+    const maxNights = Math.max(...group.map((b) => Number(b.number_of_nights) || 0));
+    if (maxNights > 0) {
+      totalNights += maxNights;
+    } else {
+      const first = group[0];
+      if (first.check_in && first.check_out) {
+        const dIn = new Date(first.check_in + 'T00:00:00');
+        const dOut = new Date(first.check_out + 'T00:00:00');
+        const diff = Math.round((dOut.getTime() - dIn.getTime()) / (1000 * 60 * 60 * 24));
+        totalNights += Math.max(0, diff);
+      }
+    }
+  }
+
+  return totalNights;
+}
+

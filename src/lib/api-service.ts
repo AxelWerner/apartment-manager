@@ -106,7 +106,10 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
     const resolved = resolveBookingStatus(b);
     const payout = Number(b.net_payout) || 0;
     const rawCleaningFee = Number(b.cleaning_fee_collected);
-    const cleaningFee = rawCleaningFee > 0 ? rawCleaningFee : 60000;
+    const cleaningFee =
+      b.cleaning_fee_collected !== undefined && b.cleaning_fee_collected !== null && !isNaN(rawCleaningFee)
+        ? rawCleaningFee
+        : 60000;
     const accommodationBase = Math.max(0, payout - cleaningFee);
 
     const sourceInfo = getBookingSourceInfo(b.source);
@@ -139,27 +142,11 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
   });
 }
 
-// Deduplicate bookings by confirmation code and synchronize statuses dynamically based on dates
-function deduplicateAndSyncBookings(bookings: Booking[]): Booking[] {
-  const seenCodes = new Set<string>();
-  const uniqueBookings: Booking[] = [];
-
-  for (const b of bookings) {
-    // Filter out any legacy prototype dummy records
-    if (b.airbnb_confirmation_code?.startsWith('HM9ABC')) {
-      continue;
-    }
-    if (b.airbnb_confirmation_code) {
-      const code = b.airbnb_confirmation_code.trim().toUpperCase();
-      if (seenCodes.has(code)) {
-        continue; // Skip duplicate confirmation code
-      }
-      seenCodes.add(code);
-    }
-    uniqueBookings.push(b);
-  }
-
-  return syncBookingStatuses(uniqueBookings);
+// Synchronize statuses dynamically based on dates without dropping duplicate codes or names
+function syncBookingsList(bookings: Booking[]): Booking[] {
+  // Filter out any legacy prototype dummy records
+  const validBookings = bookings.filter((b) => !b.airbnb_confirmation_code?.startsWith('HM9ABC'));
+  return syncBookingStatuses(validBookings);
 }
 
 // -------------------------------------------------------------
@@ -173,7 +160,7 @@ export async function fetchBookings(): Promise<Booking[]> {
       .order('check_in', { ascending: false });
 
     if (!error && data) {
-      const synced = deduplicateAndSyncBookings(data as Booking[]);
+      const synced = syncBookingsList(data as Booking[]);
       setLocal(STORAGE_KEYS.bookings, synced);
       return synced;
     }
@@ -181,7 +168,7 @@ export async function fetchBookings(): Promise<Booking[]> {
     // Fallback
   }
   const rawList = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
-  const synced = deduplicateAndSyncBookings(rawList);
+  const synced = syncBookingsList(rawList);
   setLocal(STORAGE_KEYS.bookings, synced);
   return synced;
 }
@@ -216,6 +203,7 @@ export async function createBooking(booking: Omit<Booking, 'id' | 'created_at' |
 export interface UpsertBatchOptions {
   syncYear?: string;
   deleteMissing?: boolean;
+  deleteAllAirbnb?: boolean;
 }
 
 export interface UpsertBatchResult {
@@ -240,75 +228,42 @@ export async function upsertBookingsBatch(
     };
   }
 
-  // 1. Verify that all incoming bookings belong to a single year
-  const uniqueYears = new Set<string>();
-  for (const b of bookings) {
-    const y = getBookingYear(b.check_in);
-    if (y) uniqueYears.add(y);
-  }
-
-  if (uniqueYears.size > 1) {
-    const yearsArr = Array.from(uniqueYears).sort();
-    throw new Error(
-      `El lote contiene reservas de múltiples años (${yearsArr.join(', ')}). Cada importación debe corresponder exclusivamente a un único año completo.`
-    );
-  }
-
-  const targetYear = options?.syncYear || (uniqueYears.size === 1 ? Array.from(uniqueYears)[0] : undefined);
-
   const current = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
 
-  // Set of incoming confirmation codes
-  const incomingCodes = new Set<string>();
-  bookings.forEach((b) => {
-    if (b.airbnb_confirmation_code) {
-      incomingCodes.add(b.airbnb_confirmation_code.trim().toUpperCase());
+  // Identify and delete existing Airbnb bookings (Direct bookings are NEVER deleted)
+  // If options?.syncYear is specified and not deleteAllAirbnb, only delete Airbnb bookings of that year.
+  // Otherwise (by default for imports), delete ALL existing Airbnb bookings in the database.
+  const toDelete = current.filter((b) => {
+    if (!isAirbnbBooking(b)) return false;
+    if (options?.syncYear && !options?.deleteAllAirbnb) {
+      return getBookingYear(b.check_in) === options.syncYear;
     }
+    return true;
   });
 
-  // 2. Identify existing bookings in the database for targetYear that are missing from the incoming batch
-  let idsToDelete: string[] = [];
-  if (options?.deleteMissing !== false && targetYear) {
-    const toDelete = current.filter((b) => {
-      const bYear = getBookingYear(b.check_in);
-      if (bYear !== targetYear) return false;
-
-      // CRITICAL: ONLY Airbnb bookings can be deleted. Direct bookings must NEVER be deleted!
-      if (!isAirbnbBooking(b)) return false;
-
-      const code = b.airbnb_confirmation_code?.trim().toUpperCase();
-      if (code && incomingCodes.has(code)) {
-        return false; // Exists in incoming file
-      }
-
-      // If it doesn't have a code but has check_in/check_out matching an incoming booking, keep it
-      if (!code) {
-        const matchesIncoming = bookings.some(
-          (inc) => inc.check_in === b.check_in && inc.check_out === b.check_out && inc.guest_name === b.guest_name
-        );
-        if (matchesIncoming) return false;
-      }
-
-      return true;
-    });
-    idsToDelete = toDelete.map((b) => b.id);
-  }
+  const idsToDelete = toDelete.map((b) => b.id);
 
   // Execute deletion in Supabase if any
-  if (idsToDelete.length > 0) {
-    try {
-      const fromQuery = supabase.from('bookings');
-      if (fromQuery && typeof fromQuery.delete === 'function') {
-        const deleteQuery = fromQuery.delete();
-        if (deleteQuery && typeof deleteQuery.in === 'function') {
+  try {
+    const fromQuery = supabase.from('bookings');
+    if (fromQuery && typeof fromQuery.delete === 'function') {
+      const deleteQuery = fromQuery.delete();
+      if (!options?.syncYear || options?.deleteAllAirbnb) {
+        if (typeof deleteQuery.eq === 'function') {
+          await deleteQuery.eq('source', 'airbnb');
+        } else if (typeof deleteQuery.in === 'function' && idsToDelete.length > 0) {
           await deleteQuery.in('id', idsToDelete);
         }
+      } else if (typeof deleteQuery.in === 'function' && idsToDelete.length > 0) {
+        await deleteQuery.in('id', idsToDelete);
       }
-    } catch (err) {
-      console.warn('Failed to delete missing bookings from Supabase:', err);
     }
+  } catch (err) {
+    console.warn('Failed to delete existing Airbnb bookings from Supabase:', err);
+  }
 
-    // Clean up any linked expenses in localStorage
+  // Clean up any linked expenses in localStorage
+  if (idsToDelete.length > 0) {
     try {
       const rawExp = localStorage.getItem(STORAGE_KEYS.expenses);
       if (rawExp) {
@@ -325,87 +280,34 @@ export async function upsertBookingsBatch(
     }
   }
 
-  // Remove deleted items from current before applying upserts
+  // Remove deleted items from current before inserting incoming bookings
   const remaining = current.filter((b) => !idsToDelete.includes(b.id));
 
-  let inserted = 0;
-  let updated = 0;
-  let unchanged = 0;
-
-  // Build map of remaining bookings by confirmation code
-  // CRITICAL: ONLY Airbnb bookings can be matched for update! Direct bookings must NEVER be updated by CSV import
-  const existingMap = new Map<string, { booking: Booking; index: number }>();
-  remaining.forEach((b, index) => {
-    if (isAirbnbBooking(b) && b.airbnb_confirmation_code) {
-      existingMap.set(b.airbnb_confirmation_code.trim().toUpperCase(), { booking: b, index });
-    }
-  });
-
-  const updatedList: Booking[] = [...remaining];
-
-  for (let idx = 0; idx < bookings.length; idx++) {
-    const incoming = bookings[idx];
-    const code = incoming.airbnb_confirmation_code?.trim().toUpperCase();
-    const match = code ? existingMap.get(code) : undefined;
-
-    if (match) {
-      const existing = match.booking;
-      // Check if any fields changed
-      const hasChanges =
-        existing.net_payout !== incoming.net_payout ||
-        existing.management_fee !== incoming.management_fee ||
-        existing.owner_payout !== incoming.owner_payout ||
-        existing.nightly_rate !== incoming.nightly_rate ||
-        existing.gross_amount !== incoming.gross_amount ||
-        existing.cleaning_fee_collected !== incoming.cleaning_fee_collected ||
-        existing.airbnb_service_fee !== incoming.airbnb_service_fee ||
-        existing.check_in !== incoming.check_in ||
-        existing.check_out !== incoming.check_out ||
-        existing.number_of_nights !== incoming.number_of_nights ||
-        existing.guest_name !== incoming.guest_name ||
-        existing.booking_date !== incoming.booking_date ||
-        existing.status !== incoming.status;
-
-      if (hasChanges) {
-        updatedList[match.index] = {
-          ...existing,
-          ...incoming,
-          updated_at: new Date().toISOString(),
-        };
-        match.booking = updatedList[match.index];
-        updated++;
-      } else {
-        unchanged++;
-      }
-    } else {
-      // New booking to insert
-      const newBooking: Booking = {
-        ...incoming,
-        id: `b-${Date.now()}-${idx}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      updatedList.unshift(newBooking);
-      if (code) {
-        existingMap.set(code, { booking: newBooking, index: 0 });
-      }
-      inserted++;
-    }
-  }
+  // 3. Insert all incoming bookings fresh
+  const newBookings: Booking[] = bookings.map((incoming, idx) => ({
+    ...incoming,
+    id: `b-${Date.now()}-${idx}`,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
 
   try {
-    await supabase.from('bookings').upsert(bookings, { onConflict: 'airbnb_confirmation_code' });
+    const { error } = await supabase.from('bookings').insert(bookings);
+    if (error) {
+      await supabase.from('bookings').upsert(bookings, { onConflict: 'airbnb_confirmation_code' });
+    }
   } catch {
     // Supabase unreachable
   }
 
+  const updatedList: Booking[] = [...newBookings, ...remaining];
   const synced = syncBookingStatuses(updatedList);
   setLocal(STORAGE_KEYS.bookings, synced);
 
   return {
-    inserted,
-    updated,
-    unchanged,
+    inserted: bookings.length,
+    updated: 0,
+    unchanged: 0,
     deleted: idsToDelete.length,
     total: bookings.length,
   };

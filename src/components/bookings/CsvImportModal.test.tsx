@@ -112,7 +112,48 @@ describe('CsvImportModal Component', () => {
     });
   });
 
-  it('rejects files with multiple different years and displays an error alert', async () => {
+  it('imports all rows even if the confirmation code or guest name is repeated', async () => {
+    const user = userEvent.setup();
+    const handleClose = vi.fn();
+
+    // Sample CSV with repeated confirmation code and repeated guest name
+    const duplicateCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HM_REPEAT,09/11/2026,09/14/2026,3,Juan Perez,300000,60000,360000,60000
+09/20/2026,Buchung,HM_REPEAT,09/18/2026,09/21/2026,3,Juan Perez,250000,60000,310000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(duplicateCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={handleClose} />);
+
+    const singleSampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(singleSampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Total 2 reservas/i)).toBeInTheDocument();
+      expect(screen.getAllByText('Juan Perez').length).toBe(2);
+      expect(screen.getAllByText('HM_REPEAT').length).toBe(2);
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookings: expect.arrayContaining([
+            expect.objectContaining({ airbnb_confirmation_code: 'HM_REPEAT', guest_name: 'Juan Perez' }),
+          ]),
+        })
+      );
+      const callArg = mockMutateAsync.mock.calls[0][0];
+      expect(callArg.bookings.length).toBe(2);
+    });
+  });
+
+  it('accepts files with multiple different years and displays all reservations', async () => {
     const user = userEvent.setup();
 
     // Multi-year sample: one row in 2025 and one row in 2026
@@ -131,13 +172,14 @@ describe('CsvImportModal Component', () => {
     await user.click(sampleBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Archivo rechazado: Múltiples años detectados/i)).toBeInTheDocument();
-      expect(screen.getByText(/2 años diferentes/i)).toBeInTheDocument();
-      expect(screen.queryByText(/Total 2 reservas/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/Total 2 reservas/i)).toBeInTheDocument();
+      expect(screen.getByText(/Past Guest/i)).toBeInTheDocument();
+      expect(screen.getByText(/Current Guest/i)).toBeInTheDocument();
+      expect(screen.getByText(/Años: 2025, 2026/i)).toBeInTheDocument();
     });
   });
 
-  it('detects existing bookings in the database missing from the full-year CSV and marks them for deletion', async () => {
+  it('detects existing bookings in the database and marks all existing Airbnb bookings for deletion', async () => {
     const user = userEvent.setup();
     const handleClose = vi.fn();
 
@@ -184,11 +226,11 @@ describe('CsvImportModal Component', () => {
     await user.click(sampleBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Año 2026 \(Año Completo\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/Año 2026/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/1 reserva\(s\) de Airbnb en la base de datos se eliminarán porque ya no están en este archivo del año 2026/i)
+        screen.getByText(/Se borrarán todas las reservas de Airbnb \(1 en la base de datos\)/i)
       ).toBeInTheDocument();
-      expect(screen.getByText(/A eliminar de la BD:/i)).toBeInTheDocument();
+      expect(screen.getByText(/A borrar en BD \(Airbnb\):/i)).toBeInTheDocument();
     });
 
     const confirmButton = screen.getByRole('button', { name: /Confirmar e Importar.*1 a eliminar/i });
@@ -200,8 +242,7 @@ describe('CsvImportModal Component', () => {
       expect(mockMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
-            syncYear: '2026',
-            deleteMissing: true,
+            deleteAllAirbnb: true,
           }),
         })
       );
@@ -278,25 +319,56 @@ describe('CsvImportModal Component', () => {
     await waitFor(() => {
       // Only 1 booking should be marked for deletion (the old Airbnb booking), NOT the direct booking!
       expect(
-        screen.getByText(/1 reserva\(s\) de Airbnb en la base de datos se eliminarán/i)
+        screen.getByText(/Se borrarán todas las reservas de Airbnb \(1 en la base de datos\)/i)
       ).toBeInTheDocument();
       expect(screen.queryByText(/Huésped Reserva Directa/i)).not.toBeInTheDocument();
     });
   });
 
-  it('does not render test sample shortcut buttons when in production mode (import.meta.env.DEV = false)', () => {
-    const originalDev = import.meta.env.DEV;
-    try {
-      (import.meta.env as Record<string, unknown>).DEV = false;
-      renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+  it('correctly reads Reinigungsgebühr column for cleaning fee (aseo), respecting 0 and custom fees', async () => {
+    const user = userEvent.setup();
+    const handleClose = vi.fn();
 
-      expect(screen.queryByText(/Prueba Rápida/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Cargar ambos archivos a la vez/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/^airbnb_\.csv$/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/^airbnb_pending\.csv$/i)).not.toBeInTheDocument();
-    } finally {
-      (import.meta.env as Record<string, unknown>).DEV = originalDev;
-    }
+    // Row 1 has Reinigungsgebühr = 0.00
+    // Row 2 has Reinigungsgebühr = 80000.00
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HM_CLEAN_0,09/11/2026,09/14/2026,3,Guest Zero Cleaning,300000,0.00,360000,60000
+09/20/2026,Buchung,HM_CLEAN_80,09/18/2026,09/21/2026,3,Guest Eighty Cleaning,380000,80000.00,440000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={handleClose} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Guest Zero Cleaning/i)).toBeInTheDocument();
+      expect(screen.getByText(/Guest Eighty Cleaning/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookings: expect.arrayContaining([
+            expect.objectContaining({
+              airbnb_confirmation_code: 'HM_CLEAN_0',
+              cleaning_fee_collected: 0,
+            }),
+            expect.objectContaining({
+              airbnb_confirmation_code: 'HM_CLEAN_80',
+              cleaning_fee_collected: 80000,
+            }),
+          ]),
+        })
+      );
+    });
   });
 });
 

@@ -12,6 +12,8 @@ import {
   isExpenseFuture,
   isDirectBooking,
   isAirbnbBooking,
+  isSameStay,
+  calculateUniqueBookedNights,
 } from './formatters';
 
 describe('formatters', () => {
@@ -304,6 +306,159 @@ describe('formatters', () => {
       expect(isAirbnbBooking({ source: 'direct' })).toBe(false);
       expect(isAirbnbBooking({ source: 'direct_10' })).toBe(false);
       expect(isAirbnbBooking({ source: 'direct_25' })).toBe(false);
+    });
+  });
+
+  describe('isSameStay', () => {
+    it('returns true when dates and confirmation code match', () => {
+      const a = {
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: 'HMABC123',
+        guest_name: 'Carlos Ruiz',
+      };
+      const b = {
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: 'hmabc123',
+        guest_name: 'Carlos',
+      };
+      expect(isSameStay(a, b)).toBe(true);
+    });
+
+    it('returns true when dates and guest name match (even if codes differ or null)', () => {
+      const a = {
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: null,
+        guest_name: 'Carlos Ruiz',
+      };
+      const b = {
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: 'HMXYZ999',
+        guest_name: 'carlos ruiz',
+      };
+      expect(isSameStay(a, b)).toBe(true);
+    });
+
+    it('returns false when dates differ even if confirmation code or guest matches', () => {
+      const a = {
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: 'HMABC123',
+        guest_name: 'Carlos Ruiz',
+      };
+      const b = {
+        check_in: '2026-09-26',
+        check_out: '2026-09-30',
+        airbnb_confirmation_code: 'HMABC123',
+        guest_name: 'Carlos Ruiz',
+      };
+      expect(isSameStay(a, b)).toBe(false);
+    });
+
+    it('returns false when properties differ', () => {
+      const a = {
+        property_id: 'prop-1',
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: null,
+        guest_name: 'Carlos Ruiz',
+      };
+      const b = {
+        property_id: 'prop-2',
+        check_in: '2026-09-01',
+        check_out: '2026-09-25',
+        airbnb_confirmation_code: null,
+        guest_name: 'Carlos Ruiz',
+      };
+      expect(isSameStay(a, b)).toBe(false);
+    });
+  });
+
+  describe('calculateUniqueBookedNights', () => {
+    it('counts nights once when duplicate rows exist for the same stay', () => {
+      const bookings = [
+        {
+          id: 'b1',
+          check_in: '2026-09-01',
+          check_out: '2026-09-25',
+          number_of_nights: 24,
+          airbnb_confirmation_code: 'HMABC123',
+          guest_name: 'Carlos Ruiz',
+        },
+        {
+          id: 'b2',
+          check_in: '2026-09-01',
+          check_out: '2026-09-25',
+          number_of_nights: 24,
+          airbnb_confirmation_code: 'HMABC123',
+          guest_name: 'Carlos Ruiz',
+        },
+      ];
+      // Instead of 48 nights, should only count 24
+      expect(calculateUniqueBookedNights(bookings)).toBe(24);
+    });
+
+    it('handles multiple stays correctly, keeping unique nights for each', () => {
+      const bookings = [
+        {
+          id: 'b1',
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          number_of_nights: 4,
+          airbnb_confirmation_code: 'HM1',
+          guest_name: 'Ana',
+        },
+        {
+          id: 'b1-dup',
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          number_of_nights: 4,
+          airbnb_confirmation_code: 'HM1',
+          guest_name: 'Ana',
+        },
+        {
+          id: 'b2',
+          check_in: '2026-09-10',
+          check_out: '2026-09-15',
+          number_of_nights: 5,
+          airbnb_confirmation_code: 'HM2',
+          guest_name: 'Pedro',
+        },
+      ];
+      // 4 + 5 = 9 nights (not 4 + 4 + 5 = 13)
+      expect(calculateUniqueBookedNights(bookings)).toBe(9);
+    });
+
+    it('ignores cancelled bookings', () => {
+      const bookings = [
+        {
+          id: 'b1',
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          number_of_nights: 4,
+          airbnb_confirmation_code: 'HM1',
+          guest_name: 'Ana',
+          status: 'cancelled' as const,
+        },
+      ];
+      expect(calculateUniqueBookedNights(bookings)).toBe(0);
+    });
+
+    it('falls back to date diff when number_of_nights is 0', () => {
+      const bookings = [
+        {
+          id: 'b1',
+          check_in: '2026-09-01',
+          check_out: '2026-09-05',
+          number_of_nights: 0,
+          airbnb_confirmation_code: 'HM1',
+          guest_name: 'Ana',
+        },
+      ];
+      expect(calculateUniqueBookedNights(bookings)).toBe(4);
     });
   });
 });

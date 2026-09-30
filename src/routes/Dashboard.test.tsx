@@ -283,6 +283,62 @@ describe('Dashboard Component', () => {
     fireEvent.click(futureBtn);
     expect(futureBtn).toHaveClass('bg-blue-600');
   });
+
+  it('deduplicates nights in "Noches en el Período" when duplicate rows exist for the same stay', () => {
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'book-dup-1',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMRESERVA123',
+          guest_name: 'Juan Perez',
+          check_in: '2026-09-01',
+          check_out: '2026-09-25',
+          number_of_nights: 24,
+          gross_amount: 3000000,
+          net_payout: 2900000,
+          cleaning_fee_collected: 100000,
+          management_fee: 560000,
+          owner_payout: 2240000,
+          payout_status: 'paid',
+          booking_status: 'confirmed',
+          channel: 'airbnb',
+          created_at: '2026-09-01T00:00:00Z',
+          updated_at: '2026-09-01T00:00:00Z',
+        },
+        {
+          id: 'book-dup-2',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMRESERVA123',
+          guest_name: 'Juan Perez',
+          check_in: '2026-09-01',
+          check_out: '2026-09-25',
+          number_of_nights: 24,
+          gross_amount: 150000,
+          net_payout: 150000,
+          cleaning_fee_collected: 0,
+          management_fee: 30000,
+          owner_payout: 120000,
+          payout_status: 'paid',
+          booking_status: 'confirmed',
+          channel: 'airbnb',
+          created_at: '2026-09-01T00:00:00Z',
+          updated_at: '2026-09-01T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useBookings>);
+
+    renderWithProviders(<Dashboard />);
+
+    expect(screen.getByText('Noches en el Período')).toBeInTheDocument();
+    // Should display 24/30 (not 48/30)
+    expect(screen.getByText('24/30')).toBeInTheDocument();
+    // Subtitle: 24 de 30 noches reservadas (not 48 de 30)
+    expect(screen.getByText('24 de 30 noches reservadas')).toBeInTheDocument();
+    // Breakdown: 24 reales · 0 futuras (not 48 reales · 0 futuras)
+    expect(screen.getByText('24 reales · 0 futuras')).toBeInTheDocument();
+  });
 });
 
 
