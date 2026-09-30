@@ -14,6 +14,8 @@ import {
   isAirbnbBooking,
   isSameStay,
   calculateUniqueBookedNights,
+  calculateUniqueStays,
+  groupBookingsByStay,
 } from './formatters';
 
 describe('formatters', () => {
@@ -459,6 +461,68 @@ describe('formatters', () => {
         },
       ];
       expect(calculateUniqueBookedNights(bookings)).toBe(4);
+    });
+  });
+
+  describe('calculateUniqueStays and groupBookingsByStay', () => {
+    it('counts 1 stay when duplicate rows exist for the same check-in date', () => {
+      const bookings = [
+        {
+          id: 'b1',
+          check_in: '2026-09-21',
+          check_out: '2026-09-25',
+          airbnb_confirmation_code: 'HMNW3MBSYD',
+          guest_name: 'Yeferson Valencia',
+        },
+        {
+          id: 'b2',
+          check_in: '2026-09-21',
+          check_out: '2026-09-25',
+          airbnb_confirmation_code: 'HMNW3MBSYD',
+          guest_name: 'Yeferson Valencia',
+        },
+      ];
+
+      expect(calculateUniqueStays(bookings)).toBe(1);
+      const groups = groupBookingsByStay(bookings);
+      expect(groups.length).toBe(1);
+      expect(groups[0].length).toBe(2);
+    });
+
+    it('correctly calculates 7 stays when given 8 booking rows with 1 duplicate on the same day', () => {
+      const bookings = [
+        { id: '1', check_in: '2026-09-09', check_out: '2026-09-11', guest_name: 'Liliana Nieto' },
+        { id: '2', check_in: '2026-09-11', check_out: '2026-09-14', guest_name: 'Laura Gomez' },
+        { id: '3', check_in: '2026-09-14', check_out: '2026-09-17', guest_name: 'Julian Ruiz' },
+        { id: '4', check_in: '2026-09-18', check_out: '2026-09-21', guest_name: 'Juan Camilo' },
+        { id: '5', check_in: '2026-09-21', check_out: '2026-09-25', guest_name: 'Yeferson Valencia', airbnb_confirmation_code: 'HMNW3MBSYD' },
+        { id: '6', check_in: '2026-09-21', check_out: '2026-09-25', guest_name: 'Yeferson Valencia', airbnb_confirmation_code: 'HMNW3MBSYD' },
+        { id: '7', check_in: '2026-09-25', check_out: '2026-09-28', guest_name: 'Juan Amaya' },
+        { id: '8', check_in: '2026-09-29', check_out: '2026-10-01', guest_name: 'Alejandro Urieles' },
+      ];
+
+      // 8 rows, but exactly 7 unique stays!
+      expect(calculateUniqueStays(bookings)).toBe(7);
+      expect(calculateUniqueBookedNights(bookings)).toBe(20);
+    });
+
+    it('does not merge back-to-back stays where check-out equals next check-in', () => {
+      const bookings = [
+        { id: '1', check_in: '2026-09-09', check_out: '2026-09-11', guest_name: 'Liliana Nieto' },
+        { id: '2', check_in: '2026-09-11', check_out: '2026-09-14', guest_name: 'Laura Gomez' },
+      ];
+
+      expect(isSameStay(bookings[0], bookings[1])).toBe(false);
+      expect(calculateUniqueStays(bookings)).toBe(2);
+    });
+
+    it('ignores cancelled bookings when calculating unique stays', () => {
+      const bookings = [
+        { id: '1', check_in: '2026-09-01', check_out: '2026-09-05', guest_name: 'Ana', status: 'cancelled' as const },
+        { id: '2', check_in: '2026-09-10', check_out: '2026-09-15', guest_name: 'Pedro' },
+      ];
+
+      expect(calculateUniqueStays(bookings)).toBe(1);
     });
   });
 });

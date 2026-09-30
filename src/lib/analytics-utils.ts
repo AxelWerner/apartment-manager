@@ -1,4 +1,11 @@
-import { formatMonthYear, resolveBookingStatus, getColombiaDateTime, isBookingReal, isBookingFuture } from './formatters';
+import {
+  formatMonthYear,
+  resolveBookingStatus,
+  getColombiaDateTime,
+  isBookingReal,
+  isBookingFuture,
+  groupBookingsByStay,
+} from './formatters';
 import type { Booking } from '@/types/database';
 
 export interface DailyOccupancyStatus {
@@ -289,7 +296,8 @@ export function calculateMonthAnalytics(
 
   // Bookings touching this month
   const touchingBookings = validBookings.filter((b) => (bookingNightsMap.get(b.id) || 0) > 0);
-  const totalBookings = touchingBookings.length;
+  const touchingStayGroups = groupBookingsByStay(touchingBookings);
+  const totalBookings = touchingStayGroups.length;
 
   // LOS (Length of Stay)
   let totalStayNights = 0;
@@ -303,8 +311,10 @@ export function calculateMonthAnalytics(
     long: 0, // 10+ nights
   };
 
-  touchingBookings.forEach((b) => {
-    const nights = Number(b.number_of_nights) || (bookingNightsMap.get(b.id) || 1);
+  touchingStayGroups.forEach((group) => {
+    const nights =
+      Math.max(...group.map((b) => Number(b.number_of_nights) || 0)) ||
+      (bookingNightsMap.get(group[0].id) || 1);
     totalStayNights += nights;
     if (nights < minLos) minLos = nights;
     if (nights > maxLos) maxLos = nights;
@@ -358,9 +368,25 @@ export function calculateMonthAnalytics(
     advance: 0, // 30+ days
   };
 
-  const monthBookings: MonthBookingDetail[] = touchingBookings.map((b) => {
-    const nightsInMonth = bookingNightsMap.get(b.id) || 0;
-    const effectiveNightlyRate = getBookingEffectiveNightlyRate(b);
+  const monthBookings: MonthBookingDetail[] = touchingStayGroups.map((group) => {
+    const b = group[0];
+    const nightsInMonth = Math.max(...group.map((item) => bookingNightsMap.get(item.id) || 0));
+
+    let totalAccommodationBase = 0;
+    group.forEach((item) => {
+      const base = Math.max(
+        0,
+        (Number(item.net_payout) || Number(item.gross_amount) || 0) - (Number(item.cleaning_fee_collected) || 0)
+      );
+      totalAccommodationBase += base;
+    });
+
+    const totalReservationNights =
+      Math.max(...group.map((item) => Number(item.number_of_nights) || 0)) || nightsInMonth || 1;
+    const effectiveNightlyRate =
+      b.nightly_rate && Number(b.nightly_rate) > 0
+        ? Math.round(Number(b.nightly_rate))
+        : Math.round(totalAccommodationBase / totalReservationNights);
     const accommodationRevenueInMonth = nightsInMonth * effectiveNightlyRate;
     const leadTimeDays = calculateLeadTimeDays(b.check_in, b.booking_date);
 
@@ -379,7 +405,7 @@ export function calculateMonthAnalytics(
     return {
       booking: b,
       nightsInMonth,
-      totalReservationNights: Number(b.number_of_nights) || nightsInMonth,
+      totalReservationNights,
       effectiveNightlyRate,
       accommodationRevenueInMonth,
       leadTimeDays,

@@ -411,25 +411,85 @@ export function isSameStay(
     guest_name?: string | null;
   }
 ): boolean {
-  if (!a.check_in || !a.check_out || !b.check_in || !b.check_out) return false;
-  if (a.check_in !== b.check_in || a.check_out !== b.check_out) return false;
+  if (!a.check_in || !b.check_in) return false;
   if (a.property_id && b.property_id && a.property_id !== b.property_id) return false;
 
-  const codeA = a.airbnb_confirmation_code?.trim().toUpperCase();
-  const codeB = b.airbnb_confirmation_code?.trim().toUpperCase();
-  const nameA = a.guest_name?.trim().toLowerCase();
-  const nameB = b.guest_name?.trim().toLowerCase();
+  // Stays on the same check-in date for the same property
+  // An apartment unit cannot have two distinct active stays checking in on the same day
+  if (a.check_in === b.check_in) {
+    const codeA = a.airbnb_confirmation_code?.trim().toUpperCase();
+    const codeB = b.airbnb_confirmation_code?.trim().toUpperCase();
+    if (codeA && codeB && codeA === codeB) return true;
 
-  const codeMatch = Boolean(codeA && codeB && codeA === codeB);
-  const nameMatch = Boolean(nameA && nameB && nameA === nameB);
+    if (a.check_out && b.check_out && a.check_out === b.check_out) return true;
 
-  return codeMatch || nameMatch;
+    const nameA = a.guest_name?.trim().toLowerCase();
+    const nameB = b.guest_name?.trim().toLowerCase();
+    if (nameA && nameB && (nameA === nameB || nameA.includes(nameB) || nameB.includes(nameA))) return true;
+
+    // Fallback: two bookings checking in on the exact same date for the same property
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Groups bookings that belong to the same stay (same confirmation code, same check-in date,
+ * or same guest and dates), excluding cancelled bookings.
+ */
+export function groupBookingsByStay<T extends {
+  property_id?: string | null;
+  check_in: string;
+  check_out: string;
+  airbnb_confirmation_code?: string | null;
+  guest_name?: string | null;
+  status?: BookingStatus;
+}>(bookingsList: T[]): T[][] {
+  if (!bookingsList || bookingsList.length === 0) return [];
+
+  const validBookings = bookingsList.filter(
+    (b) => resolveBookingStatus(b) !== 'cancelled'
+  );
+
+  const stayGroups: T[][] = [];
+
+  for (const b of validBookings) {
+    const matchingGroup = stayGroups.find((group) =>
+      group.some((existing) => isSameStay(existing, b))
+    );
+
+    if (matchingGroup) {
+      matchingGroup.push(b);
+    } else {
+      stayGroups.push([b]);
+    }
+  }
+
+  return stayGroups;
+}
+
+/**
+ * Calculates total count of unique stays for a list of bookings, ensuring
+ * duplicate rows representing the same stay or same check-in day are not counted twice.
+ */
+export function calculateUniqueStays(
+  bookingsList: Array<{
+    property_id?: string | null;
+    check_in: string;
+    check_out: string;
+    airbnb_confirmation_code?: string | null;
+    guest_name?: string | null;
+    status?: BookingStatus;
+  }>
+): number {
+  return groupBookingsByStay(bookingsList).length;
 }
 
 /**
  * Calculates total booked nights for a list of bookings, ensuring that
- * duplicate rows representing the same stay (same confirmation code or guest name,
- * with identical check-in and check-out dates) only count their nights once.
+ * duplicate rows representing the same stay (same confirmation code, same check-in day,
+ * or guest name) and overlapping calendar nights only count their nights once.
  */
 export function calculateUniqueBookedNights(
   bookingsList: Array<{
@@ -448,36 +508,31 @@ export function calculateUniqueBookedNights(
     (b) => resolveBookingStatus(b) !== 'cancelled'
   );
 
-  const stayGroups: Array<typeof validBookings> = [];
+  const stayGroups = groupBookingsByStay(validBookings);
 
-  for (const b of validBookings) {
-    const matchingGroup = stayGroups.find((group) =>
-      group.some((existing) => isSameStay(existing, b))
-    );
+  const uniqueNights = new Set<string>();
 
-    if (matchingGroup) {
-      matchingGroup.push(b);
-    } else {
-      stayGroups.push([b]);
-    }
-  }
-
-  let totalNights = 0;
   for (const group of stayGroups) {
-    const maxNights = Math.max(...group.map((b) => Number(b.number_of_nights) || 0));
-    if (maxNights > 0) {
-      totalNights += maxNights;
+    const first = group[0];
+    const propertyPrefix = first.property_id || 'default';
+
+    if (first.check_in && first.check_out && first.check_in < first.check_out) {
+      const start = new Date(first.check_in + 'T12:00:00Z');
+      const end = new Date(first.check_out + 'T12:00:00Z');
+      const cur = new Date(start);
+      while (cur < end) {
+        const dateStr = cur.toISOString().split('T')[0];
+        uniqueNights.add(`${propertyPrefix}_${dateStr}`);
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
     } else {
-      const first = group[0];
-      if (first.check_in && first.check_out) {
-        const dIn = new Date(first.check_in + 'T00:00:00');
-        const dOut = new Date(first.check_out + 'T00:00:00');
-        const diff = Math.round((dOut.getTime() - dIn.getTime()) / (1000 * 60 * 60 * 24));
-        totalNights += Math.max(0, diff);
+      const maxNights = Math.max(...group.map((b) => Number(b.number_of_nights) || 0));
+      for (let i = 0; i < maxNights; i++) {
+        uniqueNights.add(`${propertyPrefix}_synthetic_${group[0].airbnb_confirmation_code || group[0].guest_name || i}_${i}`);
       }
     }
   }
 
-  return totalNights;
+  return uniqueNights.size;
 }
 

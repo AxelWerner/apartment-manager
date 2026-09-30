@@ -339,6 +339,54 @@ describe('Dashboard Component', () => {
     // Breakdown: 24 reales · 0 futuras (not 48 reales · 0 futuras)
     expect(screen.getByText('24 reales · 0 futuras')).toBeInTheDocument();
   });
+
+  it('deduplicates stays in Gasto de Aseo card when duplicate rows exist for the same check-in day', () => {
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'b-dup-1',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMNW3MBSYD',
+          guest_name: 'Yeferson Valencia',
+          check_in: '2026-09-21',
+          check_out: '2026-09-25',
+          number_of_nights: 4,
+          gross_amount: 500000,
+          net_payout: 488635,
+          cleaning_fee_collected: 60000,
+          management_fee: 90000,
+          owner_payout: 398635,
+          status: 'completed',
+          created_at: '2026-09-21T00:00:00Z',
+          updated_at: '2026-09-21T00:00:00Z',
+        },
+        {
+          id: 'b-dup-2',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMNW3MBSYD',
+          guest_name: 'Yeferson Valencia',
+          check_in: '2026-09-21',
+          check_out: '2026-09-25',
+          number_of_nights: 4,
+          gross_amount: 150000,
+          net_payout: 150000,
+          cleaning_fee_collected: 0,
+          management_fee: 30000,
+          owner_payout: 120000,
+          status: 'completed',
+          created_at: '2026-09-21T00:00:00Z',
+          updated_at: '2026-09-21T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useBookings>);
+
+    renderWithProviders(<Dashboard />);
+
+    expect(screen.getByText('Gasto de Aseo')).toBeInTheDocument();
+    // 2 booking records on the same day must display "Recaudado (1 estadía)" not "(2 estadías)"
+    expect(screen.getByText('Recaudado (1 estadía)')).toBeInTheDocument();
+  });
 });
 
 

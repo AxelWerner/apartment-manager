@@ -1,6 +1,6 @@
 import { formatCOP } from '@/lib/formatters';
 import type { MonthAnalytics } from '@/lib/analytics-utils';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useState } from 'react';
 
 interface MonthlyComparisonTableProps {
@@ -26,6 +26,43 @@ export function MonthlyComparisonTable({
       setSortCol(col);
       setSortAsc(col === 'month' ? false : false);
     }
+  };
+
+  const renderSortHeader = (
+    col: SortColumn,
+    label: string,
+    align: 'left' | 'center' | 'right' = 'left'
+  ) => {
+    const isActive = sortCol === col;
+    return (
+      <th
+        onClick={() => handleSort(col)}
+        className={`px-3 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${
+          align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+        }`}
+      >
+        <div
+          className={`inline-flex items-center gap-1.5 group ${
+            align === 'center'
+              ? 'justify-center'
+              : align === 'right'
+              ? 'justify-end'
+              : 'justify-start'
+          }`}
+        >
+          <span>{label}</span>
+          {isActive ? (
+            sortAsc ? (
+              <ArrowUp className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity shrink-0" />
+          )}
+        </div>
+      </th>
+    );
   };
 
   const sortedData = [...data].sort((a, b) => {
@@ -57,56 +94,16 @@ export function MonthlyComparisonTable({
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/70 dark:border-slate-800">
-              <th className="py-3 px-4 cursor-pointer hover:text-slate-900" onClick={() => handleSort('month')}>
-                <div className="flex items-center gap-1">
-                  <span>Mes</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('bookings')}>
-                <div className="flex items-center gap-1">
-                  <span>Reservas</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('occupancy')}>
-                <div className="flex items-center gap-1">
-                  <span>Ocupación (%)</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('adr')}>
-                <div className="flex items-center gap-1">
-                  <span>ADR (Precio Prom.)</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('revPar')}>
-                <div className="flex items-center gap-1">
-                  <span>RevPAR (Rentabilidad)</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('revenue')}>
-                <div className="flex items-center gap-1">
-                  <span>Ingreso Alojamiento</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-3 cursor-pointer hover:text-slate-900" onClick={() => handleSort('los')}>
-                <div className="flex items-center gap-1">
-                  <span>LOS Prom.</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
-              <th className="py-3 px-4 cursor-pointer hover:text-slate-900" onClick={() => handleSort('leadTime')}>
-                <div className="flex items-center gap-1">
-                  <span>Lead Time</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
-                </div>
-              </th>
+          <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
+            <tr>
+              {renderSortHeader('month', 'Mes', 'left')}
+              {renderSortHeader('bookings', 'Reservas', 'center')}
+              {renderSortHeader('occupancy', 'Ocupación (%)', 'center')}
+              {renderSortHeader('adr', 'ADR (Precio Prom.)', 'right')}
+              {renderSortHeader('revPar', 'RevPAR (Rentabilidad)', 'right')}
+              {renderSortHeader('revenue', 'Ingreso Alojamiento', 'right')}
+              {renderSortHeader('los', 'LOS Prom.', 'center')}
+              {renderSortHeader('leadTime', 'Lead Time', 'center')}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">

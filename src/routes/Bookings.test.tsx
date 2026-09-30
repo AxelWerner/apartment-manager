@@ -345,6 +345,47 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(screen.getByText(/Real en caja:/i)).toBeInTheDocument();
       expect(screen.getAllByText(/Futuro:/i).length).toBeGreaterThan(0);
     });
+
+    it('deduplicates stays in KPI cards and month headers when duplicate booking rows exist on the same day', () => {
+      vi.mocked(useBookings).mockReturnValue({
+        data: [
+          {
+            id: 'b-dup-1',
+            property_id: 'prop-1',
+            airbnb_confirmation_code: 'HMNW3MBSYD',
+            guest_name: 'Yeferson Valencia',
+            check_in: '2026-09-21',
+            check_out: '2026-09-25',
+            number_of_nights: 4,
+            net_payout: 488635,
+            cleaning_fee_collected: 60000,
+            status: 'completed',
+            source: 'airbnb',
+          },
+          {
+            id: 'b-dup-2',
+            property_id: 'prop-1',
+            airbnb_confirmation_code: 'HMNW3MBSYD',
+            guest_name: 'Yeferson Valencia',
+            check_in: '2026-09-21',
+            check_out: '2026-09-25',
+            number_of_nights: 4,
+            net_payout: 150000,
+            cleaning_fee_collected: 0,
+            status: 'completed',
+            source: 'airbnb',
+          },
+        ],
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      // The month header badge should show "1 reserva" (not "2 reservas")
+      expect(screen.getByText('1 reserva')).toBeInTheDocument();
+      // The total nights should be 4 (in KPI card and month header), not 8
+      expect(screen.getAllByText(/4\s*noches/).length).toBeGreaterThanOrEqual(1);
+    });
   });
 });
 

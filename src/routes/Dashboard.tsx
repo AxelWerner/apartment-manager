@@ -44,6 +44,7 @@ import {
   isExpenseFuture,
   isSameStay,
   calculateUniqueBookedNights,
+  calculateUniqueStays,
 } from '@/lib/formatters';
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
@@ -232,6 +233,17 @@ export default function Dashboard() {
       : financialHorizon === 'future'
       ? futureCleaningFee
       : totalGuestCleaningFee;
+
+  const realCleaningStays = calculateUniqueStays(realBookings);
+  const futureCleaningStays = calculateUniqueStays(futureBookings);
+  const totalCleaningStays = calculateUniqueStays(filteredBookings);
+
+  const displayedCleaningStays =
+    financialHorizon === 'real'
+      ? realCleaningStays
+      : financialHorizon === 'future'
+      ? futureCleaningStays
+      : totalCleaningStays;
 
   const displayedExpenses =
     financialHorizon === 'real'
@@ -463,10 +475,19 @@ export default function Dashboard() {
 
   // Pending Actions / Operational Alerts
   const openDamages = damages.filter((d) => d.claim_status !== 'reimbursed' && d.claim_status !== 'written_off');
-  const upcomingBookings = bookings
-    .filter((b) => resolveBookingStatus(b) === 'confirmed')
-    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
-    .slice(0, 3);
+  const upcomingBookings = useMemo(() => {
+    const confirmed = bookings
+      .filter((b) => resolveBookingStatus(b) === 'confirmed')
+      .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime());
+
+    const unique: Booking[] = [];
+    for (const b of confirmed) {
+      if (!unique.some((existing) => isSameStay(existing, b))) {
+        unique.push(b);
+      }
+    }
+    return unique.slice(0, 3);
+  }, [bookings]);
 
   const pendingBills = expenses.filter(
     (e) =>
@@ -802,7 +823,7 @@ export default function Dashboard() {
                 {formatCOP(displayedCleaningFee)}
               </p>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Recaudado ({activeBookingsList.length} {activeBookingsList.length === 1 ? 'estadía' : 'estadías'})
+                Recaudado ({displayedCleaningStays} {displayedCleaningStays === 1 ? 'estadía' : 'estadías'})
               </span>
               {/* Real vs Future Sub-pills */}
               <div className="mt-2 pt-2 border-t border-teal-200/50 dark:border-teal-800/30 flex items-center justify-between text-[11px]">

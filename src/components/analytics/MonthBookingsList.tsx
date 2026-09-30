@@ -36,17 +36,17 @@ export function MonthBookingsList({ bookings, monthLabel }: MonthBookingsListPro
 
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 dark:bg-slate-850 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200/70 dark:border-slate-800">
-              <th className="py-3 px-4">Huésped</th>
-              <th className="py-3 px-3">Estadía</th>
-              <th className="py-3 px-3">Noches en el Mes</th>
-              <th className="py-3 px-3">Tarifa / Noche</th>
-              <th className="py-3 px-3">Aporte Alojamiento</th>
-              <th className="py-3 px-3">Fecha Reserva</th>
-              <th className="py-3 px-3">Lead Time</th>
-              <th className="py-3 px-4">Canal</th>
-              <th className="py-3 px-4">Horizonte</th>
+          <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-3.5 text-left">Huésped</th>
+              <th className="px-3 py-3.5 text-left">Estadía</th>
+              <th className="px-3 py-3.5 text-left">Noches en el Mes</th>
+              <th className="px-3 py-3.5 text-left">Tarifa / Noche</th>
+              <th className="px-3 py-3.5 text-left">Aporte Alojamiento</th>
+              <th className="px-3 py-3.5 text-left">Fecha Reserva</th>
+              <th className="px-3 py-3.5 text-left">Lead Time</th>
+              <th className="px-4 py-3.5 text-left">Canal</th>
+              <th className="px-4 py-3.5 text-left">Horizonte</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">

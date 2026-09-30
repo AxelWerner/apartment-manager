@@ -35,6 +35,7 @@ import {
   isBookingFuture,
   isSameStay,
   calculateUniqueBookedNights,
+  calculateUniqueStays,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
@@ -197,6 +198,7 @@ export default function Bookings() {
       monthLabel: string;
       bookings: typeof sortedBookings;
       totalNights: number;
+      totalStays: number;
       totalOwnerNet: number;
       realOwnerNet: number;
       futureOwnerNet: number;
@@ -216,6 +218,7 @@ export default function Bookings() {
           monthLabel: formatMonthYear(monthKey),
           bookings: [],
           totalNights: 0,
+          totalStays: 0,
           totalOwnerNet: 0,
           realOwnerNet: 0,
           futureOwnerNet: 0,
@@ -232,20 +235,21 @@ export default function Bookings() {
       if (b.status !== 'cancelled') {
         if (isBookingReal(b, colDateStr)) {
           group.realOwnerNet += ownerNet;
-          group.realCount += 1;
         } else if (isBookingFuture(b, colDateStr)) {
           group.futureOwnerNet += ownerNet;
-          group.futureCount += 1;
         }
-      }
-      if (b.status === 'confirmed' || b.status === 'checked_in') {
-        group.confirmedCount += 1;
       }
     });
 
-    // Calculate unique booked nights per month group (deduplicating duplicate rows for same stay)
+    // Calculate unique booked nights and unique stays per month group (deduplicating duplicate rows for same stay)
     groups.forEach((group) => {
       group.totalNights = calculateUniqueBookedNights(group.bookings);
+      group.totalStays = calculateUniqueStays(group.bookings);
+      group.realCount = calculateUniqueStays(group.bookings.filter((b) => isBookingReal(b, colDateStr)));
+      group.futureCount = calculateUniqueStays(group.bookings.filter((b) => isBookingFuture(b, colDateStr)));
+      group.confirmedCount = calculateUniqueStays(
+        group.bookings.filter((b) => b.status === 'confirmed' || b.status === 'checked_in')
+      );
     });
 
     // Sort month groups:
@@ -312,13 +316,17 @@ export default function Bookings() {
   );
   const totalNights = realNights + futureNights;
 
+  const realStaysCount = useMemo(() => calculateUniqueStays(realBookingsList), [realBookingsList]);
+  const futureStaysCount = useMemo(() => calculateUniqueStays(futureBookingsList), [futureBookingsList]);
+  const totalStaysCount = useMemo(() => calculateUniqueStays(bookings), [bookings]);
+
   // Active displayed values according to financialHorizon
   const displayedCount =
     financialHorizon === 'real'
-      ? realBookingsList.length
+      ? realStaysCount
       : financialHorizon === 'future'
-      ? futureBookingsList.length
-      : bookings.length;
+      ? futureStaysCount
+      : totalStaysCount;
 
   const displayedNights =
     financialHorizon === 'real'
@@ -369,9 +377,9 @@ export default function Bookings() {
     .reduce((sum, b) => sum + getOwnerNet(b), 0);
 
   // Pie chart datasets for Bookings KPI cards
-  const bookingsCountAirbnb = activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb').length;
-  const bookingsCountDirect10 = activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10').length;
-  const bookingsCountDirect25 = activeHorizonBookings.filter((b) => b.source === 'direct_25').length;
+  const bookingsCountAirbnb = calculateUniqueStays(activeHorizonBookings.filter((b) => !b.source || b.source === 'airbnb'));
+  const bookingsCountDirect10 = calculateUniqueStays(activeHorizonBookings.filter((b) => b.source === 'direct' || b.source === 'direct_10'));
+  const bookingsCountDirect25 = calculateUniqueStays(activeHorizonBookings.filter((b) => b.source === 'direct_25'));
   const bookingsCountPieData = [
     { name: 'Airbnb', value: bookingsCountAirbnb, color: '#f43f5e' },
     { name: 'Directas (10%)', value: bookingsCountDirect10, color: '#10b981' },
@@ -512,16 +520,16 @@ export default function Bookings() {
                 ? 'Reservas cobradas / activas'
                 : financialHorizon === 'future'
                 ? 'Reservas futuras por cobrar'
-                : bookings.length === 1
+                : totalStaysCount === 1
                 ? 'Reserva registrada'
                 : 'Reservas registradas'}
             </span>
             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Reservas con dinero cobrado o huésped en apto">
-                ✓ {realBookingsList.length} reales
+                ✓ {realStaysCount} reales
               </span>
               <span className="text-blue-600 dark:text-blue-400 font-semibold" title="Reservas con fecha de check-in en el futuro">
-                ⏳ {futureBookingsList.length} futuras
+                ⏳ {futureStaysCount} futuras
               </span>
             </div>
           </div>
@@ -1051,7 +1059,7 @@ export default function Bookings() {
                                   {group.monthLabel}
                                 </span>
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                                  {group.bookings.length} {group.bookings.length === 1 ? 'reserva' : 'reservas'}
+                                  {group.totalStays} {group.totalStays === 1 ? 'reserva' : 'reservas'}
                                 </span>
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                   <Moon className="w-3 h-3 text-amber-500 fill-amber-500/30" />

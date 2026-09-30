@@ -15,7 +15,7 @@ import { OccupancyDayMatrix } from '@/components/analytics/OccupancyDayMatrix';
 import { StayDistributionCards } from '@/components/analytics/StayDistributionCards';
 import { MonthlyComparisonTable } from '@/components/analytics/MonthlyComparisonTable';
 import { MonthBookingsList } from '@/components/analytics/MonthBookingsList';
-import { BarChart3, Sparkles } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 export default function Analytics() {
   const { data: bookings = [], isLoading } = useBookings();
@@ -113,13 +113,6 @@ export default function Analytics() {
               </p>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Tarifa Base: <strong>${((property?.default_nightly_rate || 280000) / 1000).toFixed(0)}k COP</strong>
-          </span>
         </div>
       </div>
 
