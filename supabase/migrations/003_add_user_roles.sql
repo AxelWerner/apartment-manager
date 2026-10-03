@@ -40,9 +40,9 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to inspect the role of the currently authenticated user
 CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS user_role AS $$
+RETURNS public.user_role AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
 -- Profiles Policies
 DO $$ BEGIN
@@ -81,13 +81,13 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
-  assigned_role user_role := 'VIEWER';
+  assigned_role public.user_role := 'VIEWER';
   role_input text;
 BEGIN
   role_input := NEW.raw_user_meta_data->>'role';
 
   IF role_input IN ('SUPER_USER', 'OWNER', 'ADMINISTRATOR', 'CLEANER', 'VIEWER') THEN
-    assigned_role := role_input::user_role;
+    assigned_role := role_input::public.user_role;
   END IF;
 
   INSERT INTO public.profiles (id, role, full_name, phone)
@@ -101,7 +101,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created

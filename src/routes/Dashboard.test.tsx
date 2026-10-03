@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import Dashboard from './Dashboard';
 import { renderWithProviders } from '@/test/test-utils';
@@ -31,7 +31,12 @@ import { useDamages } from '@/hooks/use-damages';
 import { useProperty } from '@/hooks/use-property';
 
 describe('Dashboard Component', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.setSystemTime(new Date('2026-09-15T15:00:00Z'));
     vi.mocked(useBookings).mockReturnValue({
       data: [
         {

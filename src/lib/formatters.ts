@@ -284,10 +284,14 @@ export function getColombiaDateTime(): {
  * Automatically determine the operational status of a booking based on Colombian time (America/Bogota, UTC-5):
  * - 'cancelled' -> remains cancelled
  *
- * Hospitality turnover schedule:
- * - Check-out: hasta las 12:00 del mediodía del día de salida (el huésped sigue "En el Apto")
- * - Limpieza / Entrega: 12:00 a 14:00 (el saliente ya completó, el nuevo aún no ingresa)
- * - Check-in: a partir de las 14:00 del día de entrada (el nuevo huésped pasa a "En el Apto")
+ * Hospitality stay schedule:
+ * - Fecha anterior al check-in: 'confirmed'
+ * - Día de check-in:
+ *     - Si ya fue marcado como 'checked_in' manualmente: 'checked_in'
+ *     - A partir de las 14:00 (o check-in): 'checked_in'
+ *     - Antes de las 14:00: 'confirmed'
+ * - Días de estadía (días intermedios y día de check-out inclusive): 'checked_in' ("En el Apto")
+ * - Días posteriores a la fecha de check-out: 'completed' ("Completada")
  */
 export function resolveBookingStatus(booking: {
   status?: BookingStatus;
@@ -303,19 +307,15 @@ export function resolveBookingStatus(booking: {
     return 'confirmed';
   }
 
-  // Día de check-in: a partir de las 14:00 rige "En el Apto"
+  // Día de check-in: a partir de las 14:00 rige "En el Apto" (o si ya fue marcado manualmente como ingresado)
   if (todayStr === booking.check_in) {
+    if (booking.status === 'checked_in') return 'checked_in';
     return hours >= 14 ? 'checked_in' : 'confirmed';
   }
 
-  // Días intermedios entre check-in y check-out
-  if (todayStr > booking.check_in && todayStr < booking.check_out) {
+  // Rango de estadía: días intermedios y día de check-out inclusive -> "En el Apto"
+  if (todayStr > booking.check_in && todayStr <= booking.check_out) {
     return 'checked_in';
-  }
-
-  // Día de check-out: hasta las 12:00 del mediodía sigue "En el Apto", luego "Completada"
-  if (todayStr === booking.check_out) {
-    return hours < 12 ? 'checked_in' : 'completed';
   }
 
   // Fecha posterior al día de check-out

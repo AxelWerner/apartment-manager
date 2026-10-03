@@ -360,8 +360,12 @@ export default function Dashboard() {
 
   const occupancyRate = Math.min(100, Math.round((bookedNights / calendarDays) * 100));
 
-  // Active guest in house
-  const activeGuest = bookings.find((b) => resolveBookingStatus(b) === 'checked_in');
+  // Active guest in house (prioritizes incoming check-in today or longer stay if turnover day)
+  const checkedInBookings = bookings.filter((b) => resolveBookingStatus(b) === 'checked_in');
+  const activeGuest =
+    checkedInBookings.find((b) => b.check_in === colDateStr) ||
+    checkedInBookings.find((b) => b.check_out > colDateStr) ||
+    checkedInBookings[0];
 
   // Night progress tracker for the period
   const periodNightsProgress = useMemo(() => {

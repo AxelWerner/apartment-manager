@@ -147,9 +147,9 @@ describe('formatters', () => {
       expect(status).toBe('checked_in');
     });
 
-    it('marks booking on check-out day before 12:00 as checked_in', () => {
-      // 2026-09-15 10:00 Bogota time (UTC-5 -> 15:00 UTC)
-      vi.setSystemTime(new Date('2026-09-15T15:00:00Z'));
+    it('marks booking on check-out day as checked_in throughout the stay', () => {
+      // 2026-09-15 15:00 Bogota time (UTC-5 -> 20:00 UTC)
+      vi.setSystemTime(new Date('2026-09-15T20:00:00Z'));
 
       const status = resolveBookingStatus({
         check_in: '2026-09-10',
@@ -158,9 +158,21 @@ describe('formatters', () => {
       expect(status).toBe('checked_in');
     });
 
-    it('marks booking on check-out day after 12:00 as completed', () => {
-      // 2026-09-15 13:00 Bogota time (UTC-5 -> 18:00 UTC)
-      vi.setSystemTime(new Date('2026-09-15T18:00:00Z'));
+    it('marks booking on check-in day before 14:00 as checked_in if manually marked as checked_in', () => {
+      // 2026-09-10 10:00 Bogota time (UTC-5 -> 15:00 UTC)
+      vi.setSystemTime(new Date('2026-09-10T15:00:00Z'));
+
+      const status = resolveBookingStatus({
+        status: 'checked_in',
+        check_in: '2026-09-10',
+        check_out: '2026-09-15',
+      });
+      expect(status).toBe('checked_in');
+    });
+
+    it('marks booking after check-out date as completed', () => {
+      // 2026-09-16 08:00 Bogota time (UTC-5 -> 13:00 UTC)
+      vi.setSystemTime(new Date('2026-09-16T13:00:00Z'));
 
       const status = resolveBookingStatus({
         check_in: '2026-09-10',

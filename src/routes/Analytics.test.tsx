@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import Analytics from './Analytics';
 import { renderWithProviders } from '@/test/test-utils';
@@ -15,7 +15,12 @@ import { useBookings } from '@/hooks/use-bookings';
 import { useProperty } from '@/hooks/use-property';
 
 describe('Analytics Component (Analíticas del Apto)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.setSystemTime(new Date('2026-09-15T15:00:00Z'));
     vi.mocked(useProperty).mockReturnValue({
       data: {
         id: 'prop-1',
