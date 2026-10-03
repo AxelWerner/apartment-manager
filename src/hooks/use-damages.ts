@@ -7,10 +7,10 @@ import {
 } from '@/lib/api-service';
 import type { Damage } from '@/types/database';
 
-export function useDamages() {
-  return useQuery({
-    queryKey: ['damages'],
-    queryFn: fetchDamages,
+export function useDamages(propId?: string) {
+  return useQuery<Damage[]>({
+    queryKey: ['damages', propId],
+    queryFn: () => fetchDamages(propId),
   });
 }
 

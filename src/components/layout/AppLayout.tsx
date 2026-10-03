@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Outlet, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   BarChart3,
@@ -11,9 +12,12 @@ import {
   CheckCircle2,
   LogOut,
   User as UserIcon,
+  Plus,
 } from 'lucide-react';
-import { useProperty } from '@/hooks/use-property';
 import { useAuth } from '@/hooks/use-auth';
+import { useActiveProperty } from '@/context/PropertyContext';
+import { PropertySwitcher } from '@/components/properties/PropertySwitcher';
+import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
 import type { UserRole } from '@/types/database';
 
 const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
@@ -40,28 +44,39 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
 };
 
 export function AppLayout() {
-  const { data: property } = useProperty();
-  const { user, role, signOut } = useAuth();
+  const { properties, activeProperty, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
+  const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const currentRole: UserRole = role || 'VIEWER';
+  // Si no tiene propiedades y está intentando acceder a una sub-ruta (/p/:id/...), redirigir a /
+  if (!isLoading && properties.length === 0 && location.pathname !== '/') {
+    return <Navigate to="/" replace />;
+  }
+
+  const hasProperties = properties.length > 0;
+  const currentRole: UserRole = propertyRole || globalRole || 'VIEWER';
+  const basePath = activePropertyId ? `/p/${activePropertyId}` : '';
 
   const allNavItems: Array<{
     to: string;
+    pathSuffix: string;
     label: string;
     icon: typeof LayoutDashboard;
     roles?: UserRole[];
   }> = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
-    { to: '/analytics', label: 'Analíticas', icon: BarChart3, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
-    { to: '/bookings', label: 'Reservas', icon: CalendarDays },
-    { to: '/expenses', label: 'Gastos y Servicios', icon: Receipt, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
-    { to: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
-    { to: '/guest-guide', label: 'Guía Huésped', icon: Compass },
-    { to: '/settings', label: 'Configuración', icon: Settings, roles: ['SUPER_USER', 'ADMINISTRATOR'] },
+    { to: `${basePath}/dashboard`, pathSuffix: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
+    { to: `${basePath}/analytics`, pathSuffix: '/analytics', label: 'Analíticas', icon: BarChart3, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
+    { to: `${basePath}/bookings`, pathSuffix: '/bookings', label: 'Reservas', icon: CalendarDays },
+    { to: `${basePath}/expenses`, pathSuffix: '/expenses', label: 'Gastos y Servicios', icon: Receipt, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
+    { to: `${basePath}/damages`, pathSuffix: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
+    { to: `${basePath}/guest-guide`, pathSuffix: '/guest-guide', label: 'Guía Huésped', icon: Compass },
+    { to: `${basePath}/settings`, pathSuffix: '/settings', label: 'Configuración', icon: Settings, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
   ];
 
-  const navItems = allNavItems.filter((item) => !item.roles || item.roles.includes(currentRole));
+  const navItems = hasProperties
+    ? allNavItems.filter((item) => !item.roles || item.roles.includes(currentRole))
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0">
@@ -79,40 +94,61 @@ export function AppLayout() {
             </div>
           </div>
 
-          {/* Active Property Badge */}
-          <div className="mt-4 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 flex items-center justify-between">
-            <div className="truncate pr-2">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                {property?.name || 'Apto 502 - Medellín'}
-              </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                {property?.city || 'Medellín'} • COP
-              </p>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" title="Sincronizado" />
-          </div>
+          {/* Active Property Switcher or Add Apartment Button */}
+          {hasProperties ? (
+            <PropertySwitcher />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="mt-4 w-full p-2.5 rounded-xl border border-dashed border-rose-300 dark:border-rose-800 bg-rose-50/70 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 flex items-center justify-between text-xs font-semibold transition-all duration-150 group cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-lg bg-rose-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+                <div className="text-left">
+                  <span className="block font-bold text-slate-800 dark:text-slate-100 text-xs">
+                    Sin apartamentos
+                  </span>
+                  <span className="block text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    + Añadir apartamento
+                  </span>
+                </div>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Navigation Links */}
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto min-h-0">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.to;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
+          {hasProperties ? (
+            navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.to ||
+                (item.pathSuffix !== '/dashboard' && location.pathname.endsWith(item.pathSuffix)) ||
+                (item.pathSuffix === '/dashboard' &&
+                  (location.pathname === item.to ||
+                    location.pathname === `${basePath}/` ||
+                    location.pathname === `${basePath}`));
+
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+                    isActive
+                      ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })
+          ) : null}
         </nav>
 
         {/* Sidebar Footer */}
@@ -159,23 +195,36 @@ export function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
         <header className="md:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white">
+          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shrink-0">
               <Building2 className="w-4 h-4" />
             </div>
-            <div>
-              <h1 className="font-bold text-sm leading-tight">{property?.name || 'Apto Manager'}</h1>
-              <p className="text-[10px] text-slate-400">COP • Medellín</p>
-            </div>
+            {hasProperties ? (
+              <div className="min-w-0">
+                <h1 className="font-bold text-sm leading-tight truncate">{activeProperty?.name || 'Apto Manager'}</h1>
+                <p className="text-[10px] text-slate-400 truncate">{activeProperty?.city || 'Medellín'} • COP</p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-dashed border-rose-300 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>+ Añadir Apartamento</span>
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
-              }`}
-            >
-              {roleConfig[currentRole]?.label || currentRole}
-            </span>
+            {hasProperties && (
+              <span
+                className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {roleConfig[currentRole]?.label || currentRole}
+              </span>
+            )}
             {user && (
               <button
                 type="button"
@@ -197,26 +246,34 @@ export function AppLayout() {
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-2 py-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.to;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'text-rose-600 dark:text-rose-400 font-semibold'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
-              }`}
-            >
-              <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.2]' : 'stroke-1.5'}`} />
-              <span className="truncate max-w-[60px]">{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
+      {hasProperties && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-around px-2 py-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.to;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition-colors ${
+                  isActive
+                    ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'
+                }`}
+              >
+                <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'stroke-[2.2]' : 'stroke-1.5'}`} />
+                <span className="truncate max-w-[60px]">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
+
+      {/* Modal para crear apartamento */}
+      <CreatePropertyModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   );
 }

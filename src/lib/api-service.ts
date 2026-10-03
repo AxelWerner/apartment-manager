@@ -64,16 +64,19 @@ function setLocal<T>(key: string, value: T): void {
 // -------------------------------------------------------------
 // PROPERTY API
 // -------------------------------------------------------------
-export async function fetchProperty(): Promise<Property> {
+export async function fetchProperty(propertyId?: string): Promise<Property> {
+  const targetId = propertyId || DEFAULT_PROPERTY_ID;
   try {
     const { data, error } = await supabase
       .from('properties')
       .select('*')
-      .eq('id', DEFAULT_PROPERTY_ID)
+      .eq('id', targetId)
       .single();
 
     if (!error && data) {
-      setLocal(STORAGE_KEYS.property, data);
+      if (targetId === DEFAULT_PROPERTY_ID) {
+        setLocal(STORAGE_KEYS.property, data);
+      }
       return data as Property;
     }
   } catch {
@@ -152,24 +155,33 @@ function syncBookingsList(bookings: Booking[]): Booking[] {
 // -------------------------------------------------------------
 // BOOKINGS API
 // -------------------------------------------------------------
-export async function fetchBookings(): Promise<Booking[]> {
+export async function fetchBookings(propertyId?: string): Promise<Booking[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('bookings')
       .select('*')
       .order('check_in', { ascending: false });
 
+    if (propertyId) {
+      query = query.eq('property_id', propertyId);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data) {
       const synced = syncBookingsList(data as Booking[]);
-      setLocal(STORAGE_KEYS.bookings, synced);
+      if (!propertyId || propertyId === DEFAULT_PROPERTY_ID) {
+        setLocal(STORAGE_KEYS.bookings, synced);
+      }
       return synced;
     }
   } catch {
     // Fallback
   }
   const rawList = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
-  const synced = syncBookingsList(rawList);
-  setLocal(STORAGE_KEYS.bookings, synced);
+  const synced = syncBookingsList(
+    propertyId ? rawList.filter((b) => b.property_id === propertyId) : rawList
+  );
   return synced;
 }
 
@@ -351,21 +363,30 @@ export async function clearAllBookings(): Promise<void> {
 // -------------------------------------------------------------
 // EXPENSES API
 // -------------------------------------------------------------
-export async function fetchExpenses(): Promise<Expense[]> {
+export async function fetchExpenses(propertyId?: string): Promise<Expense[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('expenses')
       .select('*, booking:bookings(guest_name)')
       .order('date', { ascending: false });
 
+    if (propertyId) {
+      query = query.eq('property_id', propertyId);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data) {
-      setLocal(STORAGE_KEYS.expenses, data);
+      if (!propertyId || propertyId === DEFAULT_PROPERTY_ID) {
+        setLocal(STORAGE_KEYS.expenses, data);
+      }
       return data as Expense[];
     }
   } catch {
     // Fallback
   }
-  return getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
+  const raw = getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
+  return propertyId ? raw.filter((e) => e.property_id === propertyId) : raw;
 }
 
 export async function createExpense(expense: Omit<Expense, 'id' | 'created_at' | 'updated_at'>): Promise<Expense> {
@@ -422,41 +443,59 @@ export async function deleteExpense(id: string): Promise<void> {
 // -------------------------------------------------------------
 // RECURRING BILL TEMPLATES API
 // -------------------------------------------------------------
-export async function fetchTemplates(): Promise<RecurringBillTemplate[]> {
+export async function fetchTemplates(propertyId?: string): Promise<RecurringBillTemplate[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('recurring_bill_templates')
       .select('*')
       .order('typical_due_day', { ascending: true });
 
+    if (propertyId) {
+      query = query.eq('property_id', propertyId);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data && data.length > 0) {
-      setLocal(STORAGE_KEYS.templates, data);
+      if (!propertyId || propertyId === DEFAULT_PROPERTY_ID) {
+        setLocal(STORAGE_KEYS.templates, data);
+      }
       return data as RecurringBillTemplate[];
     }
   } catch {
     // Fallback
   }
-  return getLocal<RecurringBillTemplate[]>(STORAGE_KEYS.templates, INITIAL_TEMPLATES);
+  const raw = getLocal<RecurringBillTemplate[]>(STORAGE_KEYS.templates, INITIAL_TEMPLATES);
+  return propertyId ? raw.filter((t) => t.property_id === propertyId) : raw;
 }
 
 // -------------------------------------------------------------
 // DAMAGES API
 // -------------------------------------------------------------
-export async function fetchDamages(): Promise<Damage[]> {
+export async function fetchDamages(propertyId?: string): Promise<Damage[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('damages')
       .select('*, booking:bookings(guest_name, check_in, check_out)')
       .order('date_discovered', { ascending: false });
 
+    if (propertyId) {
+      query = query.eq('property_id', propertyId);
+    }
+
+    const { data, error } = await query;
+
     if (!error && data) {
-      setLocal(STORAGE_KEYS.damages, data);
+      if (!propertyId || propertyId === DEFAULT_PROPERTY_ID) {
+        setLocal(STORAGE_KEYS.damages, data);
+      }
       return data as Damage[];
     }
   } catch {
     // Fallback
   }
-  return getLocal<Damage[]>(STORAGE_KEYS.damages, INITIAL_DAMAGES);
+  const raw = getLocal<Damage[]>(STORAGE_KEYS.damages, INITIAL_DAMAGES);
+  return propertyId ? raw.filter((d) => d.property_id === propertyId) : raw;
 }
 
 export async function createDamage(damage: Omit<Damage, 'id' | 'created_at' | 'updated_at'>): Promise<Damage> {

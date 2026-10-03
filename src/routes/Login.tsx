@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
-import { Building2, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Building2, Lock, Mail, User, ArrowRight, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function Login() {
-  const { user, signIn, loading: authLoading } = useAuth();
+  const { user, signIn, signUp, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Redirigir si ya tiene sesión iniciada
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
@@ -23,28 +27,79 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!email || !password) {
-      setErrorMessage('Por favor ingresa tu correo y contraseña.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { error } = await signIn(email.trim(), password);
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          setErrorMessage('Credenciales inválidas. Verifica tu correo y contraseña.');
-        } else {
-          setErrorMessage(error.message);
-        }
-      } else {
-        navigate(from, { replace: true });
+    if (mode === 'signin') {
+      if (!email || !password) {
+        setErrorMessage('Por favor ingresa tu correo y contraseña.');
+        return;
       }
-    } catch {
-      setErrorMessage('Ocurrió un error inesperado al iniciar sesión.');
-    } finally {
-      setIsSubmitting(false);
+
+      setIsSubmitting(true);
+      try {
+        const { error } = await signIn(email.trim(), password);
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            setErrorMessage('Credenciales inválidas. Verifica tu correo y contraseña.');
+          } else {
+            setErrorMessage(error.message);
+          }
+        } else {
+          navigate(from, { replace: true });
+        }
+      } catch {
+        setErrorMessage('Ocurrió un error inesperado al iniciar sesión.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Modo Registro (Sign Up)
+      if (!email || !password || !fullName) {
+        setErrorMessage('Por favor completa todos los campos.');
+        return;
+      }
+
+      if (password.length < 6) {
+        setErrorMessage('La contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setErrorMessage('Las contraseñas no coinciden.');
+        return;
+      }
+
+      if (!signUp) {
+        setErrorMessage('El servicio de registro no está disponible temporalmente.');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const { data, error } = await signUp(email.trim(), password, fullName.trim());
+        if (error) {
+          if (error.message.includes('already registered')) {
+            setErrorMessage('Este correo ya está registrado. Intenta iniciar sesión.');
+          } else {
+            setErrorMessage(error.message);
+          }
+        } else if (data?.session) {
+          // Sesión iniciada automáticamente
+          navigate(from, { replace: true });
+        } else {
+          // Requiere confirmación de correo
+          setSuccessMessage(
+            '¡Cuenta creada exitosamente! Revisa tu correo para confirmar tu registro o inicia sesión.'
+          );
+          setMode('signin');
+          setPassword('');
+          setConfirmPassword('');
+        }
+      } catch {
+        setErrorMessage('Ocurrió un error inesperado al crear la cuenta.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -60,17 +115,91 @@ export default function Login() {
             Apto Manager
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Acceso privado para administración de propiedades
+            {mode === 'signin'
+              ? 'Acceso privado para administración de propiedades'
+              : 'Regístrate para empezar a gestionar tus apartamentos'}
           </p>
         </div>
 
         {/* Card Form */}
         <div className="mt-8 bg-white dark:bg-slate-900 py-8 px-6 shadow-xl shadow-slate-200/50 dark:shadow-none sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 sm:px-10">
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          {/* Switch Tabs */}
+          <div role="tablist" aria-label="Modo de autenticación" className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/70 rounded-xl mb-6">
+            <button
+              role="tab"
+              aria-selected={mode === 'signin'}
+              type="button"
+              onClick={() => {
+                setMode('signin');
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                mode === 'signin'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Iniciar sesión
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === 'signup'}
+              type="button"
+              onClick={() => {
+                setMode('signup');
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              }}
+              className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                mode === 'signup'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              Crear cuenta
+            </button>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
             {errorMessage && (
               <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-rose-700 dark:text-rose-400 text-sm">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/60 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-400 text-sm">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+
+            {mode === 'signup' && (
+              <div>
+                <label
+                  htmlFor="fullName"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
+                >
+                  Nombre completo
+                </label>
+                <div className="relative rounded-xl shadow-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="fullName"
+                    name="fullName"
+                    type="text"
+                    autoComplete="name"
+                    required={mode === 'signup'}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Juan Pérez"
+                    className="block w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:text-slate-100 transition-colors"
+                  />
+                </div>
               </div>
             )}
 
@@ -114,7 +243,7 @@ export default function Login() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -124,24 +253,87 @@ export default function Login() {
               </div>
             </div>
 
+            {mode === 'signup' && (
+              <div>
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5"
+                >
+                  Confirmar contraseña
+                </label>
+                <div className="relative rounded-xl shadow-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    required={mode === 'signup'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="block w-full pl-10 pr-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 dark:text-slate-100 transition-colors"
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-md shadow-rose-500/25 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-md shadow-rose-500/25 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Ingresando...</span>
+                  <span>{mode === 'signin' ? 'Ingresando...' : 'Creando cuenta...'}</span>
                 </>
               ) : (
                 <>
-                  <span>Ingresar al panel</span>
+                  <span>{mode === 'signin' ? 'Ingresar al panel' : 'Crear mi cuenta'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
+
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
+            {mode === 'signin' ? (
+              <span>
+                ¿Aún no tienes cuenta?{' '}
+                <button
+                  type="button"
+                  role="link"
+                  onClick={() => {
+                    setMode('signup');
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="font-semibold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 underline underline-offset-2 cursor-pointer"
+                >
+                  Regístrate aquí
+                </button>
+              </span>
+            ) : (
+              <span>
+                ¿Ya tienes una cuenta?{' '}
+                <button
+                  type="button"
+                  role="link"
+                  onClick={() => {
+                    setMode('signin');
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="font-semibold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 underline underline-offset-2 cursor-pointer"
+                >
+                  Iniciar sesión
+                </button>
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">

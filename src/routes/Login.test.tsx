@@ -263,4 +263,112 @@ describe('Login Process', () => {
     expect(screen.queryByText(/ingresar al panel/i)).not.toBeInTheDocument();
     expect(screen.getByText('Dashboard Principal')).toBeInTheDocument();
   });
+
+  describe('Sign Up Process', () => {
+    const mockSignUp = vi.fn();
+
+    beforeEach(() => {
+      mockSignUp.mockReset();
+    });
+
+    it('permite cambiar a la pestaña de crear cuenta y muestra los campos correspondientes', () => {
+      vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+        user: null,
+        session: null,
+        loading: false,
+        signIn: mockSignIn,
+        signUp: mockSignUp,
+        signOut: mockSignOut,
+      });
+
+      render(
+        <MemoryRouter>
+          <Login />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('tab', { name: /crear cuenta/i }));
+
+      expect(screen.getByLabelText(/nombre completo/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/correo electrónico/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^contraseña/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/confirmar contraseña/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /crear mi cuenta/i })).toBeInTheDocument();
+    });
+
+    it('valida que las contraseñas coincidan y tengan al menos 6 caracteres', async () => {
+      vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+        user: null,
+        session: null,
+        loading: false,
+        signIn: mockSignIn,
+        signUp: mockSignUp,
+        signOut: mockSignOut,
+      });
+
+      render(
+        <MemoryRouter>
+          <Login />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('tab', { name: /crear cuenta/i }));
+
+      fireEvent.change(screen.getByLabelText(/nombre completo/i), { target: { value: 'Carlos Ruiz' } });
+      fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: 'carlos@test.com' } });
+      fireEvent.change(screen.getByLabelText(/^contraseña/i), { target: { value: '123' } });
+      fireEvent.change(screen.getByLabelText(/confirmar contraseña/i), { target: { value: '123' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /crear mi cuenta/i }));
+
+      expect(await screen.findByText('La contraseña debe tener al menos 6 caracteres.')).toBeInTheDocument();
+
+      // Probar contraseñas diferentes
+      fireEvent.change(screen.getByLabelText(/^contraseña/i), { target: { value: 'password123' } });
+      fireEvent.change(screen.getByLabelText(/confirmar contraseña/i), { target: { value: 'different123' } });
+      fireEvent.click(screen.getByRole('button', { name: /crear mi cuenta/i }));
+
+      expect(await screen.findByText('Las contraseñas no coinciden.')).toBeInTheDocument();
+      expect(mockSignUp).not.toHaveBeenCalled();
+    });
+
+    it('registra exitosamente al usuario e inicia sesión si devuelve session activa', async () => {
+      mockSignUp.mockResolvedValue({
+        data: { user: { id: 'u1' }, session: { access_token: 'tok' } },
+        error: null,
+      });
+
+      vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+        user: null,
+        session: null,
+        loading: false,
+        signIn: mockSignIn,
+        signUp: mockSignUp,
+        signOut: mockSignOut,
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/login']}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<div>Dashboard Principal</div>} />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('tab', { name: /crear cuenta/i }));
+
+      fireEvent.change(screen.getByLabelText(/nombre completo/i), { target: { value: 'Laura Gómez' } });
+      fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: 'laura@test.com' } });
+      fireEvent.change(screen.getByLabelText(/^contraseña/i), { target: { value: 'securepass123' } });
+      fireEvent.change(screen.getByLabelText(/confirmar contraseña/i), { target: { value: 'securepass123' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /crear mi cuenta/i }));
+
+      await waitFor(() => {
+        expect(mockSignUp).toHaveBeenCalledWith('laura@test.com', 'securepass123', 'Laura Gómez');
+        expect(screen.getByText('Dashboard Principal')).toBeInTheDocument();
+      });
+    });
+  });
 });

@@ -11,10 +11,10 @@ import {
 } from '@/lib/api-service';
 import type { Booking } from '@/types/database';
 
-export function useBookings() {
-  return useQuery({
-    queryKey: ['bookings'],
-    queryFn: fetchBookings,
+export function useBookings(propId?: string) {
+  return useQuery<Booking[]>({
+    queryKey: ['bookings', propId],
+    queryFn: () => fetchBookings(propId),
   });
 }
 

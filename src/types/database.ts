@@ -13,12 +13,37 @@ export type UserRole =
   | 'CLEANER'
   | 'VIEWER';
 
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
 export interface UserProfile {
   id: string;
-  role: UserRole;
+  role?: UserRole | null;
   full_name: string | null;
   phone: string | null;
   avatar_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PropertyMember {
+  id: string;
+  property_id: string;
+  user_id: string;
+  role: UserRole;
+  created_at?: string;
+  updated_at?: string;
+  profile?: UserProfile | null;
+}
+
+export interface PropertyInvitation {
+  id: string;
+  property_id: string;
+  email: string;
+  role: UserRole;
+  invited_by: string | null;
+  token: string;
+  status: InvitationStatus;
+  expires_at: string;
   created_at?: string;
   updated_at?: string;
 }

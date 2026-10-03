@@ -9,6 +9,7 @@ export interface AuthContextType {
   role?: UserRole | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp?: (email: string, password: string, fullName?: string) => Promise<{ data?: { user: User | null; session: Session | null }; error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   isSuperUser?: boolean;
   isAdmin?: boolean;

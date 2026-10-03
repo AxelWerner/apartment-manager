@@ -102,6 +102,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
+  const signUp = async (email: string, password: string, fullName?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName?.trim() || null,
+        },
+      },
+    });
+    return { data, error };
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
@@ -139,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         loading,
         signIn,
+        signUp,
         signOut,
         isSuperUser,
         isAdmin,

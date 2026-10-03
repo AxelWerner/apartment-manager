@@ -6,19 +6,19 @@ import {
   deleteExpense,
   fetchTemplates,
 } from '@/lib/api-service';
-import type { Expense } from '@/types/database';
+import type { Expense, RecurringBillTemplate } from '@/types/database';
 
-export function useExpenses() {
-  return useQuery({
-    queryKey: ['expenses'],
-    queryFn: fetchExpenses,
+export function useExpenses(propId?: string) {
+  return useQuery<Expense[]>({
+    queryKey: ['expenses', propId],
+    queryFn: () => fetchExpenses(propId),
   });
 }
 
-export function useRecurringTemplates() {
-  return useQuery({
-    queryKey: ['recurring-templates'],
-    queryFn: fetchTemplates,
+export function useRecurringTemplates(propId?: string) {
+  return useQuery<RecurringBillTemplate[]>({
+    queryKey: ['recurring-templates', propId],
+    queryFn: () => fetchTemplates(propId),
   });
 }
 

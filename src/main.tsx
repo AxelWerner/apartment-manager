@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import App from "./App";
 import "./index.css";
+import { initThemeListener } from "./lib/theme";
+
+// Initialize system theme listener
+initThemeListener();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,7 +24,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
-        <Toaster position="top-right" />
+        <Toaster position="top-right" theme="system" richColors />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>
