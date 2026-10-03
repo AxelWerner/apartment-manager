@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Building2,
   ChevronDown,
   Plus,
   Check,
@@ -87,20 +86,16 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
-      {/* Switcher Pill Button */}
+      {/* Switcher Button (Sin avatar, solo nombre y píldora de rol) */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center gap-2.5 sm:gap-3 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700 hover:border-rose-300 dark:hover:border-rose-900/50 shadow-2xs hover:shadow-xs transition-all text-left cursor-pointer"
+        className="w-full mt-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between transition-colors text-left cursor-pointer group"
         aria-expanded={isOpen}
       >
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs shadow-rose-500/20 group-hover:scale-105 transition-transform">
-          <Building2 className="w-4 h-4 stroke-[2.2]" />
-        </div>
-
-        <div className="min-w-0 max-w-[170px] sm:max-w-xs md:max-w-md">
+        <div className="min-w-0 flex-1 pr-2">
           <p
-            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug break-words tracking-tight"
+            className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 leading-snug break-words"
             title={activeProperty?.name}
           >
             {activeProperty?.name || 'Selecciona un Apartamento'}
@@ -110,8 +105,8 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
           </div>
         </div>
 
-        <div className="pl-0.5 shrink-0">
-          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+        <div className="shrink-0 pl-1">
+          <div className="w-5 h-5 rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
             <ChevronDown
               className={`w-3.5 h-3.5 transition-transform duration-200 ${
                 isOpen ? 'rotate-180 text-rose-500' : ''
@@ -123,7 +118,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 top-full mt-2 z-50 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-2 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-rose-500" />
@@ -136,7 +131,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
             </span>
           </div>
 
-          <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5">
             {properties.map(({ property, role: propRole }) => {
               const isActive = property.id === activePropertyId;
 
@@ -154,28 +149,17 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                       : 'hover:bg-slate-50 dark:hover:bg-slate-800/80 border border-transparent text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <div className="flex items-start gap-2.5 min-w-0 flex-1 pr-2">
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
-                        isActive
-                          ? 'bg-rose-500 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60'
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p
+                      className={`text-xs font-semibold line-clamp-2 leading-snug break-words ${
+                        isActive ? 'text-rose-950 dark:text-rose-100' : 'text-slate-800 dark:text-slate-200'
                       }`}
+                      title={property.name}
                     >
-                      {property.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`text-xs font-semibold line-clamp-2 leading-snug break-words ${
-                          isActive ? 'text-rose-950 dark:text-rose-100' : 'text-slate-800 dark:text-slate-200'
-                        }`}
-                        title={property.name}
-                      >
-                        {property.name}
-                      </p>
-                      <div className="mt-1">
-                        <RoleBadge role={propRole} />
-                      </div>
+                      {property.name}
+                    </p>
+                    <div className="mt-1">
+                      <RoleBadge role={propRole} />
                     </div>
                   </div>
                   {isActive && (
