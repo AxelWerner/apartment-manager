@@ -287,5 +287,17 @@ describe('Expenses Route Sorting', () => {
       expect(screen.getAllByTestId('expense-row')).toHaveLength(4);
     });
   });
+
+  it('renders daily apartment cost badges in the header', () => {
+    vi.mocked(useExpenses).mockReturnValue({
+      data: mockExpenses,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useExpenses>);
+
+    renderWithProviders(<Expenses />);
+
+    expect(screen.getByText('Apto Vacío:')).toBeInTheDocument();
+    expect(screen.getByText('Apto con Gente:')).toBeInTheDocument();
+  });
 });
 

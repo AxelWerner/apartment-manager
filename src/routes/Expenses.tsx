@@ -22,7 +22,8 @@ import { MonthlyChecklistView } from '@/components/expenses/MonthlyChecklistView
 import { AnnualInsuranceView } from '@/components/expenses/AnnualInsuranceView';
 import { ExpenseModal } from '@/components/expenses/ExpenseModal';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, formatMonthYear, CATEGORY_LABELS, EXPENSE_TYPE_LABELS } from '@/lib/formatters';
+import { formatCOP, formatDate, formatMonthYear, getColombiaDateTime, CATEGORY_LABELS, EXPENSE_TYPE_LABELS } from '@/lib/formatters';
+import { calculateApartmentDailyCosts } from '@/lib/daily-costs';
 import type { Expense, ExpenseCategory } from '@/types/database';
 import { toast } from 'sonner';
 
@@ -36,6 +37,18 @@ export default function Expenses() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
   const [defaultCategory, setDefaultCategory] = useState<ExpenseCategory>('other');
+
+  // Daily cost benchmark for current month (header summary)
+  const currentMonthStr = useMemo(() => getColombiaDateTime().dateStr.substring(0, 7), []);
+  const currentMonthExpenses = useMemo(() => {
+    return expenses.filter(
+      (e) => e.billing_month === currentMonthStr || (!e.billing_month && e.date.startsWith(currentMonthStr))
+    );
+  }, [expenses, currentMonthStr]);
+  const currentMonthDailyCosts = useMemo(
+    () => calculateApartmentDailyCosts(currentMonthStr, currentMonthExpenses, expenses),
+    [currentMonthStr, currentMonthExpenses, expenses]
+  );
 
   // Search & Filter for the Ledger view
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,6 +234,19 @@ export default function Expenses() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Administración, servicios públicos (EPM), seguro anual, insumos y limpiezas
           </p>
+
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              <span>Apto Vacío:</span>
+              <span className="font-extrabold">{formatCOP(currentMonthDailyCosts.emptyDailyCost)} / día</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              <span>Apto con Gente:</span>
+              <span className="font-extrabold">{formatCOP(currentMonthDailyCosts.occupiedDailyCost)} / día</span>
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

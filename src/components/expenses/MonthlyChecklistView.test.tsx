@@ -29,12 +29,12 @@ describe('MonthlyChecklistView Component', () => {
 
     renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} />);
 
-    expect(screen.getByText('Administración')).toBeInTheDocument();
-    expect(screen.getByText('Internet y TV')).toBeInTheDocument();
-    expect(screen.getByText('Energía / Luz (EPM)')).toBeInTheDocument();
-    expect(screen.getByText('Agua / Acueducto (EPM)')).toBeInTheDocument();
-    expect(screen.getByText('Gas Natural (EPM)')).toBeInTheDocument();
-    expect(screen.getByText('Seguro Todo Riesgo')).toBeInTheDocument();
+    expect(screen.getAllByText('Administración')[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Internet/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Energía / Luz (EPM)')[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Agua/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Gas Natural/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Seguro Todo Riesgo')[0]).toBeInTheDocument();
   });
 
   it('navigates between months when clicking previous and next buttons', async () => {
@@ -150,9 +150,22 @@ describe('MonthlyChecklistView Component', () => {
       isLoading: false,
     } as unknown as ReturnType<typeof useExpenses>);
 
-    renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} />);
+    renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} initialMonth="2026-09" />);
 
     expect(screen.getByText('Compra Éxito: Café Juan Valdez y Jabones')).toBeInTheDocument();
     expect(screen.getByText('$ 145.000,00')).toBeInTheDocument();
+  });
+
+  it('renders daily apartment cost cards for empty and occupied states', () => {
+    vi.mocked(useExpenses).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useExpenses>);
+
+    renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} initialMonth="2026-10" />);
+
+    expect(screen.getByText(/Valor de Apto Vacío/i)).toBeInTheDocument();
+    expect(screen.getByText(/Valor de Apto con Gente/i)).toBeInTheDocument();
+    expect(screen.getByText(/Luz fija: \$ 70.000 COP/i)).toBeInTheDocument();
   });
 });

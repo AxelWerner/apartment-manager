@@ -24,11 +24,14 @@ import {
 import { formatCOP, formatMonthYear, formatDate, getColombiaDateTime, CATEGORY_LABELS } from '@/lib/formatters';
 import type { Expense, ExpenseCategory, ExpenseType } from '@/types/database';
 import { useExpenses, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses';
+import { calculateApartmentDailyCosts } from '@/lib/daily-costs';
+import { DailyCostCards } from './DailyCostCards';
 import { ExpenseModal } from './ExpenseModal';
 import { toast } from 'sonner';
 
 interface MonthlyChecklistViewProps {
   onViewReceipt: (url: string) => void;
+  initialMonth?: string;
 }
 
 const BILL_CONFIG: Record<
@@ -77,14 +80,14 @@ function getCategoryIcon(cat: ExpenseCategory): React.ComponentType<{ className?
   }
 }
 
-export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProps) {
+export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChecklistViewProps) {
   const { data: expenses = [] } = useExpenses();
   const updateExpenseMutation = useUpdateExpense();
   const deleteExpenseMutation = useDeleteExpense();
 
-  // Current month state 'YYYY-MM' (Colombia timezone)
+  // Current month state 'YYYY-MM' (Colombia timezone or specified initialMonth)
   const [selectedMonth, setSelectedMonth] = useState<string>(
-    () => getColombiaDateTime().dateStr.substring(0, 7)
+    () => initialMonth || getColombiaDateTime().dateStr.substring(0, 7)
   );
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -204,6 +207,11 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
       }, 0);
   }, [monthExpenses, isInsurancePaymentMonth]);
 
+  // Daily apartment operating costs (Apto Vacío vs Apto con Gente)
+  const dailyCosts = useMemo(() => {
+    return calculateApartmentDailyCosts(selectedMonth, monthExpenses, expenses);
+  }, [selectedMonth, monthExpenses, expenses]);
+
   return (
     <div className="space-y-6">
       {/* Month Navigator Header */}
@@ -268,6 +276,9 @@ export function MonthlyChecklistView({ onViewReceipt }: MonthlyChecklistViewProp
           </div>
         </div>
       </div>
+
+      {/* Daily Operating Costs (Apto Vacío vs Apto con Gente) */}
+      <DailyCostCards calculation={dailyCosts} />
 
       {/* Section 1: Standard Recurring Utilities, HOA & Annual Insurance */}
       <div className="space-y-3">
