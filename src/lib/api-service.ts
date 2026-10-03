@@ -65,7 +65,10 @@ function setLocal<T>(key: string, value: T): void {
 // PROPERTY API
 // -------------------------------------------------------------
 export async function fetchProperty(propertyId?: string): Promise<Property> {
-  const targetId = propertyId || DEFAULT_PROPERTY_ID;
+  const targetId =
+    propertyId ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null) ||
+    DEFAULT_PROPERTY_ID;
   try {
     const { data, error } = await supabase
       .from('properties')
@@ -86,6 +89,10 @@ export async function fetchProperty(propertyId?: string): Promise<Property> {
 }
 
 export async function updateProperty(updates: Partial<Property>): Promise<Property> {
+  const targetId =
+    updates.id ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null) ||
+    DEFAULT_PROPERTY_ID;
   const current = getLocal<Property>(STORAGE_KEYS.property, INITIAL_PROPERTY);
   const updated: Property = {
     ...current,
@@ -95,7 +102,7 @@ export async function updateProperty(updates: Partial<Property>): Promise<Proper
   setLocal(STORAGE_KEYS.property, updated);
 
   try {
-    await supabase.from('properties').update(updates).eq('id', DEFAULT_PROPERTY_ID);
+    await supabase.from('properties').update(updates).eq('id', targetId);
   } catch {
     // local fallback
   }

@@ -56,7 +56,7 @@ export function DamageDetailModal({ isOpen, onClose, damage, onEdit }: DamageDet
 
     try {
       const newExp = await createExpenseMutation.mutateAsync({
-        property_id: DEFAULT_PROPERTY_ID,
+        property_id: damage.property_id || DEFAULT_PROPERTY_ID,
         category: 'maintenance_repairs',
         expense_type: 'occasional',
         description: `Reparación: ${damage.title}`,

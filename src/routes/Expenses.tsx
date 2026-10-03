@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useExpenses, useDeleteExpense } from '@/hooks/use-expenses';
+import { usePropertyContext } from '@/context/PropertyContext';
 import { MonthlyChecklistView } from '@/components/expenses/MonthlyChecklistView';
 import { AnnualInsuranceView } from '@/components/expenses/AnnualInsuranceView';
 import { ExpenseModal } from '@/components/expenses/ExpenseModal';
@@ -30,7 +31,9 @@ import { toast } from 'sonner';
 type ActiveTab = 'checklist' | 'ledger' | 'insurance';
 
 export default function Expenses() {
-  const { data: expenses = [], isLoading } = useExpenses();
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId;
+  const { data: expenses = [], isLoading } = useExpenses(activePropertyId);
   const deleteExpenseMutation = useDeleteExpense();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('checklist');

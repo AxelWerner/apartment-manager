@@ -40,9 +40,10 @@ export function CreatePropertyModal({ isOpen, onClose }: CreatePropertyModalProp
         management_fee_rate: 20.0,
       });
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err?.message || 'Error al crear el apartamento.');
+      const message = err instanceof Error ? err.message : 'Error al crear el apartamento.';
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }

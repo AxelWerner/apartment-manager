@@ -23,7 +23,7 @@ describe('theme system synchronization', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    } as any));
+    } as unknown as MediaQueryList));
 
     applyTheme('system');
 
@@ -41,7 +41,7 @@ describe('theme system synchronization', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    } as any));
+    } as unknown as MediaQueryList));
 
     applyTheme('system');
 
@@ -57,12 +57,12 @@ describe('theme system synchronization', () => {
       onchange: null,
       addListener: vi.fn(),
       removeListener: vi.fn(),
-      addEventListener: vi.fn((event: string, handler: any) => {
-        if (event === 'change') changeHandler = handler;
+      addEventListener: vi.fn((event: string, handler: unknown) => {
+        if (event === 'change') changeHandler = handler as (e: { matches: boolean }) => void;
       }),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    } as any));
+    } as unknown as MediaQueryList));
 
     initThemeListener();
     expect(document.documentElement.classList.contains('dark')).toBe(false);
@@ -77,10 +77,10 @@ describe('theme system synchronization', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
-    } as any));
+    } as unknown as MediaQueryList));
 
     if (changeHandler) {
-      (changeHandler as any)({ matches: true });
+      (changeHandler as (e: { matches: boolean }) => void)({ matches: true });
     }
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);

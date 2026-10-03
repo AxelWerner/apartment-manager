@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
@@ -9,7 +10,6 @@ import {
   type UserPropertyMembership,
 } from '@/lib/property-service';
 import type { Property, UserRole } from '@/types/database';
-import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 
 interface PropertyContextType {
   properties: UserPropertyMembership[];
@@ -35,70 +35,95 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const routePropertyId = location.pathname.match(/^\/p\/([^/]+)/)?.[1];
+  const currentPropertyId = routePropertyId || urlPropertyId;
+
   const [properties, setProperties] = useState<UserPropertyMembership[]>([]);
-  const [activeProperty, setActiveProperty] = useState<Property | null>(null);
+  const [directFetchedProperty, setDirectFetchedProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Cargar lista de propiedades del usuario
+  // Derivar la propiedad activa directamente del estado y la URL
+  const activeProperty = useMemo(() => {
+    if (currentPropertyId) {
+      const match = properties.find((m) => m.property.id === currentPropertyId);
+      if (match) return match.property;
+      if (directFetchedProperty?.id === currentPropertyId) return directFetchedProperty;
+    }
+    const storedId = typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null;
+    if (storedId) {
+      const match = properties.find((m) => m.property.id === storedId);
+      if (match) return match.property;
+    }
+    return properties[0]?.property || null;
+  }, [properties, currentPropertyId, directFetchedProperty]);
+
+  const activePropertyId = activeProperty?.id || currentPropertyId || (properties[0]?.property.id ?? '');
+
+  // Sincronizar propiedades desde Supabase
   const loadProperties = useCallback(async () => {
-    setIsLoading(true);
     try {
       const list = await fetchUserProperties();
       setProperties(list);
-
-      // Determinar la propiedad activa
-      const targetId =
-        urlPropertyId ||
-        list[0]?.property.id ||
-        localStorage.getItem('active_property_id') ||
-        DEFAULT_PROPERTY_ID;
-
-      const found = list.find((m) => m.property.id === targetId)?.property;
-      if (found) {
-        setActiveProperty(found);
-      } else if (targetId) {
-        // Puede ser una propiedad a la que accede directamente por ID
-        const fetched = await fetchPropertyById(targetId);
-        if (fetched) {
-          setActiveProperty(fetched);
-        } else if (list.length > 0) {
-          setActiveProperty(list[0].property);
-        }
-      }
     } finally {
       setIsLoading(false);
     }
-  }, [urlPropertyId]);
+  }, []);
 
   useEffect(() => {
-    loadProperties();
-  }, [user?.id, urlPropertyId, loadProperties]);
-
-  // Si cambia la URL con :propertyId, sincronizar activeProperty
-  useEffect(() => {
-    if (!urlPropertyId) return;
-    const match = properties.find((p) => p.property.id === urlPropertyId);
-    if (match) {
-      setActiveProperty(match.property);
-      localStorage.setItem('active_property_id', urlPropertyId);
-    } else {
-      fetchPropertyById(urlPropertyId).then((prop) => {
-        if (prop) {
-          setActiveProperty(prop);
-          localStorage.setItem('active_property_id', urlPropertyId);
+    let ignore = false;
+    async function init() {
+      try {
+        const list = await fetchUserProperties();
+        if (ignore) return;
+        setProperties(list);
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
         }
-      });
+      }
     }
-  }, [urlPropertyId, properties]);
 
-  const activePropertyId = activeProperty?.id || urlPropertyId || DEFAULT_PROPERTY_ID;
+    init();
+    return () => {
+      ignore = true;
+    };
+  }, [user?.id]);
+
+  // Si se accede directamente a una propiedad por URL que no esté en properties, buscarla
+  useEffect(() => {
+    if (!currentPropertyId) return;
+    localStorage.setItem('active_property_id', currentPropertyId);
+
+    const exists = properties.some((p) => p.property.id === currentPropertyId);
+    if (exists) return;
+
+    let ignore = false;
+    fetchPropertyById(currentPropertyId).then((prop) => {
+      if (!ignore && prop) {
+        setDirectFetchedProperty(prop);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentPropertyId, properties]);
 
   // Determinar rol del usuario en la propiedad activa
   const role: UserRole = useMemo(() => {
-    if (!activePropertyId) return 'VIEWER';
-    const membership = properties.find((m) => m.property.id === activePropertyId);
-    return membership?.role || 'OWNER'; // Si es el creador o desarrollo, fallback a OWNER
-  }, [properties, activePropertyId]);
+    const userRole = (user as { role?: UserRole } | null)?.role || (user?.user_metadata?.role as UserRole | undefined);
+    if (userRole === 'SUPER_USER') {
+      return 'SUPER_USER';
+    }
+    if (activePropertyId) {
+      const membership = properties.find((m) => m.property.id === activePropertyId);
+      if (membership) return membership.role;
+    }
+    if (properties.length > 0) {
+      return properties[0].role;
+    }
+    return 'VIEWER';
+  }, [properties, activePropertyId, user]);
 
   const isOwner = role === 'OWNER' || role === 'SUPER_USER';
   const isAdmin = isOwner || role === 'ADMINISTRATOR';
@@ -109,10 +134,6 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const switchProperty = useCallback(
     (newPropertyId: string) => {
       localStorage.setItem('active_property_id', newPropertyId);
-      const targetMatch = properties.find((m) => m.property.id === newPropertyId);
-      if (targetMatch) {
-        setActiveProperty(targetMatch.property);
-      }
 
       // Reemplazar :propertyId en la ruta actual si está bajo /p/:propertyId/...
       const pathname = location.pathname;
@@ -125,18 +146,20 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
         navigate(`/p/${newPropertyId}/dashboard`);
       }
     },
-    [properties, location.pathname, navigate]
+    [location.pathname, navigate]
   );
 
   // Crear una nueva propiedad
   const createProperty = useCallback(
     async (data: Parameters<typeof createNewProperty>[0]) => {
       const newProp = await createNewProperty(data);
+      setDirectFetchedProperty(newProp);
+      localStorage.setItem('active_property_id', newProp.id);
       await loadProperties();
-      switchProperty(newProp.id);
+      navigate(`/p/${newProp.id}/dashboard`);
       return newProp;
     },
-    [loadProperties, switchProperty]
+    [loadProperties, navigate]
   );
 
   // Actualizar la propiedad activa
@@ -144,7 +167,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     async (updates: Partial<Property>) => {
       if (!activePropertyId) throw new Error('No active property selected');
       const updated = await updatePropertyById(activePropertyId, updates);
-      setActiveProperty(updated);
+      setDirectFetchedProperty(updated);
       setProperties((prev) =>
         prev.map((item) =>
           item.property.id === updated.id ? { ...item, property: updated } : item
@@ -176,6 +199,10 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
       {children}
     </PropertyContext.Provider>
   );
+}
+
+export function usePropertyContext() {
+  return useContext(PropertyContext);
 }
 
 export function useActiveProperty() {

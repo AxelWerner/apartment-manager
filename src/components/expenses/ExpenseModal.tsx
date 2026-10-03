@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/modal';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { uploadMedia } from '@/lib/storage';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
+import { usePropertyContext } from '@/context/PropertyContext';
 import type { Expense, ExpenseCategory, ExpenseType, PaymentStatus, RecurrencePeriod } from '@/types/database';
 import { useCreateExpense, useUpdateExpense } from '@/hooks/use-expenses';
 import { useBookings } from '@/hooks/use-bookings';
@@ -34,9 +35,11 @@ function ExpenseFormContent({
   defaultType,
   onClose,
 }: ExpenseFormContentProps) {
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
   const createExpenseMutation = useCreateExpense();
   const updateExpenseMutation = useUpdateExpense();
-  const { data: bookings = [] } = useBookings();
+  const { data: bookings = [] } = useBookings(activePropertyId);
 
   const initialBillingMonth =
     expenseToEdit?.billing_month ?? defaultBillingMonth ?? new Date().toISOString().substring(0, 7);
@@ -115,7 +118,7 @@ function ExpenseFormContent({
 
     try {
       const payload = {
-        property_id: DEFAULT_PROPERTY_ID,
+        property_id: expenseToEdit?.property_id || activePropertyId || DEFAULT_PROPERTY_ID,
         category,
         expense_type: expenseType,
         description: description.trim(),

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
+import { usePropertyContext } from '@/context/PropertyContext';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import type { UserRole } from '@/types/database';
 
@@ -10,8 +11,11 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps = {}) {
-  const { user, role, loading, hasRole } = useAuth();
+  const { user, role: globalRole, loading: authLoading } = useAuth();
+  const propertyCtx = usePropertyContext();
   const location = useLocation();
+
+  const loading = authLoading || (propertyCtx?.isLoading ?? false);
 
   if (loading) {
     return (
@@ -31,9 +35,15 @@ export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps =
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const isAllowed = hasRole
-      ? hasRole(allowedRoles)
-      : (role && (role === 'SUPER_USER' || allowedRoles.includes(role)));
+    const propertyRole = propertyCtx?.role;
+    const effectiveRole: UserRole =
+      globalRole === 'SUPER_USER'
+        ? 'SUPER_USER'
+        : (propertyRole || globalRole || 'VIEWER');
+
+    const isAllowed =
+      effectiveRole === 'SUPER_USER' ||
+      allowedRoles.includes(effectiveRole);
 
     if (!isAllowed) {
       return (
@@ -45,7 +55,7 @@ export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps =
             Acceso no autorizado
           </h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-md">
-            Tu rol actual ({role || 'Sin rol'}) no cuenta con permisos suficientes para acceder a este módulo.
+            Tu rol actual ({effectiveRole || 'Sin rol'}) no cuenta con permisos suficientes para acceder a este módulo.
           </p>
         </div>
       );

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import * as UseAuthModule from '@/hooks/use-auth';
+import * as PropertyContextModule from '@/context/PropertyContext';
 
 describe('ProtectedRoute', () => {
   it('muestra estado de carga mientras verifica la sesión', () => {
@@ -145,6 +146,101 @@ describe('ProtectedRoute', () => {
     );
 
     expect(screen.getByText('Módulo de Gastos')).toBeInTheDocument();
+  });
+
+  it('permite acceso si el usuario es VIEWER global pero OWNER en el PropertyContext', () => {
+    vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+      user: { id: 'regular-user', email: 'user@test.com' } as never,
+      session: { user: { id: 'regular-user' } } as never,
+      profile: null,
+      role: 'VIEWER',
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      isSuperUser: false,
+      isAdmin: false,
+      isOwner: false,
+      isCleaner: false,
+      isViewer: true,
+      hasRole: (roles) => (Array.isArray(roles) ? roles.includes('VIEWER') : roles === 'VIEWER'),
+      refreshProfile: vi.fn(),
+    });
+
+    vi.spyOn(PropertyContextModule, 'usePropertyContext').mockReturnValue({
+      properties: [],
+      activeProperty: { id: 'prop-1', name: 'Mi Apto' } as never,
+      activePropertyId: 'prop-1',
+      role: 'OWNER',
+      isOwner: true,
+      isAdmin: true,
+      isCleaner: false,
+      isViewer: false,
+      isLoading: false,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
+      switchProperty: vi.fn(),
+      refreshProperties: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/p/prop-1/expenses']}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER']} />}>
+            <Route path="/p/prop-1/expenses" element={<div>Módulo de Gastos y Servicios</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Módulo de Gastos y Servicios')).toBeInTheDocument();
+  });
+
+  it('muestra carga mientras PropertyContext está cargando', () => {
+    vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+      user: { id: 'regular-user', email: 'user@test.com' } as never,
+      session: { user: { id: 'regular-user' } } as never,
+      profile: null,
+      role: 'VIEWER',
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      isSuperUser: false,
+      isAdmin: false,
+      isOwner: false,
+      isCleaner: false,
+      isViewer: true,
+      hasRole: (roles) => (Array.isArray(roles) ? roles.includes('VIEWER') : roles === 'VIEWER'),
+      refreshProfile: vi.fn(),
+    });
+
+    vi.spyOn(PropertyContextModule, 'usePropertyContext').mockReturnValue({
+      properties: [],
+      activeProperty: null,
+      activePropertyId: '',
+      role: 'VIEWER',
+      isOwner: false,
+      isAdmin: false,
+      isCleaner: false,
+      isViewer: true,
+      isLoading: true,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
+      switchProperty: vi.fn(),
+      refreshProperties: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/p/prop-1/settings']}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER']} />}>
+            <Route path="/p/prop-1/settings" element={<div>Configuración</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Verificando acceso...')).toBeInTheDocument();
+    expect(screen.queryByText('Configuración')).not.toBeInTheDocument();
   });
 });
 

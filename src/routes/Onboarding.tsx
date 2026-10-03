@@ -38,9 +38,10 @@ export default function Onboarding() {
       });
 
       navigate(`/p/${created.id}/dashboard`, { replace: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err?.message || 'Error al crear el apartamento.');
+      const message = err instanceof Error ? err.message : 'Error al crear el apartamento.';
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }

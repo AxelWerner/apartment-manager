@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/modal';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { formatCOP, getBookingSourceInfo } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
+import { usePropertyContext } from '@/context/PropertyContext';
 import type { Booking, BookingStatus, PayoutStatus } from '@/types/database';
 import { useCreateBooking, useUpdateBooking } from '@/hooks/use-bookings';
 import { useProperty } from '@/hooks/use-property';
@@ -21,9 +22,11 @@ interface BookingFormContentProps {
 }
 
 function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps) {
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
   const createBookingMutation = useCreateBooking();
   const updateBookingMutation = useUpdateBooking();
-  const { data: property } = useProperty();
+  const { data: property } = useProperty(activePropertyId);
 
   const configuredCleaningFee = property?.default_cleaning_fee ?? 60000;
   const configuredNightlyRate = property?.default_nightly_rate ?? 280000;
@@ -114,7 +117,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
 
     try {
       const payload = {
-        property_id: DEFAULT_PROPERTY_ID,
+        property_id: bookingToEdit?.property_id || activePropertyId || DEFAULT_PROPERTY_ID,
         airbnb_confirmation_code: confirmationCode.trim() || null,
         guest_name: guestName.trim(),
         guest_phone: guestPhone.trim() || null,

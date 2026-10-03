@@ -43,11 +43,16 @@ export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
       return [];
     }
 
-    return data
-      .filter((row: any) => row.properties)
-      .map((row: any) => ({
+    interface PropertyMemberRow {
+      role: UserRole;
+      properties: Property | null;
+    }
+
+    return (data as unknown as PropertyMemberRow[])
+      .filter((row) => row.properties !== null)
+      .map((row) => ({
         property: row.properties as Property,
-        role: row.role as UserRole,
+        role: row.role,
       }));
   } catch (err) {
     console.error('Failed to fetch user properties:', err);

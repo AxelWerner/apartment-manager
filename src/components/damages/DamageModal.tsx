@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/modal';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { uploadMedia } from '@/lib/storage';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
+import { usePropertyContext } from '@/context/PropertyContext';
 import type { Damage, DamageSeverity, ClaimStatus } from '@/types/database';
 import { useCreateDamage, useUpdateDamage } from '@/hooks/use-damages';
 import { useBookings } from '@/hooks/use-bookings';
@@ -22,9 +23,11 @@ interface DamageFormContentProps {
 }
 
 function DamageFormContent({ damageToEdit, onClose }: DamageFormContentProps) {
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
   const createDamageMutation = useCreateDamage();
   const updateDamageMutation = useUpdateDamage();
-  const { data: bookings = [] } = useBookings();
+  const { data: bookings = [] } = useBookings(activePropertyId);
 
   const [title, setTitle] = useState(damageToEdit?.title ?? '');
   const [description, setDescription] = useState(damageToEdit?.description ?? '');
@@ -77,7 +80,7 @@ function DamageFormContent({ damageToEdit, onClose }: DamageFormContentProps) {
 
     try {
       const payload = {
-        property_id: DEFAULT_PROPERTY_ID,
+        property_id: damageToEdit?.property_id || activePropertyId || DEFAULT_PROPERTY_ID,
         linked_booking_id: linkedBookingId || null,
         title: title.trim(),
         description: description.trim(),

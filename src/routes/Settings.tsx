@@ -4,33 +4,59 @@ import {
   Save,
   Download,
 } from 'lucide-react';
-import { useProperty, useUpdateProperty } from '@/hooks/use-property';
+import { useActiveProperty } from '@/context/PropertyContext';
 import { useBookings } from '@/hooks/use-bookings';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useDamages } from '@/hooks/use-damages';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import type { Property, Booking, Expense, Damage } from '@/types/database';
 import { toast } from 'sonner';
 
 export default function Settings() {
-  const { data: property } = useProperty();
-  const updatePropertyMutation = useUpdateProperty();
-  const { data: bookings = [] } = useBookings();
-  const { data: expenses = [] } = useExpenses();
-  const { data: damages = [] } = useDamages();
+  const { activeProperty, updateProperty, activePropertyId } = useActiveProperty();
+  const { data: bookings = [] } = useBookings(activePropertyId);
+  const { data: expenses = [] } = useExpenses(activePropertyId);
+  const { data: damages = [] } = useDamages(activePropertyId);
 
-  const [name, setName] = useState(property?.name || 'Apto 502 - El Poblado');
-  const [address, setAddress] = useState(property?.address || 'Carrera 43A # 1-50, Medellín');
-  const [city, setCity] = useState(property?.city || 'Medellín');
-  const [nightRate, setNightRate] = useState<number>(property?.default_nightly_rate || 280000);
-  const [cleanFee, setCleanFee] = useState<number>(property?.default_cleaning_fee || 60000);
-  const [monthlyTarget, setMonthlyTarget] = useState<number>(property?.monthly_revenue_target || 3000000);
-  const [managementFeeRate, setManagementFeeRate] = useState<number>(property?.management_fee_rate ?? 20.0);
+  return (
+    <SettingsContent
+      key={activeProperty?.id || 'empty'}
+      activeProperty={activeProperty}
+      updateProperty={updateProperty}
+      bookings={bookings}
+      expenses={expenses}
+      damages={damages}
+    />
+  );
+}
+
+interface SettingsContentProps {
+  activeProperty: Property | null;
+  updateProperty: (updates: Partial<Property>) => Promise<Property>;
+  bookings: Booking[];
+  expenses: Expense[];
+  damages: Damage[];
+}
+
+function SettingsContent({
+  activeProperty,
+  updateProperty,
+  bookings,
+  expenses,
+  damages,
+}: SettingsContentProps) {
+  const [name, setName] = useState(activeProperty?.name || '');
+  const [address, setAddress] = useState(activeProperty?.address || '');
+  const [city, setCity] = useState(activeProperty?.city || 'Medellín');
+  const [nightRate, setNightRate] = useState<number>(activeProperty?.default_nightly_rate || 250000);
+  const [cleanFee, setCleanFee] = useState<number>(activeProperty?.default_cleaning_fee || 80000);
+  const [monthlyTarget, setMonthlyTarget] = useState<number>(activeProperty?.monthly_revenue_target || 3000000);
+  const [managementFeeRate, setManagementFeeRate] = useState<number>(activeProperty?.management_fee_rate ?? 20.0);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const updated = {
-        ...property,
+      await updateProperty({
         name,
         address,
         city,
@@ -38,9 +64,7 @@ export default function Settings() {
         default_cleaning_fee: cleanFee,
         monthly_revenue_target: monthlyTarget,
         management_fee_rate: managementFeeRate,
-      };
-      localStorage.setItem('apt_mgr_property', JSON.stringify(updated));
-      await updatePropertyMutation.mutateAsync(updated);
+      });
       toast.success('Configuración del apartamento guardada');
     } catch {
       toast.error('Error al guardar');
@@ -49,7 +73,7 @@ export default function Settings() {
 
   const handleExportData = () => {
     const backup = {
-      property,
+      property: activeProperty,
       bookings,
       expenses,
       damages,

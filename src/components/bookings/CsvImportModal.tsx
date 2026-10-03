@@ -4,6 +4,7 @@ import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Cale
 import { Modal } from '@/components/ui/modal';
 import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
+import { usePropertyContext } from '@/context/PropertyContext';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
 import { toast } from 'sonner';
@@ -84,7 +85,9 @@ const parseDate = (dStr: string) => {
 };
 
 export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
-  const { data: existingBookings = [] } = useBookings();
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
+  const { data: existingBookings = [] } = useBookings(activePropertyId);
   const createBatchMutation = useCreateBookingsBatch();
 
   const [parsedRows, setParsedRows] = useState<ParsedBookingRow[]>([]);
@@ -336,7 +339,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         const status: BookingStatus = resolveBookingStatus(r);
         const isPendingPayout = status === 'confirmed' || r.isPendingFile;
         return {
-          property_id: DEFAULT_PROPERTY_ID,
+          property_id: activePropertyId,
           airbnb_confirmation_code: r.airbnb_confirmation_code,
           guest_name: r.guest_name,
           guest_phone: null,
