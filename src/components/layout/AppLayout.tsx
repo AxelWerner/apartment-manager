@@ -45,7 +45,7 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
 };
 
 export function AppLayout() {
-  const { properties, activeProperty, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
+  const { properties, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
   const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -94,31 +94,6 @@ export function AppLayout() {
               <p className="text-xs text-slate-500 dark:text-slate-400">Airbnb Host Suite</p>
             </div>
           </div>
-
-          {/* Active Property Switcher or Add Apartment Button */}
-          {hasProperties ? (
-            <PropertySwitcher />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="mt-4 w-full p-2.5 rounded-xl border border-dashed border-rose-300 dark:border-rose-800 bg-rose-50/70 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 flex items-center justify-between text-xs font-semibold transition-all duration-150 group cursor-pointer shadow-xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-lg bg-rose-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                </div>
-                <div className="text-left">
-                  <span className="block font-bold text-slate-800 dark:text-slate-100 text-xs">
-                    Sin apartamentos
-                  </span>
-                  <span className="block text-[11px] text-rose-600 dark:text-rose-400 font-medium">
-                    + Añadir apartamento
-                  </span>
-                </div>
-              </div>
-            </button>
-          )}
         </div>
 
         {/* Navigation Links */}
@@ -197,22 +172,51 @@ export function AppLayout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shrink-0">
-              <Building2 className="w-4 h-4" />
-            </div>
+        {/* Desktop Top Navbar Header */}
+        <header className="hidden md:flex sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 py-3 items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
             {hasProperties ? (
-              <div className="min-w-0">
-                <h1
-                  className="font-bold text-sm leading-tight line-clamp-2 break-words"
-                  title={activeProperty?.name}
-                >
-                  {activeProperty?.name || 'Apto Manager'}
-                </h1>
-                <p className="text-[10px] text-slate-400 truncate">{activeProperty?.city || 'Medellín'} • COP</p>
-              </div>
+              <PropertySwitcher />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 border border-dashed border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>+ Añadir apartamento</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {hasProperties && (
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-rose-500 stroke-[2.5]" />
+                <span>Nuevo Apto</span>
+              </button>
+            )}
+
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>COP</span>
+            </div>
+
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Mobile Header */}
+        <header className="md:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 pr-2">
+            {hasProperties ? (
+              <PropertySwitcher />
             ) : (
               <button
                 type="button"
@@ -224,17 +228,8 @@ export function AppLayout() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <ThemeToggle className="text-[11px] px-2 py-1" />
-            {hasProperties && (
-              <span
-                className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                  roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
-                }`}
-              >
-                {roleConfig[currentRole]?.label || currentRole}
-              </span>
-            )}
             {user && (
               <button
                 type="button"
