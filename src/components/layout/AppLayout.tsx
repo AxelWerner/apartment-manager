@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useActiveProperty } from '@/context/PropertyContext';
-import { PropertySwitcher, RoleBadge } from '@/components/properties/PropertySwitcher';
+import { PropertySwitcher } from '@/components/properties/PropertySwitcher';
 import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import type { UserRole } from '@/types/database';
@@ -45,7 +45,7 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
 };
 
 export function AppLayout() {
-  const { properties, activeProperty, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
+  const { properties, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
   const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -79,6 +79,20 @@ export function AppLayout() {
     ? allNavItems.filter((item) => !item.roles || item.roles.includes(currentRole))
     : [];
 
+  const currentNavItem = allNavItems.find(
+    (item) =>
+      location.pathname === item.to ||
+      (item.pathSuffix !== '/dashboard' && location.pathname.endsWith(item.pathSuffix)) ||
+      (item.pathSuffix === '/dashboard' &&
+        (location.pathname === item.to ||
+          location.pathname === `${basePath}/` ||
+          location.pathname === `${basePath}` ||
+          location.pathname === '/'))
+  );
+
+  const PageIcon = currentNavItem?.icon || LayoutDashboard;
+  const pageTitle = currentNavItem?.label || 'Dashboard';
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0">
       {/* Desktop Sidebar */}
@@ -94,31 +108,6 @@ export function AppLayout() {
               <p className="text-xs text-slate-500 dark:text-slate-400">Host Operating System</p>
             </div>
           </div>
-
-          {/* Active Property Switcher or Add Apartment Button */}
-          {hasProperties ? (
-            <PropertySwitcher />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsCreateModalOpen(true)}
-              className="mt-4 w-full p-2.5 rounded-xl border border-dashed border-rose-300 dark:border-rose-800 bg-rose-50/70 hover:bg-rose-100/80 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 flex items-center justify-between text-xs font-semibold transition-all duration-150 group cursor-pointer shadow-xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-lg bg-rose-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                </div>
-                <div className="text-left">
-                  <span className="block font-bold text-slate-800 dark:text-slate-100 text-xs">
-                    Sin apartamentos
-                  </span>
-                  <span className="block text-[11px] text-rose-600 dark:text-rose-400 font-medium">
-                    + Añadir apartamento
-                  </span>
-                </div>
-              </div>
-            </button>
-          )}
         </div>
 
         {/* Navigation Links */}
@@ -195,37 +184,62 @@ export function AppLayout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Header */}
-        <header className="md:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shrink-0">
-              <Building2 className="w-4 h-4" />
+        {/* Desktop Top Header Bar */}
+        <header className="hidden md:flex sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 py-3.5 items-center justify-between gap-4">
+          {/* Left: Page Title with Menu Icon */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40 shadow-2xs">
+              <PageIcon className="w-5 h-5" />
             </div>
+            <div>
+              <h2 className="font-bold text-lg text-slate-900 dark:text-white leading-tight tracking-tight">
+                {pageTitle}
+              </h2>
+            </div>
+          </div>
+
+          {/* Right: PropertySwitcher (bien a la derecha) & Actions */}
+          <div className="flex items-center gap-3 shrink-0 ml-auto">
             {hasProperties ? (
-              <div className="min-w-0">
-                <h1
-                  className="font-bold text-sm leading-tight line-clamp-2 break-words"
-                  title={activeProperty?.name}
-                >
-                  {activeProperty?.name || 'AptOS'}
-                </h1>
-                <div className="mt-0.5">
-                  <RoleBadge role={currentRole} />
-                </div>
-              </div>
+              <PropertySwitcher />
             ) : (
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-dashed border-rose-300 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 border border-dashed border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-semibold transition-colors cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>+ Añadir Apartamento</span>
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>+ Añadir apartamento</span>
               </button>
             )}
+
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>COP</span>
+            </div>
+
+            <ThemeToggle />
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle className="text-[11px] px-2 py-1" />
+        </header>
+
+        {/* Mobile Header */}
+        <header className="md:hidden sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between gap-2">
+          {/* Left: Page Title with Menu Icon */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40">
+              <PageIcon className="w-3.5 h-3.5" />
+            </div>
+            <h2 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+              {pageTitle}
+            </h2>
+          </div>
+
+          {/* Right: Switcher, ThemeToggle and Signout */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {hasProperties && <PropertySwitcher />}
+            <ThemeToggle className="text-[10px] px-1.5 py-1" />
             {user && (
               <button
                 type="button"
