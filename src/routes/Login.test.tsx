@@ -27,7 +27,7 @@ describe('Login Process', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Apto Manager')).toBeInTheDocument();
+    expect(screen.getByText('MiApto')).toBeInTheDocument();
     expect(screen.getByLabelText(/correo electrónico/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /ingresar al panel/i })).toBeInTheDocument();

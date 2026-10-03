@@ -1,22 +1,74 @@
 import { useState, useRef, useEffect } from 'react';
 import {
+  Crown,
+  Sparkles,
+  UserCog,
+  Eye,
+  Building2,
   ChevronDown,
   Plus,
   Check,
-  Building2,
-  Sparkles,
 } from 'lucide-react';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
 import type { UserRole } from '@/types/database';
 
-const roleLabels: Record<UserRole, { label: string; badge: string }> = {
-  SUPER_USER: { label: 'Super Admin', badge: 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200/80 dark:border-purple-800' },
-  OWNER: { label: 'Dueño', badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200/80 dark:border-rose-800' },
-  ADMINISTRATOR: { label: 'Admin', badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200/80 dark:border-amber-800' },
-  CLEANER: { label: 'Limpieza', badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800' },
-  VIEWER: { label: 'Lector', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200/80 dark:border-slate-700' },
+interface RoleDisplay {
+  label: string;
+  icon: typeof Crown;
+  badge: string;
+  avatarBg: string;
+}
+
+const roleConfig: Record<UserRole, RoleDisplay> = {
+  SUPER_USER: {
+    label: 'Super Admin',
+    icon: Crown,
+    badge: 'bg-purple-50 text-purple-700 border-purple-200/80 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800/60',
+    avatarBg: 'bg-purple-500 text-white',
+  },
+  OWNER: {
+    label: 'Dueño',
+    icon: Crown,
+    badge: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60',
+    avatarBg: 'bg-gradient-to-tr from-amber-500 to-yellow-400 text-white shadow-xs shadow-amber-500/20',
+  },
+  ADMINISTRATOR: {
+    label: 'Administrador',
+    icon: UserCog,
+    badge: 'bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
+    avatarBg: 'bg-blue-500 text-white shadow-xs shadow-blue-500/20',
+  },
+  CLEANER: {
+    label: 'Limpieza',
+    icon: Sparkles,
+    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60',
+    avatarBg: 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/20',
+  },
+  VIEWER: {
+    label: 'Lector',
+    icon: Eye,
+    badge: 'bg-slate-50 text-slate-700 border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700',
+    avatarBg: 'bg-slate-400 dark:bg-slate-600 text-white',
+  },
 };
+
+export function RoleAvatar({ role, showLabel = true }: { role: UserRole; showLabel?: boolean }) {
+  const config = roleConfig[role] || roleConfig.VIEWER;
+  const Icon = config.icon;
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold tracking-tight shadow-2xs ${config.badge}`}
+      title={`Rol: ${config.label}`}
+    >
+      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${config.avatarBg}`}>
+        <Icon className="w-2.5 h-2.5 stroke-[2.5]" />
+      </div>
+      {showLabel && <span>{config.label}</span>}
+    </div>
+  );
+}
 
 interface PropertySwitcherProps {
   className?: string;
@@ -55,8 +107,6 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
     };
   }, []);
 
-  const currentRoleInfo = roleLabels[role] || roleLabels.VIEWER;
-
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Switcher Pill Button */}
@@ -71,23 +121,14 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
         </div>
 
         <div className="min-w-0 max-w-[170px] sm:max-w-xs md:max-w-md">
-          <div className="flex items-center gap-2">
-            <span
-              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug break-words tracking-tight"
-              title={activeProperty?.name}
-            >
-              {activeProperty?.name || 'Selecciona un Apartamento'}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
-            <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-              {activeProperty?.city || 'Medellín'} • COP
-            </span>
-            <span
-              className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md border shrink-0 ${currentRoleInfo.badge}`}
-            >
-              {currentRoleInfo.label}
-            </span>
+          <p
+            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug break-words tracking-tight"
+            title={activeProperty?.name}
+          >
+            {activeProperty?.name || 'Selecciona un Apartamento'}
+          </p>
+          <div className="mt-1">
+            <RoleAvatar role={role} />
           </div>
         </div>
 
@@ -120,7 +161,6 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
           <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
             {properties.map(({ property, role: propRole }) => {
               const isActive = property.id === activePropertyId;
-              const roleInfo = roleLabels[propRole] || roleLabels.VIEWER;
 
               return (
                 <button
@@ -138,10 +178,10 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                 >
                   <div className="flex items-start gap-2.5 min-w-0 flex-1 pr-2">
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
                         isActive
                           ? 'bg-rose-500 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60'
                       }`}
                     >
                       {property.name.charAt(0).toUpperCase()}
@@ -155,12 +195,8 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                       >
                         {property.name}
                       </p>
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
-                        <span>{property.city}</span>
-                        <span>•</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${roleInfo.badge}`}>
-                          {roleInfo.label}
-                        </span>
+                      <div className="mt-1">
+                        <RoleAvatar role={propRole} />
                       </div>
                     </div>
                   </div>

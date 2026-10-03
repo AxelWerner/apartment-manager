@@ -67,7 +67,7 @@ export default function Onboarding() {
             <Building2 className="w-8 h-8" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-            ¡Bienvenido a Apto Manager!
+            ¡Bienvenido a MiApto!
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Hola <span className="font-semibold text-slate-700 dark:text-slate-200">{user?.user_metadata?.full_name || user?.email}</span>. Para comenzar, registra tu primer apartamento.
