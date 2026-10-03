@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getThemePreference, setThemePreference, applyTheme, initThemeListener } from './theme';
+import { getThemePreference, applyTheme, initThemeListener } from './theme';
 
 describe('theme system synchronization', () => {
   beforeEach(() => {
@@ -50,14 +50,14 @@ describe('theme system synchronization', () => {
   });
 
   it('listens for system theme change events', () => {
-    let changeHandler: ((e: any) => void) | null = null;
+    let changeHandler: ((e: { matches: boolean }) => void) | null = null;
     window.matchMedia = vi.fn().mockImplementation((query) => ({
       matches: false,
       media: query,
       onchange: null,
       addListener: vi.fn(),
       removeListener: vi.fn(),
-      addEventListener: vi.fn((event, handler) => {
+      addEventListener: vi.fn((event: string, handler: any) => {
         if (event === 'change') changeHandler = handler;
       }),
       removeEventListener: vi.fn(),
@@ -68,7 +68,7 @@ describe('theme system synchronization', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false);
 
     // Simulate system changing to dark mode
-    vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
+    window.matchMedia = vi.fn().mockImplementation((query) => ({
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
@@ -80,7 +80,7 @@ describe('theme system synchronization', () => {
     } as any));
 
     if (changeHandler) {
-      changeHandler({ matches: true } as any);
+      (changeHandler as any)({ matches: true });
     }
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);

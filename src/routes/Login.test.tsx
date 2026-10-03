@@ -193,7 +193,7 @@ describe('Login Process', () => {
 
     // El botón debe mostrar "Ingresando..." y estar deshabilitado
     expect(screen.getByText('Ingresando...')).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: /ingresando/i })).toBeDisabled();
 
     // Finalizamos la llamada
     resolveLogin!({ error: null });

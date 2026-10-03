@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { PropertySwitcher } from '@/components/properties/PropertySwitcher';
 import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import type { UserRole } from '@/types/database';
 
 const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
@@ -153,9 +154,12 @@ export function AppLayout() {
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3 shrink-0 bg-white dark:bg-slate-900 mt-auto">
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-            <span>Moneda: <strong>Pesos (COP)</strong></span>
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span>COP</span>
+            </div>
+            <ThemeToggle />
           </div>
 
           {user && (
@@ -216,6 +220,7 @@ export function AppLayout() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle className="text-[11px] px-2 py-1" />
             {hasProperties && (
               <span
                 className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
