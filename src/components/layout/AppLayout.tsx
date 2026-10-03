@@ -63,16 +63,71 @@ export function AppLayout() {
     to: string;
     pathSuffix: string;
     label: string;
+    title: string;
+    description: string;
     icon: typeof LayoutDashboard;
     roles?: UserRole[];
   }> = [
-      { to: `${basePath}/dashboard`, pathSuffix: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
-      { to: `${basePath}/analytics`, pathSuffix: '/analytics', label: 'Analíticas', icon: BarChart3, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'] },
-      { to: `${basePath}/bookings`, pathSuffix: '/bookings', label: 'Reservas', icon: CalendarDays },
-      { to: `${basePath}/expenses`, pathSuffix: '/expenses', label: 'Gastos y Servicios', icon: Receipt, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
-      { to: `${basePath}/damages`, pathSuffix: '/damages', label: 'Daños e Incidentes', icon: ShieldAlert },
-      { to: `${basePath}/guest-guide`, pathSuffix: '/guest-guide', label: 'Guía Huésped', icon: Compass },
-      { to: `${basePath}/settings`, pathSuffix: '/settings', label: 'Configuración', icon: Settings, roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'] },
+      {
+        to: `${basePath}/dashboard`,
+        pathSuffix: '/dashboard',
+        label: 'Dashboard',
+        title: 'Dashboard de Rentabilidad',
+        description: 'Monitoreo en tiempo real de ingresos, gastos y rentabilidad en Pesos Colombianos (COP)',
+        icon: LayoutDashboard,
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'],
+      },
+      {
+        to: `${basePath}/analytics`,
+        pathSuffix: '/analytics',
+        label: 'Analíticas',
+        title: 'Analíticas del Apto',
+        description: 'Indicadores de desempeño hotelero y rentabilidad',
+        icon: BarChart3,
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'],
+      },
+      {
+        to: `${basePath}/bookings`,
+        pathSuffix: '/bookings',
+        label: 'Reservas',
+        title: 'Reservas e Ingresos',
+        description: 'Control de estadías de Airbnb, reservas directas y carga de archivos CSV',
+        icon: CalendarDays,
+      },
+      {
+        to: `${basePath}/expenses`,
+        pathSuffix: '/expenses',
+        label: 'Gastos y Servicios',
+        title: 'Gastos y Servicios del Apartamento',
+        description: 'Administración, servicios públicos (EPM), seguro anual, insumos y limpiezas',
+        icon: Receipt,
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'],
+      },
+      {
+        to: `${basePath}/damages`,
+        pathSuffix: '/damages',
+        label: 'Daños e Incidentes',
+        title: 'Daños e Incidentes del Apartamento',
+        description: 'Inspecciones de check-out, fotos de evidencia, reclamos de AirCover y reembolsos',
+        icon: ShieldAlert,
+      },
+      {
+        to: `${basePath}/guest-guide`,
+        pathSuffix: '/guest-guide',
+        label: 'Guía Huésped',
+        title: 'Guía Digital del Huésped',
+        description: 'Configura la información visible para tus huéspedes, genera el código QR y comparte el enlace público',
+        icon: Compass,
+      },
+      {
+        to: `${basePath}/settings`,
+        pathSuffix: '/settings',
+        label: 'Configuración',
+        title: 'Configuración del Apartamento',
+        description: 'Datos de la propiedad, tarifas predeterminadas en COP y exportación de respaldos',
+        icon: Settings,
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'],
+      },
     ];
 
   const navItems = hasProperties
@@ -91,20 +146,21 @@ export function AppLayout() {
   );
 
   const PageIcon = currentNavItem?.icon || LayoutDashboard;
-  const pageTitle = currentNavItem?.label || 'Dashboard';
+  const pageTitle = currentNavItem?.title || currentNavItem?.label || 'Dashboard';
+  const pageDescription = currentNavItem?.description || '';
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row pb-20 md:pb-0">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shrink-0 z-20">
         {/* Brand Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <div className="h-[88px] px-6 border-b border-slate-100 dark:border-slate-800 flex items-center shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-base leading-tight tracking-tight">AptOS</h1>
+              <div className="font-bold text-base leading-tight tracking-tight">AptOS</div>
               <p className="text-xs text-slate-500 dark:text-slate-400">Host Operating System</p>
             </div>
           </div>
@@ -185,20 +241,25 @@ export function AppLayout() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Desktop Top Header Bar */}
-        <header className="hidden md:flex sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 py-3.5 items-center justify-between gap-4">
-          {/* Left: Page Title with Menu Icon */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40 shadow-2xs">
+        <header className="hidden md:flex h-[88px] sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-6 items-center justify-between gap-4 shrink-0">
+          {/* Left: Page Title with Menu Icon & Description */}
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40 shadow-2xs">
               <PageIcon className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="font-bold text-lg text-slate-900 dark:text-white leading-tight tracking-tight">
+            <div className="min-w-0">
+              <h1 className="font-bold text-lg text-slate-900 dark:text-white leading-tight tracking-tight truncate">
                 {pageTitle}
-              </h2>
+              </h1>
+              {pageDescription && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  {pageDescription}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Right: PropertySwitcher (bien a la derecha) & Actions */}
+          {/* Right: PropertySwitcher (bien a la derecha) */}
           <div className="flex items-center gap-3 shrink-0 ml-auto">
             {hasProperties ? (
               <PropertySwitcher />
@@ -212,15 +273,6 @@ export function AppLayout() {
                 <span>+ Añadir apartamento</span>
               </button>
             )}
-
-            <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
-
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-              <span>COP</span>
-            </div>
-
-            <ThemeToggle />
           </div>
         </header>
 

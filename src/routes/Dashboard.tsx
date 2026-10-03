@@ -501,23 +501,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Range Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Dashboard de Rentabilidad
-            </h1>
-            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400">
-              {property?.name || 'Apto 502'}
-            </span>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Monitoreo en tiempo real de ingresos, gastos y rentabilidad en Pesos Colombianos (COP)
-          </p>
-        </div>
-
-        {/* Time Range Selector */}
+      {/* Time Range Selector */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-1 p-1 bg-slate-200/60 dark:bg-slate-800/60 rounded-2xl w-fit max-w-full overflow-x-auto">
           <button
             type="button"

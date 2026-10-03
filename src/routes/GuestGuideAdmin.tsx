@@ -155,24 +155,8 @@ Allí encontrarás:
 
   return (
     <div className="space-y-6 max-w-6xl">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Guía Digital del Huésped
-            </h1>
-            <span className="text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 px-2.5 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-800/40">
-              Guest Portal
-            </span>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Configura la información visible para tus huéspedes, genera el código QR y comparte el enlace público
-          </p>
-        </div>
-
-        {/* Quick Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Quick Action Buttons */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
           <a
             href="/guide/poster"
             target="_blank"
@@ -202,7 +186,6 @@ Allí encontrarás:
             <span>{copiedLink ? '¡Enlace Copiado!' : 'Copiar Enlace'}</span>
           </button>
         </div>
-      </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">

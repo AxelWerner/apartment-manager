@@ -92,14 +92,6 @@ function SettingsContent({
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Configuración del Apartamento
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Datos de la propiedad, tarifas predeterminadas en COP y exportación de respaldos
-        </p>
-      </div>
 
       {/* Property Profile Form */}
       <form

@@ -459,18 +459,8 @@ export default function Bookings() {
 
   return (
     <div className="space-y-6">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Reservas e Ingresos
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Control de estadías de Airbnb, reservas directas y carga de archivos CSV
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => setIsCsvModalOpen(true)}
@@ -491,7 +481,6 @@ export default function Bookings() {
             <span>Nueva Reserva</span>
           </button>
         </div>
-      </div>
 
       {/* Summary KPI Pills */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">

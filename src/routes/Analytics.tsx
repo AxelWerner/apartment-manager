@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useBookings } from '@/hooks/use-bookings';
-import { useProperty } from '@/hooks/use-property';
 import { getColombiaDateTime } from '@/lib/formatters';
 import {
   calculateMonthAnalytics,
@@ -15,11 +14,9 @@ import { OccupancyDayMatrix } from '@/components/analytics/OccupancyDayMatrix';
 import { StayDistributionCards } from '@/components/analytics/StayDistributionCards';
 import { MonthlyComparisonTable } from '@/components/analytics/MonthlyComparisonTable';
 import { MonthBookingsList } from '@/components/analytics/MonthBookingsList';
-import { BarChart3 } from 'lucide-react';
 
 export default function Analytics() {
   const { data: bookings = [], isLoading } = useBookings();
-  const { data: property } = useProperty();
 
   // Current date reference in Colombia
   const { dateStr } = getColombiaDateTime();
@@ -97,25 +94,6 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
-              <BarChart3 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-                Analíticas del Apto
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {property?.name || 'Apto 502'} • Indicadores de desempeño hotelero y rentabilidad
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Month & Filter Navigation */}
       <MonthNavigator
         selectedMonth={effectiveMonth}

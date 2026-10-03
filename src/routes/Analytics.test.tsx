@@ -88,12 +88,8 @@ describe('Analytics Component (Analíticas del Apto)', () => {
     } as unknown as ReturnType<typeof useBookings>);
   });
 
-  it('renders the header and all 5 requested KPIs: ADR, Ocupacion, LOS, Lead Time, and RevPar', () => {
+  it('renders all 5 requested KPIs: ADR, Ocupacion, LOS, Lead Time, and RevPar', () => {
     renderWithProviders(<Analytics />);
-
-    // Header
-    expect(screen.getByText('Analíticas del Apto')).toBeInTheDocument();
-    expect(screen.getByText(/Indicadores de desempeño hotelero y rentabilidad/i)).toBeInTheDocument();
 
     // 1. ADR
     expect(screen.getAllByText('ADR').length).toBeGreaterThanOrEqual(1);
