@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useActiveProperty } from '@/context/PropertyContext';
-import { PropertySwitcher, RoleAvatar } from '@/components/properties/PropertySwitcher';
+import { PropertySwitcher, RoleBadge } from '@/components/properties/PropertySwitcher';
 import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import type { UserRole } from '@/types/database';
@@ -90,8 +90,8 @@ export function AppLayout() {
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-base leading-tight">MiApto</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Tu apartamento en orden</p>
+              <h1 className="font-bold text-base leading-tight tracking-tight">AptOS</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Host Operating System</p>
             </div>
           </div>
 
@@ -207,10 +207,10 @@ export function AppLayout() {
                   className="font-bold text-sm leading-tight line-clamp-2 break-words"
                   title={activeProperty?.name}
                 >
-                  {activeProperty?.name || 'MiApto'}
+                  {activeProperty?.name || 'AptOS'}
                 </h1>
                 <div className="mt-0.5">
-                  <RoleAvatar role={currentRole} />
+                  <RoleBadge role={currentRole} />
                 </div>
               </div>
             ) : (

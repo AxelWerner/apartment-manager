@@ -1,74 +1,52 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Crown,
-  Sparkles,
-  UserCog,
-  Eye,
   Building2,
   ChevronDown,
   Plus,
   Check,
+  Sparkles,
 } from 'lucide-react';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
 import type { UserRole } from '@/types/database';
 
-interface RoleDisplay {
-  label: string;
-  icon: typeof Crown;
-  badge: string;
-  avatarBg: string;
-}
-
-const roleConfig: Record<UserRole, RoleDisplay> = {
+const roleConfig: Record<UserRole, { label: string; badge: string }> = {
   SUPER_USER: {
     label: 'Super Admin',
-    icon: Crown,
-    badge: 'bg-purple-50 text-purple-700 border-purple-200/80 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800/60',
-    avatarBg: 'bg-purple-500 text-white',
+    badge: 'bg-purple-100/90 text-purple-700 border-purple-200/80 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60',
   },
   OWNER: {
     label: 'Dueño',
-    icon: Crown,
-    badge: 'bg-amber-50 text-amber-800 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60',
-    avatarBg: 'bg-gradient-to-tr from-amber-500 to-yellow-400 text-white shadow-xs shadow-amber-500/20',
+    badge: 'bg-amber-100/90 text-amber-800 border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
   },
   ADMINISTRATOR: {
-    label: 'Administrador',
-    icon: UserCog,
-    badge: 'bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
-    avatarBg: 'bg-blue-500 text-white shadow-xs shadow-blue-500/20',
+    label: 'Admin',
+    badge: 'bg-blue-100/90 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
   },
   CLEANER: {
     label: 'Limpieza',
-    icon: Sparkles,
-    badge: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60',
-    avatarBg: 'bg-emerald-500 text-white shadow-xs shadow-emerald-500/20',
+    badge: 'bg-emerald-100/90 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60',
   },
   VIEWER: {
     label: 'Lector',
-    icon: Eye,
-    badge: 'bg-slate-50 text-slate-700 border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700',
-    avatarBg: 'bg-slate-400 dark:bg-slate-600 text-white',
+    badge: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
   },
 };
 
-export function RoleAvatar({ role, showLabel = true }: { role: UserRole; showLabel?: boolean }) {
+export function RoleBadge({ role }: { role: UserRole }) {
   const config = roleConfig[role] || roleConfig.VIEWER;
-  const Icon = config.icon;
 
   return (
-    <div
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold tracking-tight shadow-2xs ${config.badge}`}
-      title={`Rol: ${config.label}`}
+    <span
+      className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-tight shrink-0 ${config.badge}`}
     >
-      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${config.avatarBg}`}>
-        <Icon className="w-2.5 h-2.5 stroke-[2.5]" />
-      </div>
-      {showLabel && <span>{config.label}</span>}
-    </div>
+      {config.label}
+    </span>
   );
 }
+
+// Alias for backwards compatibility if needed
+export const RoleAvatar = RoleBadge;
 
 interface PropertySwitcherProps {
   className?: string;
@@ -128,7 +106,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
             {activeProperty?.name || 'Selecciona un Apartamento'}
           </p>
           <div className="mt-1">
-            <RoleAvatar role={role} />
+            <RoleBadge role={role} />
           </div>
         </div>
 
@@ -196,7 +174,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                         {property.name}
                       </p>
                       <div className="mt-1">
-                        <RoleAvatar role={propRole} />
+                        <RoleBadge role={propRole} />
                       </div>
                     </div>
                   </div>
