@@ -50,25 +50,26 @@ export function PropertySwitcher() {
         onClick={() => setIsOpen(!isOpen)}
         className="w-full mt-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between transition-colors text-left cursor-pointer group"
       >
-        <div className="truncate pr-2">
-          <div className="flex items-center gap-1.5">
-            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-              {activeProperty?.name || 'Selecciona un Apto'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
+        <div className="min-w-0 flex-1 pr-1.5">
+          <p
+            className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 leading-snug break-words"
+            title={activeProperty?.name}
+          >
+            {activeProperty?.name || 'Selecciona un Apto'}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
             <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
               {activeProperty?.city || 'Medellín'} • COP
             </span>
             <span
-              className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-md ${currentRoleInfo.badge}`}
+              className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-md shrink-0 ${currentRoleInfo.badge}`}
             >
               {currentRoleInfo.label}
             </span>
           </div>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform ${
+          className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 transition-transform shrink-0 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -100,12 +101,17 @@ export function PropertySwitcher() {
                       : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
                   }`}
                 >
-                  <div className="truncate pr-2">
-                    <p className="text-xs font-medium truncate">{property.name}</p>
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                  <div className="min-w-0 flex-1 pr-2">
+                    <p
+                      className="text-xs font-medium line-clamp-2 leading-snug break-words"
+                      title={property.name}
+                    >
+                      {property.name}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
                       <span>{property.city}</span>
                       <span>•</span>
-                      <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded ${roleInfo.badge}`}>
+                      <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded shrink-0 ${roleInfo.badge}`}>
                         {roleInfo.label}
                       </span>
                     </div>

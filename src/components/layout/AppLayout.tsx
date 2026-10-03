@@ -205,7 +205,12 @@ export function AppLayout() {
             </div>
             {hasProperties ? (
               <div className="min-w-0">
-                <h1 className="font-bold text-sm leading-tight truncate">{activeProperty?.name || 'Apto Manager'}</h1>
+                <h1
+                  className="font-bold text-sm leading-tight line-clamp-2 break-words"
+                  title={activeProperty?.name}
+                >
+                  {activeProperty?.name || 'Apto Manager'}
+                </h1>
                 <p className="text-[10px] text-slate-400 truncate">{activeProperty?.city || 'Medellín'} • COP</p>
               </div>
             ) : (
