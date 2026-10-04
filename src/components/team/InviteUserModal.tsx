@@ -128,7 +128,10 @@ export function InviteUserModal({
       setCreatedInvitation(inv);
       toast.success(`Invitación generada para ${email}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al enviar invitación';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message || 'Error al enviar invitación';
       toast.error(msg);
     }
   };

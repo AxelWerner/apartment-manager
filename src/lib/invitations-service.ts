@@ -163,7 +163,8 @@ export async function createPropertyInvitation(
 
   if (error || !data) {
     console.error('Error creating property invitation:', error);
-    throw error || new Error('No se pudo crear la invitación');
+    const message = error?.message || 'No se pudo crear la invitación';
+    throw new Error(message);
   }
 
   return data as PropertyInvitation;
