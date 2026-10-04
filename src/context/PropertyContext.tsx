@@ -18,6 +18,7 @@ interface PropertyContextType {
   role: UserRole;
   isOwner: boolean;
   isAdmin: boolean;
+  isOperator: boolean;
   isCleaner: boolean;
   isViewer: boolean;
   isLoading: boolean;
@@ -127,6 +128,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
 
   const isOwner = role === 'OWNER' || role === 'SUPER_USER';
   const isAdmin = isOwner || role === 'ADMINISTRATOR';
+  const isOperator = isAdmin || role === 'OPERATOR';
   const isCleaner = role === 'CLEANER';
   const isViewer = role === 'VIEWER';
 
@@ -187,6 +189,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
         role,
         isOwner,
         isAdmin,
+        isOperator,
         isCleaner,
         isViewer,
         isLoading,

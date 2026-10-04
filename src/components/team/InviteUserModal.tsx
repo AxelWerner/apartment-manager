@@ -10,6 +10,7 @@ import {
   Loader2,
   Crown,
   Briefcase,
+  SlidersHorizontal,
   Sparkle,
   Eye,
 } from 'lucide-react';
@@ -38,7 +39,7 @@ const roleOptions: Array<{
   {
     role: 'ADMINISTRATOR',
     title: 'Administrador',
-    description: 'Gestión total de reservas, gastos, guía digital e invitaciones.',
+    description: 'Gestión total de reservas, gastos, facturación, guía e invitaciones.',
     icon: Briefcase,
     selectedCardClass:
       'border-rose-500 dark:border-rose-500 bg-rose-50/80 dark:bg-rose-950/40 ring-2 ring-rose-500/25 shadow-xs',
@@ -48,6 +49,20 @@ const roleOptions: Array<{
     unselectedIconClass:
       'bg-rose-100/80 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-900/50',
     checkColor: 'text-rose-600 dark:text-rose-400',
+  },
+  {
+    role: 'OPERATOR',
+    title: 'Gestor Operativo',
+    description: 'Operativa diaria: reservas, gastos del apto, guía del huésped y daños sin acceso a finanzas críticas ni miembros.',
+    icon: SlidersHorizontal,
+    selectedCardClass:
+      'border-amber-500 dark:border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-500/25 shadow-xs',
+    unselectedCardClass:
+      'border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:border-amber-300 dark:hover:border-amber-800/60',
+    selectedIconClass: 'bg-amber-600 text-white shadow-xs shadow-amber-600/30',
+    unselectedIconClass:
+      'bg-amber-100/80 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200/70 dark:border-amber-900/50',
+    checkColor: 'text-amber-600 dark:text-amber-400',
   },
   {
     role: 'OWNER',

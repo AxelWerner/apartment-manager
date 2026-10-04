@@ -30,6 +30,10 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
     label: 'Admin',
     badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800',
   },
+  OPERATOR: {
+    label: 'Gestor Operativo',
+    badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+  },
   OWNER: {
     label: 'Dueño',
     badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800',
@@ -75,7 +79,7 @@ export function AppLayout() {
         title: 'Dashboard de Rentabilidad',
         description: 'Monitoreo en tiempo real de ingresos, gastos y rentabilidad en Pesos Colombianos (COP)',
         icon: LayoutDashboard,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'],
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/analytics`,
@@ -84,7 +88,7 @@ export function AppLayout() {
         title: 'Analíticas del Apto',
         description: 'Indicadores de desempeño hotelero y rentabilidad',
         icon: BarChart3,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER'],
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/bookings`,
@@ -101,7 +105,7 @@ export function AppLayout() {
         title: 'Gastos y Servicios del Apartamento',
         description: 'Administración, servicios públicos (EPM), seguro anual, insumos y limpiezas',
         icon: Receipt,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'],
+        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR'],
       },
       {
         to: `${basePath}/damages`,

@@ -99,7 +99,7 @@ export default function App() {
               <Route
                 path="dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER']}>
                     <Dashboard />
                   </ProtectedRoute>
                 }
@@ -107,7 +107,7 @@ export default function App() {
               <Route
                 path="analytics"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'VIEWER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER']}>
                     <Analytics />
                   </ProtectedRoute>
                 }
@@ -116,7 +116,7 @@ export default function App() {
               <Route
                 path="expenses"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR']}>
                     <Expenses />
                   </ProtectedRoute>
                 }

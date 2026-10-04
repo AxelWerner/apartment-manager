@@ -10,6 +10,7 @@ export type UserRole =
   | 'SUPER_USER'
   | 'OWNER'
   | 'ADMINISTRATOR'
+  | 'OPERATOR'
   | 'CLEANER'
   | 'VIEWER';
 

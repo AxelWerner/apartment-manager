@@ -22,6 +22,10 @@ const roleConfig: Record<UserRole, { label: string; badge: string }> = {
     label: 'Admin',
     badge: 'bg-blue-100/90 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
   },
+  OPERATOR: {
+    label: 'Gestor',
+    badge: 'bg-amber-100/90 text-amber-700 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60',
+  },
   CLEANER: {
     label: 'Limpieza',
     badge: 'bg-emerald-100/90 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60',

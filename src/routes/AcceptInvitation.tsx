@@ -13,6 +13,7 @@ import {
   Clock,
   Crown,
   Briefcase,
+  SlidersHorizontal,
   Sparkle,
   Eye,
 } from 'lucide-react';
@@ -46,6 +47,12 @@ const roleLabels: Record<
     description: 'Gestión de reservas, gastos, guía del huésped y equipo',
     icon: Briefcase,
     colorClass: 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800',
+  },
+  OPERATOR: {
+    label: 'Gestor Operativo',
+    description: 'Operación diaria: reservas, gastos, guía del huésped y daños',
+    icon: SlidersHorizontal,
+    colorClass: 'text-amber-600 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
   },
   CLEANER: {
     label: 'Personal de Limpieza',

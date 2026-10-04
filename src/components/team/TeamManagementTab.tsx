@@ -9,6 +9,7 @@ import {
   Clock,
   Crown,
   Briefcase,
+  SlidersHorizontal,
   Sparkle,
   Eye,
   Shield,
@@ -57,6 +58,13 @@ const roleBadgeConfig: Record<
     text: 'text-rose-700 dark:text-rose-300',
     border: 'border-rose-200 dark:border-rose-800',
     icon: Briefcase,
+  },
+  OPERATOR: {
+    label: 'Gestor Operativo',
+    bg: 'bg-amber-50 dark:bg-amber-950/60',
+    text: 'text-amber-700 dark:text-amber-300',
+    border: 'border-amber-200 dark:border-amber-800',
+    icon: SlidersHorizontal,
   },
   CLEANER: {
     label: 'Limpieza',
@@ -194,8 +202,8 @@ export function TeamManagementTab({
       </div>
 
       {/* Permissions / Role Guide Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {(['OWNER', 'ADMINISTRATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {(['OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
           const cfg = roleBadgeConfig[r];
           const Icon = cfg.icon;
           return (
@@ -214,6 +222,7 @@ export function TeamManagementTab({
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
                 {r === 'OWNER' && 'Acceso total al apartamento, finanzas, miembros y configuración.'}
                 {r === 'ADMINISTRATOR' && 'Gestión operativa de reservas, gastos, guías e invitaciones.'}
+                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos, guía del huésped y daños.'}
                 {r === 'CLEANER' && 'Calendario de entradas/salidas y reporte de daños e incidentes.'}
                 {r === 'VIEWER' && 'Lectura de estadísticas e ingresos sin permisos de modificación.'}
               </p>
@@ -330,6 +339,7 @@ export function TeamManagementTab({
                       >
                         <option value="OWNER">Dueño</option>
                         <option value="ADMINISTRATOR">Administrador</option>
+                        <option value="OPERATOR">Gestor Operativo</option>
                         <option value="CLEANER">Limpieza</option>
                         <option value="VIEWER">Lector</option>
                       </select>

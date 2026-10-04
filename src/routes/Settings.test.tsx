@@ -100,6 +100,7 @@ describe('Settings Route - Tabs & Team Management', () => {
       role: 'OWNER',
       isOwner: true,
       isAdmin: true,
+      isOperator: true,
       isCleaner: false,
       isViewer: false,
       isLoading: false,
