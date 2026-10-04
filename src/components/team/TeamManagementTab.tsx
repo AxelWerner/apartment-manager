@@ -340,7 +340,7 @@ export function TeamManagementTab({
               return (
                 <div
                   key={member.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-855/40 transition-colors"
+                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors duration-150"
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
@@ -426,13 +426,13 @@ export function TeamManagementTab({
                           <select
                             value={member.role}
                             onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
-                            className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
+                            className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 shadow-2xs hover:shadow-xs transition-all ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
                           >
-                            <option value="OWNER">Dueño (Copropietario)</option>
-                            <option value="ADMINISTRATOR">Administrador</option>
-                            <option value="OPERATOR">Gestor Operativo</option>
-                            <option value="CLEANER">Limpieza</option>
-                            <option value="VIEWER">Lector</option>
+                            <option value="OWNER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Dueño (Copropietario)</option>
+                            <option value="ADMINISTRATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Administrador</option>
+                            <option value="OPERATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Gestor Operativo</option>
+                            <option value="CLEANER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Limpieza</option>
+                            <option value="VIEWER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Lector</option>
                           </select>
                         ) : (
                           <span
@@ -509,7 +509,7 @@ export function TeamManagementTab({
               return (
                 <div
                   key={inv.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-850/40 transition-colors"
+                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
