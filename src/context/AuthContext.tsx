@@ -103,16 +103,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
+    const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName?.trim() || null,
         },
       },
     });
     return { data, error };
+  };
+
+  const resendConfirmationEmail = async (email: string) => {
+    const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/login` : undefined;
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
+    });
+    return { error };
   };
 
   const signOut = async () => {
@@ -153,6 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signIn,
         signUp,
+        resendConfirmationEmail,
         signOut,
         isSuperUser,
         isAdmin,

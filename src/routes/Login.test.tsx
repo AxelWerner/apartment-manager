@@ -370,5 +370,94 @@ describe('Login Process', () => {
         expect(screen.getByText('Dashboard Principal')).toBeInTheDocument();
       });
     });
+
+    it('muestra pantalla de verificación de correo cuando el registro requiere confirmación y permite reenviarlo', async () => {
+      mockSignUp.mockResolvedValue({
+        data: { user: { id: 'u2', email: 'carlos@test.com' }, session: null },
+        error: null,
+      });
+      const mockResend = vi.fn().mockResolvedValue({ error: null });
+
+      vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+        user: null,
+        session: null,
+        loading: false,
+        signIn: mockSignIn,
+        signUp: mockSignUp,
+        resendConfirmationEmail: mockResend,
+        signOut: mockSignOut,
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/login']}>
+          <Login />
+        </MemoryRouter>
+      );
+
+      fireEvent.click(screen.getByRole('tab', { name: /crear cuenta/i }));
+
+      fireEvent.change(screen.getByLabelText(/nombre completo/i), { target: { value: 'Carlos Ruiz' } });
+      fireEvent.change(screen.getByLabelText(/correo electrónico/i), { target: { value: 'carlos@test.com' } });
+      fireEvent.change(screen.getByLabelText(/^contraseña/i), { target: { value: 'securepass123' } });
+      fireEvent.change(screen.getByLabelText(/confirmar contraseña/i), { target: { value: 'securepass123' } });
+
+      fireEvent.click(screen.getByRole('button', { name: /crear mi cuenta/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/verifica tu correo electrónico/i)).toBeInTheDocument();
+        expect(screen.getByText('carlos@test.com')).toBeInTheDocument();
+      });
+
+      // Probar reenvío
+      fireEvent.click(screen.getByRole('button', { name: /reenviar confirmación/i }));
+      await waitFor(() => {
+        expect(mockResend).toHaveBeenCalledWith('carlos@test.com');
+        expect(screen.getByText(/correo de verificación reenviado/i)).toBeInTheDocument();
+      });
+    });
+
+    it('permite reenviar el correo de confirmación si el login falla con Email not confirmed', async () => {
+      mockSignIn.mockResolvedValue({
+        error: { message: 'Email not confirmed' },
+      });
+      const mockResend = vi.fn().mockResolvedValue({ error: null });
+
+      vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+        user: null,
+        session: null,
+        loading: false,
+        signIn: mockSignIn,
+        signUp: mockSignUp,
+        resendConfirmationEmail: mockResend,
+        signOut: mockSignOut,
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/login']}>
+          <Login />
+        </MemoryRouter>
+      );
+
+      fireEvent.change(screen.getByLabelText(/correo electrónico/i), {
+        target: { value: 'unconfirmed@example.com' },
+      });
+      fireEvent.change(screen.getByLabelText(/contraseña/i), {
+        target: { value: 'password123' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /ingresar al panel/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Email not confirmed')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /reenviar verificación/i })).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /reenviar verificación/i }));
+
+      await waitFor(() => {
+        expect(mockResend).toHaveBeenCalledWith('unconfirmed@example.com');
+        expect(screen.getByText(/correo de verificación reenviado/i)).toBeInTheDocument();
+      });
+    });
   });
 });
