@@ -238,6 +238,22 @@ export default function AcceptInvitation() {
 
         {/* Content Body */}
         <div className="p-8 space-y-6">
+          {invitation.is_owner && (
+            <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-blue-900 dark:text-blue-200">
+              <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0 shadow-xs">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  Titularidad de la propiedad
+                </div>
+                <div className="text-xs font-semibold mt-0.5">
+                  Has sido invitado como Dueño / Copropietario del inmueble
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Role info pill */}
           <div
             className={`p-4 rounded-2xl border flex items-start gap-3.5 ${roleInfo.colorClass}`}
@@ -247,7 +263,7 @@ export default function AcceptInvitation() {
             </div>
             <div>
               <div className="text-xs font-bold uppercase tracking-wider opacity-75">
-                Rol Asignado
+                Rol Operativo Asignado
               </div>
               <div className="text-sm font-bold mt-0.5">{roleInfo.label}</div>
               <div className="text-xs opacity-90 mt-1 leading-snug">

@@ -20,6 +20,7 @@ import {
   usePropertyMembers,
   usePropertyInvitations,
   useUpdateMemberRole,
+  useUpdateMemberOwnership,
   useRemoveMember,
   useCancelInvitation,
 } from '@/hooks/use-team';
@@ -32,6 +33,7 @@ interface TeamManagementTabProps {
   propertyId: string;
   propertyName: string;
   currentUserRole: UserRole;
+  isCurrentUserOwner?: boolean;
 }
 
 const roleBadgeConfig: Record<
@@ -86,6 +88,7 @@ export function TeamManagementTab({
   propertyId,
   propertyName,
   currentUserRole,
+  isCurrentUserOwner,
 }: TeamManagementTabProps) {
   const { user } = useAuth();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -96,15 +99,17 @@ export function TeamManagementTab({
   const { data: invitations = [], isLoading: isLoadingInvitations } = usePropertyInvitations(propertyId);
 
   const updateRoleMutation = useUpdateMemberRole(propertyId);
+  const updateOwnershipMutation = useUpdateMemberOwnership(propertyId);
   const removeMemberMutation = useRemoveMember(propertyId);
   const cancelInvitationMutation = useCancelInvitation(propertyId);
 
-  const isOwnerOrAdmin =
+  const isOwner = Boolean(
+    isCurrentUserOwner ||
     currentUserRole === 'OWNER' ||
-    currentUserRole === 'SUPER_USER' ||
-    currentUserRole === 'ADMINISTRATOR';
+    currentUserRole === 'SUPER_USER'
+  );
 
-  const isOwner = currentUserRole === 'OWNER' || currentUserRole === 'SUPER_USER';
+  const isOwnerOrAdmin = isOwner || currentUserRole === 'ADMINISTRATOR';
 
   const handleCopyInviteLink = async (token: string) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -133,10 +138,32 @@ export function TeamManagementTab({
     }
   };
 
+  const handleOwnershipChange = async (member: PropertyMember, newIsOwner: boolean) => {
+    // Si se quiere desmarcar como dueño, validar que no sea el único
+    if (!newIsOwner && member.is_owner) {
+      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER').length;
+      if (ownersCount <= 1) {
+        toast.error('Debe haber al menos un dueño asignado al apartamento.');
+        return;
+      }
+    }
+
+    try {
+      await updateOwnershipMutation.mutateAsync({
+        memberId: member.id,
+        isOwner: newIsOwner,
+      });
+      toast.success(newIsOwner ? 'Usuario marcado como Dueño' : 'Titularidad de Dueño retirada');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al actualizar titularidad';
+      toast.error(msg);
+    }
+  };
+
   const handleRemoveMember = async (member: PropertyMember) => {
     // Verificar si es el único dueño
-    if (member.role === 'OWNER') {
-      const ownersCount = members.filter((m) => m.role === 'OWNER').length;
+    if (member.is_owner || member.role === 'OWNER') {
+      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER').length;
       if (ownersCount <= 1) {
         toast.error('No puedes eliminar al único dueño del apartamento.');
         return;
@@ -203,7 +230,23 @@ export function TeamManagementTab({
 
       {/* Permissions / Role Guide Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {(['OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
+        {/* Dueño Flag Card */}
+        <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+              <Crown className="w-3.5 h-3.5 fill-blue-500/20" />
+            </div>
+            <span className="text-xs font-bold text-blue-950 dark:text-blue-100">
+              Dueño (Flag)
+            </span>
+          </div>
+          <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80 leading-tight">
+            Titular o copropietario del apartamento. Máxima autoridad sobre finanzas y no puede ser revocado por admins.
+          </p>
+        </div>
+
+        {/* 4 Operational Roles */}
+        {(['ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
           const cfg = roleBadgeConfig[r];
           const Icon = cfg.icon;
           return (
@@ -220,10 +263,9 @@ export function TeamManagementTab({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                {r === 'OWNER' && 'Acceso total al apartamento, finanzas, miembros y configuración.'}
-                {r === 'ADMINISTRATOR' && 'Gestión operativa de reservas, gastos, guías e invitaciones.'}
-                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos, guía del huésped y daños.'}
-                {r === 'CLEANER' && 'Calendario de entradas/salidas y reporte de daños e incidentes.'}
+                {r === 'ADMINISTRATOR' && 'Gestión completa de tarifas, comisiones, miembros y ajustes técnicos.'}
+                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos del apto, guía del huésped y daños.'}
+                {r === 'CLEANER' && 'Calendario de entradas/salidas y reporte fotográfico de incidencias.'}
                 {r === 'VIEWER' && 'Lectura de estadísticas e ingresos sin permisos de modificación.'}
               </p>
             </div>
@@ -329,15 +371,47 @@ export function TeamManagementTab({
                     </div>
                   </div>
 
-                  {/* Role Selector & Actions */}
-                  <div className="flex items-center gap-3 self-end sm:self-center">
+                  {/* Role Selector, Dueño Badge & Actions */}
+                  <div className="flex items-center gap-2.5 self-end sm:self-center">
+                    {/* Dueño Flag Toggle / Badge */}
+                    {isOwner && !isCurrentUser ? (
+                      <button
+                        type="button"
+                        onClick={() => handleOwnershipChange(member, !member.is_owner)}
+                        title={
+                          member.is_owner
+                            ? 'Hacer clic para retirar la titularidad de Dueño'
+                            : 'Hacer clic para marcar como Dueño / Copropietario'
+                        }
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                          member.is_owner
+                            ? 'bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700 shadow-xs hover:bg-amber-200/80 dark:hover:bg-amber-900/60'
+                            : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 hover:text-amber-700 dark:hover:text-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                        }`}
+                      >
+                        <Crown
+                          className={`w-3.5 h-3.5 ${
+                            member.is_owner
+                              ? 'text-amber-600 dark:text-amber-400 fill-amber-500/20'
+                              : 'text-slate-400'
+                          }`}
+                        />
+                        <span>{member.is_owner ? 'Dueño' : '+ Dueño'}</span>
+                      </button>
+                    ) : member.is_owner ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700">
+                        <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
+                        <span>Dueño</span>
+                      </span>
+                    ) : null}
+
+                    {/* Operational Role Selector */}
                     {isOwner && !isCurrentUser ? (
                       <select
                         value={member.role}
                         onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
                         className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
                       >
-                        <option value="OWNER">Dueño</option>
                         <option value="ADMINISTRATOR">Administrador</option>
                         <option value="OPERATOR">Gestor Operativo</option>
                         <option value="CLEANER">Limpieza</option>
@@ -413,6 +487,12 @@ export function TeamManagementTab({
                         <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                           {inv.email}
                         </span>
+                        {inv.is_owner && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            <Crown className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
+                            Dueño
+                          </span>
+                        )}
                         {isExpired ? (
                           <span className="px-2 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 text-[10px] font-semibold flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />

@@ -65,20 +65,6 @@ const roleOptions: Array<{
     checkColor: 'text-amber-600 dark:text-amber-400',
   },
   {
-    role: 'OWNER',
-    title: 'Dueño / Copropietario',
-    description: 'Acceso completo al apartamento, finanzas, miembros y configuración.',
-    icon: Crown,
-    selectedCardClass:
-      'border-blue-500 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/25 shadow-xs',
-    unselectedCardClass:
-      'border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 hover:border-blue-300 dark:hover:border-blue-800/60',
-    selectedIconClass: 'bg-blue-600 text-white shadow-xs shadow-blue-600/30',
-    unselectedIconClass:
-      'bg-blue-100/80 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/50',
-    checkColor: 'text-blue-600 dark:text-blue-400',
-  },
-  {
     role: 'CLEANER',
     title: 'Personal de Limpieza',
     description: 'Acceso a fechas de entrada/salida y reporte fotográfico de daños.',
@@ -116,6 +102,7 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('ADMINISTRATOR');
+  const [isOwner, setIsOwner] = useState(false);
   const [createdInvitation, setCreatedInvitation] = useState<PropertyInvitation | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
 
@@ -126,6 +113,7 @@ export function InviteUserModal({
   const handleClose = () => {
     setEmail('');
     setRole('ADMINISTRATOR');
+    setIsOwner(false);
     setCreatedInvitation(null);
     setHasCopied(false);
     onClose();
@@ -139,6 +127,7 @@ export function InviteUserModal({
       const inv = await inviteMutation.mutateAsync({
         email: email.trim(),
         role,
+        isOwner,
       });
       setCreatedInvitation(inv);
       toast.success(`Invitación generada para ${email}`);
@@ -217,7 +206,8 @@ export function InviteUserModal({
                 </h4>
                 <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
                   Se ha generado un enlace exclusivo válido por 48 horas para{' '}
-                  <strong className="font-semibold">{createdInvitation.email}</strong> con rol de{' '}
+                  <strong className="font-semibold">{createdInvitation.email}</strong>{' '}
+                  {createdInvitation.is_owner ? 'como 👑 Dueño / Copropietario con rol ' : 'con rol de '}
                   <span className="uppercase font-semibold tracking-wider text-[11px]">
                     {createdInvitation.role}
                   </span>
@@ -300,9 +290,29 @@ export function InviteUserModal({
               </p>
             </div>
 
+            {/* Titularidad / Dueño toggle */}
+            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 flex items-start gap-3 transition-colors">
+              <input
+                id="modal-is-owner"
+                type="checkbox"
+                checked={isOwner}
+                onChange={(e) => setIsOwner(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="modal-is-owner" className="flex-1 cursor-pointer select-none">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <Crown className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Marcar como Dueño / Copropietario</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                  Identifica a la persona como titular del apartamento. Podrá consultar las liquidaciones y reportes oficiales de ganancias.
+                </p>
+              </label>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Nivel de Permisos / Rol *
+                Nivel de Permisos / Rol Operativo *
               </label>
               <div className="grid grid-cols-1 gap-2">
                 {roleOptions.map((opt) => {

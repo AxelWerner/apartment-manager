@@ -30,6 +30,7 @@ vi.mock('@/hooks/use-team', () => ({
   usePropertyInvitations: vi.fn(),
   useCreateInvitation: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useUpdateMemberRole: vi.fn(() => ({ mutateAsync: vi.fn() })),
+  useUpdateMemberOwnership: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useRemoveMember: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useCancelInvitation: vi.fn(() => ({ mutateAsync: vi.fn() })),
 }));

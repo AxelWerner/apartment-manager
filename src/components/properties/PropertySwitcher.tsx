@@ -36,14 +36,24 @@ const roleConfig: Record<UserRole, { label: string; badge: string }> = {
   },
 };
 
-export function RoleBadge({ role }: { role: UserRole }) {
+export function RoleBadge({ role, isOwner }: { role: UserRole; isOwner?: boolean }) {
   const config = roleConfig[role] || roleConfig.VIEWER;
 
   return (
-    <span
-      className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-tight shrink-0 ${config.badge}`}
-    >
-      {config.label}
+    <span className="inline-flex items-center gap-1 shrink-0">
+      {isOwner && (
+        <span
+          title="Dueño del inmueble"
+          className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-tight bg-blue-100/90 text-blue-800 border-blue-200/80 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/60 shrink-0"
+        >
+          👑 Dueño
+        </span>
+      )}
+      <span
+        className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-tight shrink-0 ${config.badge}`}
+      >
+        {config.label}
+      </span>
     </span>
   );
 }
@@ -61,6 +71,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
     activeProperty,
     activePropertyId,
     role,
+    isOwner,
     switchProperty,
   } = useActiveProperty();
 
@@ -110,7 +121,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                 {activeProperty.city}
               </span>
             )}
-            <RoleBadge role={role} />
+            <RoleBadge role={role} isOwner={isOwner} />
           </div>
         </div>
 
@@ -141,7 +152,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
           </div>
 
           <div className="max-h-64 overflow-y-auto space-y-1 pr-0.5">
-            {properties.map(({ property, role: propRole }) => {
+            {properties.map(({ property, role: propRole, isOwner: propIsOwner }) => {
               const isActive = property.id === activePropertyId;
 
               return (
@@ -173,7 +184,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                           {property.city}
                         </span>
                       )}
-                      <RoleBadge role={propRole} />
+                      <RoleBadge role={propRole} isOwner={propIsOwner} />
                     </div>
                   </div>
                   {isActive && (

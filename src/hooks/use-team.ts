@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchPropertyMembers,
   updatePropertyMemberRole,
+  updatePropertyMemberOwnership,
   removePropertyMember,
   fetchPropertyInvitations,
   createPropertyInvitation,
@@ -28,9 +29,17 @@ export function usePropertyInvitations(propertyId?: string) {
 export function useCreateInvitation(propertyId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ email, role }: { email: string; role: UserRole }) => {
+    mutationFn: ({
+      email,
+      role,
+      isOwner = false,
+    }: {
+      email: string;
+      role: UserRole;
+      isOwner?: boolean;
+    }) => {
       if (!propertyId) throw new Error('No active property selected');
-      return createPropertyInvitation(propertyId, email, role);
+      return createPropertyInvitation(propertyId, email, role, isOwner);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property_invitations', propertyId] });
@@ -54,6 +63,19 @@ export function useUpdateMemberRole(propertyId?: string) {
     mutationFn: ({ memberId, newRole }: { memberId: string; newRole: UserRole }) => {
       if (!propertyId) throw new Error('No active property selected');
       return updatePropertyMemberRole(propertyId, memberId, newRole);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['property_members', propertyId] });
+    },
+  });
+}
+
+export function useUpdateMemberOwnership(propertyId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, isOwner }: { memberId: string; isOwner: boolean }) => {
+      if (!propertyId) throw new Error('No active property selected');
+      return updatePropertyMemberOwnership(propertyId, memberId, isOwner);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property_members', propertyId] });

@@ -110,23 +110,31 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     };
   }, [currentPropertyId, properties]);
 
+  const activeMembership = useMemo(() => {
+    if (activePropertyId) {
+      return properties.find((m) => m.property.id === activePropertyId);
+    }
+    return properties[0] || null;
+  }, [properties, activePropertyId]);
+
   // Determinar rol del usuario en la propiedad activa
   const role: UserRole = useMemo(() => {
     const userRole = (user as { role?: UserRole } | null)?.role || (user?.user_metadata?.role as UserRole | undefined);
     if (userRole === 'SUPER_USER') {
       return 'SUPER_USER';
     }
-    if (activePropertyId) {
-      const membership = properties.find((m) => m.property.id === activePropertyId);
-      if (membership) return membership.role;
-    }
-    if (properties.length > 0) {
-      return properties[0].role;
+    if (activeMembership) {
+      return activeMembership.role;
     }
     return 'VIEWER';
-  }, [properties, activePropertyId, user]);
+  }, [activeMembership, user]);
 
-  const isOwner = role === 'OWNER' || role === 'SUPER_USER';
+  const isOwner = Boolean(
+    role === 'SUPER_USER' ||
+    role === 'OWNER' ||
+    activeMembership?.isOwner ||
+    (activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
+  );
   const isAdmin = isOwner || role === 'ADMINISTRATOR';
   const isOperator = isAdmin || role === 'OPERATOR';
   const isCleaner = role === 'CLEANER';

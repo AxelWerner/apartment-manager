@@ -8,7 +8,7 @@ export async function fetchPropertyMembers(propertyId: string): Promise<Property
   try {
     const { data: memberRows, error } = await supabase
       .from('property_members')
-      .select('id, property_id, user_id, role, created_at, updated_at')
+      .select('id, property_id, user_id, role, is_owner, created_at, updated_at')
       .eq('property_id', propertyId)
       .order('created_at', { ascending: true });
 
@@ -46,6 +46,7 @@ export async function fetchPropertyMembers(propertyId: string): Promise<Property
       property_id: m.property_id,
       user_id: m.user_id,
       role: m.role as UserRole,
+      is_owner: Boolean(m.is_owner || m.role === 'OWNER'),
       created_at: m.created_at,
       updated_at: m.updated_at,
       profile: profileMap[m.user_id] || null,
@@ -75,6 +76,29 @@ export async function updatePropertyMemberRole(
 
   if (error) {
     console.error('Error updating member role:', error);
+    throw error;
+  }
+}
+
+/**
+ * Actualizar si un miembro es Dueño / Copropietario del apartamento
+ */
+export async function updatePropertyMemberOwnership(
+  propertyId: string,
+  memberId: string,
+  isOwner: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('property_members')
+    .update({
+      is_owner: isOwner,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', memberId)
+    .eq('property_id', propertyId);
+
+  if (error) {
+    console.error('Error updating member ownership flag:', error);
     throw error;
   }
 }
@@ -128,7 +152,8 @@ export async function fetchPropertyInvitations(propertyId: string): Promise<Prop
 export async function createPropertyInvitation(
   propertyId: string,
   email: string,
-  role: UserRole
+  role: UserRole,
+  isOwner: boolean = false
 ): Promise<PropertyInvitation> {
   const {
     data: { user },
@@ -153,6 +178,7 @@ export async function createPropertyInvitation(
       property_id: propertyId,
       email: email.trim().toLowerCase(),
       role,
+      is_owner: isOwner,
       invited_by: user?.id || null,
       token,
       status: 'pending',

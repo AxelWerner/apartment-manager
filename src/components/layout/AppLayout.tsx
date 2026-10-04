@@ -49,7 +49,7 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
 };
 
 export function AppLayout() {
-  const { properties, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
+  const { properties, activePropertyId, role: propertyRole, isOwner, isLoading } = useActiveProperty();
   const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -220,12 +220,19 @@ export function AppLayout() {
                   <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate" title={user.email}>
                     {user.email}
                   </p>
-                  <span
-                    className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded border ${roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
-                      }`}
-                  >
-                    {roleConfig[currentRole]?.label || currentRole}
-                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {isOwner && (
+                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded border bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                        👑 Dueño
+                      </span>
+                    )}
+                    <span
+                      className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded border ${roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
+                        }`}
+                    >
+                      {roleConfig[currentRole]?.label || currentRole}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button

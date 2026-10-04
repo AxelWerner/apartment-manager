@@ -32,6 +32,7 @@ export interface PropertyMember {
   property_id: string;
   user_id: string;
   role: UserRole;
+  is_owner?: boolean;
   created_at?: string;
   updated_at?: string;
   profile?: UserProfile | null;
@@ -42,6 +43,7 @@ export interface PropertyInvitation {
   property_id: string;
   email: string;
   role: UserRole;
+  is_owner?: boolean;
   invited_by: string | null;
   token: string;
   status: InvitationStatus;
@@ -97,6 +99,7 @@ export interface Property {
   management_fee_rate?: number; // e.g. 20.0 for 20%
   check_in_time: string;
   check_out_time: string;
+  created_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
