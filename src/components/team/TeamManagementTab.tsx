@@ -21,7 +21,6 @@ import {
   usePropertyMembers,
   usePropertyInvitations,
   useUpdateMemberRole,
-  useUpdateMemberOwnership,
   useTransferPrimaryOwnership,
   useRemoveMember,
   useCancelInvitation,
@@ -50,11 +49,18 @@ const roleBadgeConfig: Record<
     border: 'border-purple-200 dark:border-purple-800',
     icon: Shield,
   },
+  PRIMARY_OWNER: {
+    label: 'Dueño Principal',
+    bg: 'bg-amber-50 dark:bg-amber-950/60',
+    text: 'text-amber-700 dark:text-amber-300',
+    border: 'border-amber-300 dark:border-amber-700',
+    icon: Crown,
+  },
   OWNER: {
-    label: 'Dueño',
-    bg: 'bg-blue-50 dark:bg-blue-950/60',
-    text: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-200 dark:border-blue-800',
+    label: 'Dueño (Copropietario)',
+    bg: 'bg-amber-50/70 dark:bg-amber-950/40',
+    text: 'text-amber-800 dark:text-amber-200',
+    border: 'border-amber-200 dark:border-amber-800',
     icon: Crown,
   },
   ADMINISTRATOR: {
@@ -66,9 +72,9 @@ const roleBadgeConfig: Record<
   },
   OPERATOR: {
     label: 'Gestor Operativo',
-    bg: 'bg-amber-50 dark:bg-amber-950/60',
-    text: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-200 dark:border-amber-800',
+    bg: 'bg-blue-50 dark:bg-blue-950/60',
+    text: 'text-blue-700 dark:text-blue-300',
+    border: 'border-blue-200 dark:border-blue-800',
     icon: SlidersHorizontal,
   },
   CLEANER: {
@@ -103,15 +109,15 @@ export function TeamManagementTab({
   const { data: invitations = [], isLoading: isLoadingInvitations } = usePropertyInvitations(propertyId);
 
   const updateRoleMutation = useUpdateMemberRole(propertyId);
-  const updateOwnershipMutation = useUpdateMemberOwnership(propertyId);
   const transferOwnershipMutation = useTransferPrimaryOwnership(propertyId);
   const removeMemberMutation = useRemoveMember(propertyId);
   const cancelInvitationMutation = useCancelInvitation(propertyId);
 
   const isPrimaryOwner = Boolean(
     isCurrentUserPrimaryOwner ||
+    currentUserRole === 'PRIMARY_OWNER' ||
     currentUserRole === 'SUPER_USER' ||
-    members.find((m) => m.user_id === user?.id)?.is_primary_owner
+    members.find((m) => m.user_id === user?.id)?.role === 'PRIMARY_OWNER'
   );
 
   const isOwner = Boolean(
@@ -119,7 +125,7 @@ export function TeamManagementTab({
     isCurrentUserOwner ||
     currentUserRole === 'OWNER' ||
     currentUserRole === 'SUPER_USER' ||
-    members.find((m) => m.user_id === user?.id)?.is_owner
+    members.find((m) => m.user_id === user?.id)?.role === 'OWNER'
   );
 
   const isOwnerOrAdmin = isOwner || currentUserRole === 'ADMINISTRATOR';
@@ -139,10 +145,23 @@ export function TeamManagementTab({
 
   const handleRoleChange = async (member: PropertyMember, newRole: UserRole) => {
     if (member.role === newRole) return;
-    if (member.is_primary_owner) {
+    if (member.role === 'PRIMARY_OWNER' || member.is_primary_owner) {
       toast.error('El Dueño Principal tiene máxima jerarquía y su rol no se modifica.');
       return;
     }
+    if (newRole === 'PRIMARY_OWNER') {
+      toast.error('La titularidad de Dueño Principal solo puede transferirse con el botón dedicado.');
+      return;
+    }
+
+    if (member.role === 'OWNER' && newRole !== 'OWNER') {
+      const ownersCount = members.filter((m) => m.role === 'OWNER' || m.role === 'PRIMARY_OWNER').length;
+      if (ownersCount <= 1) {
+        toast.error('Debe haber al menos un Dueño asignado al apartamento.');
+        return;
+      }
+    }
+
     try {
       await updateRoleMutation.mutateAsync({
         memberId: member.id,
@@ -151,33 +170,6 @@ export function TeamManagementTab({
       toast.success('Rol actualizado correctamente');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al actualizar rol';
-      toast.error(msg);
-    }
-  };
-
-  const handleOwnershipChange = async (member: PropertyMember, newIsOwner: boolean) => {
-    if (member.is_primary_owner) {
-      toast.error('El Dueño Principal posee titularidad absoluta y no puede ser desmarcado.');
-      return;
-    }
-
-    // Si se quiere desmarcar como dueño, validar que no sea el único
-    if (!newIsOwner && member.is_owner) {
-      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER' || m.is_primary_owner).length;
-      if (ownersCount <= 1) {
-        toast.error('Debe haber al menos un dueño asignado al apartamento.');
-        return;
-      }
-    }
-
-    try {
-      await updateOwnershipMutation.mutateAsync({
-        memberId: member.id,
-        isOwner: newIsOwner,
-      });
-      toast.success(newIsOwner ? 'Usuario marcado como Dueño' : 'Titularidad de Dueño retirada');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al actualizar titularidad';
       toast.error(msg);
     }
   };
@@ -201,14 +193,14 @@ export function TeamManagementTab({
   };
 
   const handleRemoveMember = async (member: PropertyMember) => {
-    if (member.is_primary_owner) {
+    if (member.role === 'PRIMARY_OWNER' || member.is_primary_owner) {
       toast.error('No se puede revocar el acceso al Dueño Principal.');
       return;
     }
 
     // Verificar si es el único dueño
-    if (member.is_owner || member.role === 'OWNER') {
-      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER' || m.is_primary_owner).length;
+    if (member.role === 'OWNER') {
+      const ownersCount = members.filter((m) => m.role === 'OWNER' || m.role === 'PRIMARY_OWNER').length;
       if (ownersCount <= 1) {
         toast.error('No puedes eliminar al único dueño del apartamento.');
         return;
@@ -274,24 +266,8 @@ export function TeamManagementTab({
       </div>
 
       {/* Permissions / Role Guide Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {/* Dueño Flag Card */}
-        <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300">
-              <Crown className="w-3.5 h-3.5 fill-amber-500/20" />
-            </div>
-            <span className="text-xs font-bold text-amber-950 dark:text-amber-100">
-              Dueño Principal / Dueño
-            </span>
-          </div>
-          <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-tight">
-            Máxima autoridad sobre finanzas. El Dueño Principal es inmune a remoción o degradación y puede transferir la titularidad.
-          </p>
-        </div>
-
-        {/* 4 Operational Roles */}
-        {(['ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        {(['PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'] as UserRole[]).map((r) => {
           const cfg = roleBadgeConfig[r];
           const Icon = cfg.icon;
           return (
@@ -308,8 +284,10 @@ export function TeamManagementTab({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                {r === 'ADMINISTRATOR' && 'Gestión completa de tarifas, comisiones, miembros y ajustes técnicos.'}
-                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos del apto, guía del huésped y daños.'}
+                {r === 'PRIMARY_OWNER' && 'Titular supremo e inmune. Único que puede transferir titularidad o eliminar el apto.'}
+                {r === 'OWNER' && 'Copropietario con acceso total financiero y de gestión.'}
+                {r === 'ADMINISTRATOR' && 'Gestión completa de tarifas, comisiones y configuración técnica.'}
+                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos, guía del huésped y daños.'}
                 {r === 'CLEANER' && 'Calendario de entradas/salidas y reporte fotográfico de incidencias.'}
                 {r === 'VIEWER' && 'Lectura de estadísticas e ingresos sin permisos de modificación.'}
               </p>
@@ -378,14 +356,14 @@ export function TeamManagementTab({
                           {initials}
                         </div>
                       )}
-                      {member.is_primary_owner ? (
+                      {member.role === 'PRIMARY_OWNER' || member.is_primary_owner ? (
                         <span
                           title="Dueño Principal (Titular Inmune)"
                           className="absolute -bottom-1 -right-1 p-0.5 bg-amber-500 text-white rounded-full ring-2 ring-white dark:ring-slate-900"
                         >
                           <Crown className="w-3 h-3 fill-white" />
                         </span>
-                      ) : member.is_owner ? (
+                      ) : member.role === 'OWNER' ? (
                         <span
                           title="Dueño / Copropietario"
                           className="absolute -bottom-1 -right-1 p-0.5 bg-amber-400 text-white rounded-full ring-2 ring-white dark:ring-slate-900"
@@ -433,55 +411,24 @@ export function TeamManagementTab({
                     </div>
                   </div>
 
-                  {/* Role Selector, Dueño Badge & Actions */}
+                  {/* Role Selector & Actions */}
                   <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-center">
                     {/* Primary Owner Badge (IMMUNE) */}
-                    {member.is_primary_owner ? (
+                    {member.role === 'PRIMARY_OWNER' || member.is_primary_owner ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border bg-gradient-to-r from-amber-500/15 via-yellow-500/15 to-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/80 shadow-xs">
                         <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                         <span>Dueño Principal</span>
                       </span>
                     ) : (
                       <>
-                        {/* Dueño Flag Toggle / Badge */}
-                        {isOwner && !isCurrentUser ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOwnershipChange(member, !member.is_owner)}
-                            title={
-                              member.is_owner
-                                ? 'Hacer clic para retirar la titularidad de Dueño'
-                                : 'Hacer clic para marcar como Dueño / Copropietario'
-                            }
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                              member.is_owner
-                                ? 'bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700 shadow-xs hover:bg-amber-200/80 dark:hover:bg-amber-900/60'
-                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 hover:text-amber-700 dark:hover:text-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                            }`}
-                          >
-                            <Crown
-                              className={`w-3.5 h-3.5 ${
-                                member.is_owner
-                                  ? 'text-amber-600 dark:text-amber-400 fill-amber-500/20'
-                                  : 'text-slate-400'
-                              }`}
-                            />
-                            <span>{member.is_owner ? 'Dueño' : '+ Dueño'}</span>
-                          </button>
-                        ) : member.is_owner ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700">
-                            <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
-                            <span>Dueño</span>
-                          </span>
-                        ) : null}
-
-                        {/* Operational Role Selector */}
+                        {/* Unified Role Selector */}
                         {isOwner && !isCurrentUser ? (
                           <select
                             value={member.role}
                             onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
                             className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
                           >
+                            <option value="OWNER">Dueño (Copropietario)</option>
                             <option value="ADMINISTRATOR">Administrador</option>
                             <option value="OPERATOR">Gestor Operativo</option>
                             <option value="CLEANER">Limpieza</option>
@@ -573,12 +520,6 @@ export function TeamManagementTab({
                         <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                           {inv.email}
                         </span>
-                        {inv.is_owner && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800 flex items-center gap-1">
-                            <Crown className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
-                            Dueño
-                          </span>
-                        )}
                         {isExpired ? (
                           <span className="px-2 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 text-[10px] font-semibold flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />

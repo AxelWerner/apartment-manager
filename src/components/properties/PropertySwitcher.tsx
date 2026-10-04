@@ -14,13 +14,17 @@ const roleConfig: Record<UserRole, { label: string; badge: string }> = {
     label: 'Super Admin',
     badge: 'bg-purple-100/90 text-purple-700 border-purple-200/80 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/60',
   },
+  PRIMARY_OWNER: {
+    label: 'Dueño Principal',
+    badge: 'bg-amber-100/90 text-amber-800 border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
+  },
   OWNER: {
     label: 'Dueño',
-    badge: 'bg-amber-100/90 text-amber-800 border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60',
+    badge: 'bg-blue-100/90 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
   },
   ADMINISTRATOR: {
     label: 'Admin',
-    badge: 'bg-blue-100/90 text-blue-700 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800/60',
+    badge: 'bg-rose-100/90 text-rose-700 border-rose-200/80 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800/60',
   },
   OPERATOR: {
     label: 'Gestor',
@@ -36,19 +40,11 @@ const roleConfig: Record<UserRole, { label: string; badge: string }> = {
   },
 };
 
-export function RoleBadge({ role, isOwner }: { role: UserRole; isOwner?: boolean }) {
+export function RoleBadge({ role }: { role: UserRole; isOwner?: boolean }) {
   const config = roleConfig[role] || roleConfig.VIEWER;
 
   return (
     <span className="inline-flex items-center gap-1 shrink-0">
-      {isOwner && (
-        <span
-          title="Dueño del inmueble"
-          className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md border tracking-tight bg-blue-100/90 text-blue-800 border-blue-200/80 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/60 shrink-0"
-        >
-          👑 Dueño
-        </span>
-      )}
       <span
         className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-tight shrink-0 ${config.badge}`}
       >

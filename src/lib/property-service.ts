@@ -37,7 +37,7 @@ export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
 
     const { data, error } = await supabase
       .from('property_members')
-      .select('role, is_owner, properties (*)')
+      .select('role, properties (*)')
       .eq('user_id', user.id);
 
     if (error || !data) {
@@ -47,7 +47,6 @@ export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
 
     interface PropertyMemberRow {
       role: UserRole;
-      is_owner?: boolean;
       properties: Property | null;
     }
 
@@ -56,7 +55,7 @@ export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
       .map((row) => ({
         property: row.properties as Property,
         role: row.role,
-        isOwner: Boolean(row.is_owner || row.role === 'OWNER'),
+        isOwner: Boolean(row.role === 'PRIMARY_OWNER' || row.role === 'OWNER'),
       }));
   } catch (err) {
     console.error('Failed to fetch user properties:', err);
@@ -99,15 +98,13 @@ export async function createNewProperty(propertyData: {
   management_fee_rate?: number;
   check_in_time?: string;
   check_out_time?: string;
-  isOwner?: boolean;
   creatorRole?: UserRole;
 }): Promise<Property> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isOwner = propertyData.isOwner ?? true;
-  const creatorRole = propertyData.creatorRole || 'ADMINISTRATOR';
+  const creatorRole = propertyData.creatorRole || 'PRIMARY_OWNER';
 
   const { data, error } = await supabase
     .from('properties')
@@ -132,20 +129,18 @@ export async function createNewProperty(propertyData: {
     throw error;
   }
 
-  // Si el usuario especificó no ser dueño o un rol distinto al default de administrador:
-  if (user?.id && (!isOwner || creatorRole !== 'ADMINISTRATOR')) {
+  if (user?.id && creatorRole && creatorRole !== 'PRIMARY_OWNER') {
     try {
       await supabase
         .from('property_members')
         .update({
-          is_owner: isOwner,
           role: creatorRole,
           updated_at: new Date().toISOString(),
         })
         .eq('property_id', data.id)
         .eq('user_id', user.id);
     } catch (memberErr) {
-      console.warn('Could not update creator role/ownership:', memberErr);
+      console.warn('Could not update creator role:', memberErr);
     }
   }
 

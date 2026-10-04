@@ -38,9 +38,7 @@ export function CreatePropertyModal({ isOpen, onClose }: CreatePropertyModalProp
         default_nightly_rate: 250000,
         default_cleaning_fee: 80000,
         monthly_revenue_target: 3000000,
-        management_fee_rate: 20.0,
-        isOwner,
-        creatorRole: 'ADMINISTRATOR',
+        creatorRole: isOwner ? 'PRIMARY_OWNER' : 'ADMINISTRATOR',
       });
       onClose();
     } catch (err: unknown) {

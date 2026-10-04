@@ -8,6 +8,7 @@ export type Json =
 
 export type UserRole =
   | 'SUPER_USER'
+  | 'PRIMARY_OWNER'
   | 'OWNER'
   | 'ADMINISTRATOR'
   | 'OPERATOR'
@@ -32,7 +33,6 @@ export interface PropertyMember {
   property_id: string;
   user_id: string;
   role: UserRole;
-  is_owner?: boolean;
   is_primary_owner?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -44,7 +44,6 @@ export interface PropertyInvitation {
   property_id: string;
   email: string;
   role: UserRole;
-  is_owner?: boolean;
   invited_by: string | null;
   token: string;
   status: InvitationStatus;

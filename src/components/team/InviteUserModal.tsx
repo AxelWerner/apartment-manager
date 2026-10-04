@@ -37,9 +37,23 @@ const roleOptions: Array<{
   checkColor: string;
 }> = [
   {
+    role: 'OWNER',
+    title: 'Dueño / Copropietario',
+    description: 'Acceso total y financiero. Socio o co-titular del apartamento con plenos derechos.',
+    icon: Crown,
+    selectedCardClass:
+      'border-amber-500 dark:border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-500/25 shadow-xs',
+    unselectedCardClass:
+      'border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:border-amber-300 dark:hover:border-amber-800/60',
+    selectedIconClass: 'bg-amber-600 text-white shadow-xs shadow-amber-600/30',
+    unselectedIconClass:
+      'bg-amber-100/80 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200/70 dark:border-amber-900/50',
+    checkColor: 'text-amber-600 dark:text-amber-400',
+  },
+  {
     role: 'ADMINISTRATOR',
     title: 'Administrador',
-    description: 'Gestión total de reservas, gastos, facturación, guía e invitaciones.',
+    description: 'Gestión técnica y operativa de tarifas, comisiones, miembros y ajustes técnicos.',
     icon: Briefcase,
     selectedCardClass:
       'border-rose-500 dark:border-rose-500 bg-rose-50/80 dark:bg-rose-950/40 ring-2 ring-rose-500/25 shadow-xs',
@@ -56,13 +70,13 @@ const roleOptions: Array<{
     description: 'Operativa diaria: reservas, gastos del apto, guía del huésped y daños sin acceso a finanzas críticas ni miembros.',
     icon: SlidersHorizontal,
     selectedCardClass:
-      'border-amber-500 dark:border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-500/25 shadow-xs',
+      'border-blue-500 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/25 shadow-xs',
     unselectedCardClass:
-      'border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:border-amber-300 dark:hover:border-amber-800/60',
-    selectedIconClass: 'bg-amber-600 text-white shadow-xs shadow-amber-600/30',
+      'border-slate-200/90 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 hover:border-blue-300 dark:hover:border-blue-800/60',
+    selectedIconClass: 'bg-blue-600 text-white shadow-xs shadow-blue-600/30',
     unselectedIconClass:
-      'bg-amber-100/80 dark:bg-amber-950/70 text-amber-700 dark:text-amber-400 border border-amber-200/70 dark:border-amber-900/50',
-    checkColor: 'text-amber-600 dark:text-amber-400',
+      'bg-blue-100/80 dark:bg-blue-950/70 text-blue-700 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/50',
+    checkColor: 'text-blue-600 dark:text-blue-400',
   },
   {
     role: 'CLEANER',
@@ -102,7 +116,6 @@ export function InviteUserModal({
 }: InviteUserModalProps) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('ADMINISTRATOR');
-  const [isOwner, setIsOwner] = useState(false);
   const [createdInvitation, setCreatedInvitation] = useState<PropertyInvitation | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
 
@@ -113,7 +126,6 @@ export function InviteUserModal({
   const handleClose = () => {
     setEmail('');
     setRole('ADMINISTRATOR');
-    setIsOwner(false);
     setCreatedInvitation(null);
     setHasCopied(false);
     onClose();
@@ -127,7 +139,6 @@ export function InviteUserModal({
       const inv = await inviteMutation.mutateAsync({
         email: email.trim(),
         role,
-        isOwner,
       });
       setCreatedInvitation(inv);
       toast.success(`Invitación generada para ${email}`);
@@ -206,10 +217,17 @@ export function InviteUserModal({
                 </h4>
                 <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
                   Se ha generado un enlace exclusivo válido por 48 horas para{' '}
-                  <strong className="font-semibold">{createdInvitation.email}</strong>{' '}
-                  {createdInvitation.is_owner ? 'como 👑 Dueño / Copropietario con rol ' : 'con rol de '}
-                  <span className="uppercase font-semibold tracking-wider text-[11px]">
-                    {createdInvitation.role}
+                  <strong className="font-semibold">{createdInvitation.email}</strong> con rol de{' '}
+                  <span className="font-bold text-xs">
+                    {createdInvitation.role === 'OWNER'
+                      ? '👑 Dueño / Copropietario'
+                      : createdInvitation.role === 'ADMINISTRATOR'
+                      ? '💼 Administrador'
+                      : createdInvitation.role === 'OPERATOR'
+                      ? '🎛️ Gestor Operativo'
+                      : createdInvitation.role === 'CLEANER'
+                      ? '✨ Limpieza'
+                      : '👁️ Lector'}
                   </span>
                   .
                 </p>
@@ -290,29 +308,9 @@ export function InviteUserModal({
               </p>
             </div>
 
-            {/* Titularidad / Dueño toggle */}
-            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 flex items-start gap-3 transition-colors">
-              <input
-                id="modal-is-owner"
-                type="checkbox"
-                checked={isOwner}
-                onChange={(e) => setIsOwner(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="modal-is-owner" className="flex-1 cursor-pointer select-none">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
-                  <Crown className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Marcar como Dueño / Copropietario</span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                  Identifica a la persona como titular del apartamento. Podrá consultar las liquidaciones y reportes oficiales de ganancias.
-                </p>
-              </label>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Nivel de Permisos / Rol Operativo *
+                Rol Asignado en el Apartamento *
               </label>
               <div className="grid grid-cols-1 gap-2">
                 {roleOptions.map((opt) => {

@@ -26,6 +26,14 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
     label: 'Super User',
     badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800',
   },
+  PRIMARY_OWNER: {
+    label: 'Dueño Principal',
+    badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+  },
+  OWNER: {
+    label: 'Dueño',
+    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+  },
   ADMINISTRATOR: {
     label: 'Admin',
     badgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800',
@@ -33,10 +41,6 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
   OPERATOR: {
     label: 'Gestor Operativo',
     badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-  },
-  OWNER: {
-    label: 'Dueño',
-    badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800',
   },
   CLEANER: {
     label: 'Limpieza',
@@ -49,7 +53,7 @@ const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
 };
 
 export function AppLayout() {
-  const { properties, activePropertyId, role: propertyRole, isOwner, isLoading } = useActiveProperty();
+  const { properties, activePropertyId, role: propertyRole, isLoading } = useActiveProperty();
   const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -79,7 +83,7 @@ export function AppLayout() {
         title: 'Dashboard de Rentabilidad',
         description: 'Monitoreo en tiempo real de ingresos, gastos y rentabilidad en Pesos Colombianos (COP)',
         icon: LayoutDashboard,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/analytics`,
@@ -88,7 +92,7 @@ export function AppLayout() {
         title: 'Analíticas del Apto',
         description: 'Indicadores de desempeño hotelero y rentabilidad',
         icon: BarChart3,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/bookings`,
@@ -105,7 +109,7 @@ export function AppLayout() {
         title: 'Gastos y Servicios del Apartamento',
         description: 'Administración, servicios públicos (EPM), seguro anual, insumos y limpiezas',
         icon: Receipt,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR'],
       },
       {
         to: `${basePath}/damages`,
@@ -130,7 +134,7 @@ export function AppLayout() {
         title: 'Configuración del Apartamento',
         description: 'Datos de la propiedad, tarifas predeterminadas en COP, gestión de equipo y usuarios',
         icon: Settings,
-        roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER'],
       },
     ];
 
@@ -221,11 +225,6 @@ export function AppLayout() {
                     {user.email}
                   </p>
                   <div className="flex items-center gap-1 mt-0.5">
-                    {isOwner && (
-                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.2 rounded border bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800">
-                        👑 Dueño
-                      </span>
-                    )}
                     <span
                       className={`inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded border ${roleConfig[currentRole]?.badgeClass || 'bg-slate-100 text-slate-700'
                         }`}

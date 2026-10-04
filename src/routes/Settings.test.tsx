@@ -60,8 +60,7 @@ describe('Settings Route - Tabs & Team Management', () => {
       id: 'mem-1',
       property_id: 'prop-1',
       user_id: 'user-1',
-      role: 'OWNER',
-      is_owner: true,
+      role: 'PRIMARY_OWNER',
       is_primary_owner: true,
       created_at: '2026-01-01',
       profile: {
@@ -75,7 +74,6 @@ describe('Settings Route - Tabs & Team Management', () => {
       property_id: 'prop-1',
       user_id: 'user-2',
       role: 'ADMINISTRATOR',
-      is_owner: false,
       is_primary_owner: false,
       created_at: '2026-02-01',
       profile: {
@@ -152,7 +150,7 @@ describe('Settings Route - Tabs & Team Management', () => {
 
     expect(screen.getByText('Equipo y Usuarios del Apartamento')).toBeInTheDocument();
     expect(screen.getByText('Carlos Propietario')).toBeInTheDocument();
-    expect(screen.getByText('Dueño Principal')).toBeInTheDocument();
+    expect(screen.getAllByText('Dueño Principal').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('María Administradora')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Transferir Titularidad/i })).toBeInTheDocument();
     expect(screen.getByText('cleaner@test.com')).toBeInTheDocument();

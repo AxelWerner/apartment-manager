@@ -33,14 +33,12 @@ export function useCreateInvitation(propertyId?: string) {
     mutationFn: ({
       email,
       role,
-      isOwner = false,
     }: {
       email: string;
       role: UserRole;
-      isOwner?: boolean;
     }) => {
       if (!propertyId) throw new Error('No active property selected');
-      return createPropertyInvitation(propertyId, email, role, isOwner);
+      return createPropertyInvitation(propertyId, email, role);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property_invitations', propertyId] });

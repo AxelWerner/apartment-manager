@@ -36,11 +36,17 @@ const roleLabels: Record<
     icon: Shield,
     colorClass: 'text-purple-600 bg-purple-50 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800',
   },
+  PRIMARY_OWNER: {
+    label: 'Dueño Principal',
+    description: 'Titular absoluto del apartamento con inmunidad',
+    icon: Crown,
+    colorClass: 'text-amber-700 bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700',
+  },
   OWNER: {
     label: 'Dueño / Copropietario',
     description: 'Control financiero completo, administración y configuración',
     icon: Crown,
-    colorClass: 'text-blue-600 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800',
+    colorClass: 'text-amber-600 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
   },
   ADMINISTRATOR: {
     label: 'Administrador',
@@ -238,22 +244,6 @@ export default function AcceptInvitation() {
 
         {/* Content Body */}
         <div className="p-8 space-y-6">
-          {invitation.is_owner && (
-            <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center gap-3 text-blue-900 dark:text-blue-200">
-              <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0 shadow-xs">
-                <Crown className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                  Titularidad de la propiedad
-                </div>
-                <div className="text-xs font-semibold mt-0.5">
-                  Has sido invitado como Dueño / Copropietario del inmueble
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Role info pill */}
           <div
             className={`p-4 rounded-2xl border flex items-start gap-3.5 ${roleInfo.colorClass}`}

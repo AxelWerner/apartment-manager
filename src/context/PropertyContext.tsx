@@ -131,6 +131,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
   }, [activeMembership, user]);
 
   const isPrimaryOwner = Boolean(
+    role === 'PRIMARY_OWNER' ||
     role === 'SUPER_USER' ||
     (activeProperty?.primary_owner_id && user?.id && activeProperty.primary_owner_id === user.id) ||
     (!activeProperty?.primary_owner_id && activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
@@ -138,7 +139,6 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
 
   const isOwner = Boolean(
     isPrimaryOwner ||
-    role === 'SUPER_USER' ||
     role === 'OWNER' ||
     activeMembership?.isOwner
   );
