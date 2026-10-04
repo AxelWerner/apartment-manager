@@ -128,7 +128,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-rose-500" />
               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Tus Apartamentos
+                Apartamentos
               </span>
             </div>
             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
@@ -183,7 +183,7 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
 
             {properties.length === 0 && (
               <div className="p-4 text-center text-xs text-slate-400">
-                No tienes apartamentos registrados aún.
+                No hay apartamentos registrados aún.
               </div>
             )}
           </div>
