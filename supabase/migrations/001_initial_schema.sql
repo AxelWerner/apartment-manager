@@ -23,6 +23,9 @@ DROP TYPE IF EXISTS expense_category CASCADE;
 DROP TYPE IF EXISTS payout_status CASCADE;
 DROP TYPE IF EXISTS booking_status CASCADE;
 
+-- 0. EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 -- 1. ENUMS
 CREATE TYPE booking_status AS ENUM ('confirmed', 'checked_in', 'completed', 'cancelled');
 CREATE TYPE payout_status AS ENUM ('pending', 'paid');
@@ -131,7 +134,7 @@ CREATE TABLE property_invitations (
   email TEXT NOT NULL,
   role user_role NOT NULL DEFAULT 'VIEWER',
   invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  token TEXT UNIQUE DEFAULT encode(gen_random_bytes(24), 'hex'),
+  token TEXT UNIQUE DEFAULT encode(extensions.gen_random_bytes(24), 'hex'),
   status invitation_status DEFAULT 'pending',
   expires_at TIMESTAMPTZ DEFAULT (now() + interval '48 hours'),
   created_at TIMESTAMPTZ DEFAULT now(),
