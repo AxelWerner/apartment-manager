@@ -3,6 +3,7 @@ import {
   fetchPropertyMembers,
   updatePropertyMemberRole,
   updatePropertyMemberOwnership,
+  transferPrimaryOwnership,
   removePropertyMember,
   fetchPropertyInvitations,
   createPropertyInvitation,
@@ -79,6 +80,21 @@ export function useUpdateMemberOwnership(propertyId?: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property_members', propertyId] });
+    },
+  });
+}
+
+export function useTransferPrimaryOwnership(propertyId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ newOwnerUserId }: { newOwnerUserId: string }) => {
+      if (!propertyId) throw new Error('No active property selected');
+      return transferPrimaryOwnership(propertyId, newOwnerUserId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['property_members', propertyId] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
     },
   });
 }

@@ -17,7 +17,7 @@ import type { Property, Booking, Expense, Damage, UserRole } from '@/types/datab
 import { toast } from 'sonner';
 
 export default function Settings() {
-  const { activeProperty, updateProperty, activePropertyId, role, isOwner } = useActiveProperty();
+  const { activeProperty, updateProperty, activePropertyId, role, isOwner, isPrimaryOwner } = useActiveProperty();
   const { data: bookings = [] } = useBookings(activePropertyId);
   const { data: expenses = [] } = useExpenses(activePropertyId);
   const { data: damages = [] } = useDamages(activePropertyId);
@@ -93,6 +93,7 @@ export default function Settings() {
           propertyName={activeProperty?.name || ''}
           currentUserRole={role as UserRole}
           isCurrentUserOwner={isOwner}
+          isCurrentUserPrimaryOwner={isPrimaryOwner}
         />
       )}
     </div>

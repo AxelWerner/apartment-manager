@@ -31,6 +31,7 @@ vi.mock('@/hooks/use-team', () => ({
   useCreateInvitation: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useUpdateMemberRole: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useUpdateMemberOwnership: vi.fn(() => ({ mutateAsync: vi.fn() })),
+  useTransferPrimaryOwnership: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useRemoveMember: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useCancelInvitation: vi.fn(() => ({ mutateAsync: vi.fn() })),
 }));
@@ -51,6 +52,7 @@ describe('Settings Route - Tabs & Team Management', () => {
     management_fee_rate: 20.0,
     check_in_time: '15:00',
     check_out_time: '11:00',
+    primary_owner_id: 'user-1',
   };
 
   const mockMembers = [
@@ -59,6 +61,8 @@ describe('Settings Route - Tabs & Team Management', () => {
       property_id: 'prop-1',
       user_id: 'user-1',
       role: 'OWNER',
+      is_owner: true,
+      is_primary_owner: true,
       created_at: '2026-01-01',
       profile: {
         id: 'user-1',
@@ -71,6 +75,8 @@ describe('Settings Route - Tabs & Team Management', () => {
       property_id: 'prop-1',
       user_id: 'user-2',
       role: 'ADMINISTRATOR',
+      is_owner: false,
+      is_primary_owner: false,
       created_at: '2026-02-01',
       profile: {
         id: 'user-2',
@@ -100,6 +106,7 @@ describe('Settings Route - Tabs & Team Management', () => {
       updateProperty: vi.fn(),
       role: 'OWNER',
       isOwner: true,
+      isPrimaryOwner: true,
       isAdmin: true,
       isOperator: true,
       isCleaner: false,
@@ -145,7 +152,9 @@ describe('Settings Route - Tabs & Team Management', () => {
 
     expect(screen.getByText('Equipo y Usuarios del Apartamento')).toBeInTheDocument();
     expect(screen.getByText('Carlos Propietario')).toBeInTheDocument();
+    expect(screen.getByText('Dueño Principal')).toBeInTheDocument();
     expect(screen.getByText('María Administradora')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Transferir Titularidad/i })).toBeInTheDocument();
     expect(screen.getByText('cleaner@test.com')).toBeInTheDocument();
   });
 

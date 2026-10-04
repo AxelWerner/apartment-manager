@@ -33,6 +33,7 @@ export interface PropertyMember {
   user_id: string;
   role: UserRole;
   is_owner?: boolean;
+  is_primary_owner?: boolean;
   created_at?: string;
   updated_at?: string;
   profile?: UserProfile | null;
@@ -100,6 +101,7 @@ export interface Property {
   check_in_time: string;
   check_out_time: string;
   created_by?: string | null;
+  primary_owner_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }

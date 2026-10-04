@@ -41,16 +41,35 @@ export async function fetchPropertyMembers(propertyId: string): Promise<Property
       console.warn('Could not fetch member profiles:', profileErr);
     }
 
-    return memberRows.map((m) => ({
-      id: m.id,
-      property_id: m.property_id,
-      user_id: m.user_id,
-      role: m.role as UserRole,
-      is_owner: Boolean(m.is_owner || m.role === 'OWNER'),
-      created_at: m.created_at,
-      updated_at: m.updated_at,
-      profile: profileMap[m.user_id] || null,
-    }));
+    // Obtener id del dueño principal de la propiedad
+    let primaryOwnerId: string | null = null;
+    try {
+      const { data: propRow } = await supabase
+        .from('properties')
+        .select('primary_owner_id, created_by')
+        .eq('id', propertyId)
+        .single();
+      if (propRow) {
+        primaryOwnerId = propRow.primary_owner_id || propRow.created_by || null;
+      }
+    } catch {
+      // Ignorar fallback
+    }
+
+    return memberRows.map((m) => {
+      const isPrimaryOwner = Boolean(primaryOwnerId && m.user_id === primaryOwnerId);
+      return {
+        id: m.id,
+        property_id: m.property_id,
+        user_id: m.user_id,
+        role: (isPrimaryOwner ? 'OWNER' : m.role) as UserRole,
+        is_owner: Boolean(isPrimaryOwner || m.is_owner || m.role === 'OWNER'),
+        is_primary_owner: isPrimaryOwner,
+        created_at: m.created_at,
+        updated_at: m.updated_at,
+        profile: profileMap[m.user_id] || null,
+      };
+    });
   } catch (err) {
     console.error('Failed to fetch property members:', err);
     return [];
@@ -100,6 +119,29 @@ export async function updatePropertyMemberOwnership(
   if (error) {
     console.error('Error updating member ownership flag:', error);
     throw error;
+  }
+}
+
+/**
+ * Transferir la titularidad de Dueño Principal a otro miembro del apartamento
+ */
+export async function transferPrimaryOwnership(
+  propertyId: string,
+  newOwnerUserId: string
+): Promise<void> {
+  const { data, error } = await supabase.rpc('transfer_primary_ownership', {
+    p_property_id: propertyId,
+    p_new_primary_owner_id: newOwnerUserId,
+  });
+
+  if (error) {
+    console.error('Error transferring primary ownership:', error);
+    throw error;
+  }
+
+  const result = data as { success?: boolean; error?: string };
+  if (!result || !result.success) {
+    throw new Error(result?.error || 'No se pudo transferir la titularidad de Dueño Principal');
   }
 }
 

@@ -15,12 +15,14 @@ import {
   Shield,
   Loader2,
   AlertTriangle,
+  ArrowRightLeft,
 } from 'lucide-react';
 import {
   usePropertyMembers,
   usePropertyInvitations,
   useUpdateMemberRole,
   useUpdateMemberOwnership,
+  useTransferPrimaryOwnership,
   useRemoveMember,
   useCancelInvitation,
 } from '@/hooks/use-team';
@@ -34,6 +36,7 @@ interface TeamManagementTabProps {
   propertyName: string;
   currentUserRole: UserRole;
   isCurrentUserOwner?: boolean;
+  isCurrentUserPrimaryOwner?: boolean;
 }
 
 const roleBadgeConfig: Record<
@@ -89,6 +92,7 @@ export function TeamManagementTab({
   propertyName,
   currentUserRole,
   isCurrentUserOwner,
+  isCurrentUserPrimaryOwner,
 }: TeamManagementTabProps) {
   const { user } = useAuth();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -100,13 +104,22 @@ export function TeamManagementTab({
 
   const updateRoleMutation = useUpdateMemberRole(propertyId);
   const updateOwnershipMutation = useUpdateMemberOwnership(propertyId);
+  const transferOwnershipMutation = useTransferPrimaryOwnership(propertyId);
   const removeMemberMutation = useRemoveMember(propertyId);
   const cancelInvitationMutation = useCancelInvitation(propertyId);
 
+  const isPrimaryOwner = Boolean(
+    isCurrentUserPrimaryOwner ||
+    currentUserRole === 'SUPER_USER' ||
+    members.find((m) => m.user_id === user?.id)?.is_primary_owner
+  );
+
   const isOwner = Boolean(
+    isPrimaryOwner ||
     isCurrentUserOwner ||
     currentUserRole === 'OWNER' ||
-    currentUserRole === 'SUPER_USER'
+    currentUserRole === 'SUPER_USER' ||
+    members.find((m) => m.user_id === user?.id)?.is_owner
   );
 
   const isOwnerOrAdmin = isOwner || currentUserRole === 'ADMINISTRATOR';
@@ -126,6 +139,10 @@ export function TeamManagementTab({
 
   const handleRoleChange = async (member: PropertyMember, newRole: UserRole) => {
     if (member.role === newRole) return;
+    if (member.is_primary_owner) {
+      toast.error('El Dueño Principal tiene máxima jerarquía y su rol no se modifica.');
+      return;
+    }
     try {
       await updateRoleMutation.mutateAsync({
         memberId: member.id,
@@ -139,9 +156,14 @@ export function TeamManagementTab({
   };
 
   const handleOwnershipChange = async (member: PropertyMember, newIsOwner: boolean) => {
+    if (member.is_primary_owner) {
+      toast.error('El Dueño Principal posee titularidad absoluta y no puede ser desmarcado.');
+      return;
+    }
+
     // Si se quiere desmarcar como dueño, validar que no sea el único
     if (!newIsOwner && member.is_owner) {
-      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER').length;
+      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER' || m.is_primary_owner).length;
       if (ownersCount <= 1) {
         toast.error('Debe haber al menos un dueño asignado al apartamento.');
         return;
@@ -160,10 +182,33 @@ export function TeamManagementTab({
     }
   };
 
+  const handleTransferPrimaryOwnership = async (member: PropertyMember) => {
+    const confirmName = member.profile?.full_name || member.profile?.email || 'este usuario';
+    const confirmed = window.confirm(
+      `⚠️ ¿TRANSFERIR TITULARIDAD PRINCIPAL A ${confirmName.toUpperCase()}?\n\n` +
+      `Esta acción transferirá la titularidad absoluta del apartamento a este usuario.\n` +
+      `Pasarás a ser Copropietario y ya no podrás modificar ni revocar al nuevo Dueño Principal.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await transferOwnershipMutation.mutateAsync({ newOwnerUserId: member.user_id });
+      toast.success(`Titularidad principal transferida a ${confirmName}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al transferir titularidad';
+      toast.error(msg);
+    }
+  };
+
   const handleRemoveMember = async (member: PropertyMember) => {
+    if (member.is_primary_owner) {
+      toast.error('No se puede revocar el acceso al Dueño Principal.');
+      return;
+    }
+
     // Verificar si es el único dueño
     if (member.is_owner || member.role === 'OWNER') {
-      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER').length;
+      const ownersCount = members.filter((m) => m.is_owner || m.role === 'OWNER' || m.is_primary_owner).length;
       if (ownersCount <= 1) {
         toast.error('No puedes eliminar al único dueño del apartamento.');
         return;
@@ -231,17 +276,17 @@ export function TeamManagementTab({
       {/* Permissions / Role Guide Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Dueño Flag Card */}
-        <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 space-y-1.5">
+        <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 space-y-1.5">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-              <Crown className="w-3.5 h-3.5 fill-blue-500/20" />
+            <div className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300">
+              <Crown className="w-3.5 h-3.5 fill-amber-500/20" />
             </div>
-            <span className="text-xs font-bold text-blue-950 dark:text-blue-100">
-              Dueño (Flag)
+            <span className="text-xs font-bold text-amber-950 dark:text-amber-100">
+              Dueño Principal / Dueño
             </span>
           </div>
-          <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80 leading-tight">
-            Titular o copropietario del apartamento. Máxima autoridad sobre finanzas y no puede ser revocado por admins.
+          <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-tight">
+            Máxima autoridad sobre finanzas. El Dueño Principal es inmune a remoción o degradación y puede transferir la titularidad.
           </p>
         </div>
 
@@ -321,17 +366,34 @@ export function TeamManagementTab({
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
-                    {member.profile?.avatar_url ? (
-                      <img
-                        src={member.profile.avatar_url}
-                        alt={displayName}
-                        className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-300 dark:border-slate-700">
-                        {initials}
-                      </div>
-                    )}
+                    <div className="relative shrink-0">
+                      {member.profile?.avatar_url ? (
+                        <img
+                          src={member.profile.avatar_url}
+                          alt={displayName}
+                          className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center justify-center border border-slate-300 dark:border-slate-700">
+                          {initials}
+                        </div>
+                      )}
+                      {member.is_primary_owner ? (
+                        <span
+                          title="Dueño Principal (Titular Inmune)"
+                          className="absolute -bottom-1 -right-1 p-0.5 bg-amber-500 text-white rounded-full ring-2 ring-white dark:ring-slate-900"
+                        >
+                          <Crown className="w-3 h-3 fill-white" />
+                        </span>
+                      ) : member.is_owner ? (
+                        <span
+                          title="Dueño / Copropietario"
+                          className="absolute -bottom-1 -right-1 p-0.5 bg-amber-400 text-white rounded-full ring-2 ring-white dark:ring-slate-900"
+                        >
+                          <Crown className="w-3 h-3 fill-white" />
+                        </span>
+                      ) : null}
+                    </div>
 
                     <div>
                       <div className="flex items-center gap-2">
@@ -372,69 +434,93 @@ export function TeamManagementTab({
                   </div>
 
                   {/* Role Selector, Dueño Badge & Actions */}
-                  <div className="flex items-center gap-2.5 self-end sm:self-center">
-                    {/* Dueño Flag Toggle / Badge */}
-                    {isOwner && !isCurrentUser ? (
-                      <button
-                        type="button"
-                        onClick={() => handleOwnershipChange(member, !member.is_owner)}
-                        title={
-                          member.is_owner
-                            ? 'Hacer clic para retirar la titularidad de Dueño'
-                            : 'Hacer clic para marcar como Dueño / Copropietario'
-                        }
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                          member.is_owner
-                            ? 'bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700 shadow-xs hover:bg-amber-200/80 dark:hover:bg-amber-900/60'
-                            : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 hover:text-amber-700 dark:hover:text-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                        }`}
-                      >
-                        <Crown
-                          className={`w-3.5 h-3.5 ${
-                            member.is_owner
-                              ? 'text-amber-600 dark:text-amber-400 fill-amber-500/20'
-                              : 'text-slate-400'
-                          }`}
-                        />
-                        <span>{member.is_owner ? 'Dueño' : '+ Dueño'}</span>
-                      </button>
-                    ) : member.is_owner ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700">
-                        <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
-                        <span>Dueño</span>
+                  <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-center">
+                    {/* Primary Owner Badge (IMMUNE) */}
+                    {member.is_primary_owner ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border bg-gradient-to-r from-amber-500/15 via-yellow-500/15 to-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-300/80 dark:border-amber-700/80 shadow-xs">
+                        <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <span>Dueño Principal</span>
                       </span>
-                    ) : null}
-
-                    {/* Operational Role Selector */}
-                    {isOwner && !isCurrentUser ? (
-                      <select
-                        value={member.role}
-                        onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
-                        className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
-                      >
-                        <option value="ADMINISTRATOR">Administrador</option>
-                        <option value="OPERATOR">Gestor Operativo</option>
-                        <option value="CLEANER">Limpieza</option>
-                        <option value="VIEWER">Lector</option>
-                      </select>
                     ) : (
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
-                      >
-                        <RoleIcon className="w-3.5 h-3.5" />
-                        <span>{roleCfg.label}</span>
-                      </span>
-                    )}
+                      <>
+                        {/* Dueño Flag Toggle / Badge */}
+                        {isOwner && !isCurrentUser ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOwnershipChange(member, !member.is_owner)}
+                            title={
+                              member.is_owner
+                                ? 'Hacer clic para retirar la titularidad de Dueño'
+                                : 'Hacer clic para marcar como Dueño / Copropietario'
+                            }
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                              member.is_owner
+                                ? 'bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700 shadow-xs hover:bg-amber-200/80 dark:hover:bg-amber-900/60'
+                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 hover:text-amber-700 dark:hover:text-amber-300 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                            }`}
+                          >
+                            <Crown
+                              className={`w-3.5 h-3.5 ${
+                                member.is_owner
+                                  ? 'text-amber-600 dark:text-amber-400 fill-amber-500/20'
+                                  : 'text-slate-400'
+                              }`}
+                            />
+                            <span>{member.is_owner ? 'Dueño' : '+ Dueño'}</span>
+                          </button>
+                        ) : member.is_owner ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-amber-100/90 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-700">
+                            <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/20" />
+                            <span>Dueño</span>
+                          </span>
+                        ) : null}
 
-                    {isOwner && !isCurrentUser && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMember(member)}
-                        title="Revocar acceso"
-                        className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        {/* Operational Role Selector */}
+                        {isOwner && !isCurrentUser ? (
+                          <select
+                            value={member.role}
+                            onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
+                            className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
+                          >
+                            <option value="ADMINISTRATOR">Administrador</option>
+                            <option value="OPERATOR">Gestor Operativo</option>
+                            <option value="CLEANER">Limpieza</option>
+                            <option value="VIEWER">Lector</option>
+                          </select>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
+                          >
+                            <RoleIcon className="w-3.5 h-3.5" />
+                            <span>{roleCfg.label}</span>
+                          </span>
+                        )}
+
+                        {/* Transfer Primary Ownership Button (only for Primary Owner) */}
+                        {isPrimaryOwner && !isCurrentUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleTransferPrimaryOwnership(member)}
+                            title="Transferir la titularidad principal a este usuario"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-amber-700 dark:text-slate-400 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-slate-200 dark:border-slate-700 hover:border-amber-300 transition-colors cursor-pointer"
+                          >
+                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                            <span className="hidden md:inline">Transferir Titularidad</span>
+                          </button>
+                        )}
+
+                        {/* Remove Member Button */}
+                        {isOwner && !isCurrentUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMember(member)}
+                            title="Revocar acceso"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

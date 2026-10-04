@@ -17,6 +17,7 @@ interface PropertyContextType {
   activePropertyId: string;
   role: UserRole;
   isOwner: boolean;
+  isPrimaryOwner: boolean;
   isAdmin: boolean;
   isOperator: boolean;
   isCleaner: boolean;
@@ -129,11 +130,17 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     return 'VIEWER';
   }, [activeMembership, user]);
 
+  const isPrimaryOwner = Boolean(
+    role === 'SUPER_USER' ||
+    (activeProperty?.primary_owner_id && user?.id && activeProperty.primary_owner_id === user.id) ||
+    (!activeProperty?.primary_owner_id && activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
+  );
+
   const isOwner = Boolean(
+    isPrimaryOwner ||
     role === 'SUPER_USER' ||
     role === 'OWNER' ||
-    activeMembership?.isOwner ||
-    (activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
+    activeMembership?.isOwner
   );
   const isAdmin = isOwner || role === 'ADMINISTRATOR';
   const isOperator = isAdmin || role === 'OPERATOR';
@@ -196,6 +203,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
         activePropertyId,
         role,
         isOwner,
+        isPrimaryOwner,
         isAdmin,
         isOperator,
         isCleaner,
