@@ -201,7 +201,7 @@ export function TeamManagementTab({
           return (
             <div
               key={r}
-              className="p-3.5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5"
+              className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5"
             >
               <div className="flex items-center gap-2">
                 <div className={`p-1.5 rounded-lg border ${cfg.border} ${cfg.bg} ${cfg.text}`}>
