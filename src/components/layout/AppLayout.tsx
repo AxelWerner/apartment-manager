@@ -124,7 +124,7 @@ export function AppLayout() {
         pathSuffix: '/settings',
         label: 'Configuración',
         title: 'Configuración del Apartamento',
-        description: 'Datos de la propiedad, tarifas predeterminadas en COP y exportación de respaldos',
+        description: 'Datos de la propiedad, tarifas predeterminadas en COP, gestión de equipo y usuarios',
         icon: Settings,
         roles: ['SUPER_USER', 'ADMINISTRATOR', 'OWNER'],
       },

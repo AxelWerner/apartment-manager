@@ -14,6 +14,7 @@ import GuestPortal from '@/routes/GuestPortal';
 import GuestGuideAdmin from '@/routes/GuestGuideAdmin';
 import WifiCardPage from '@/routes/WifiCardPage';
 import GuestGuidePosterPage from '@/routes/GuestGuidePosterPage';
+import AcceptInvitation from '@/routes/AcceptInvitation';
 
 import { EmptyPropertyView } from '@/components/properties/EmptyPropertyView';
 
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/guide/poster/:propertyId" element={<GuestGuidePosterPage />} />
         <Route path="/wifi" element={<WifiCardPage />} />
         <Route path="/wifi/:propertyId" element={<WifiCardPage />} />
+        <Route path="/invite/:token" element={<AcceptInvitation />} />
 
         {/* Rutas privadas protegidas */}
         <Route element={<ProtectedRoute />}>

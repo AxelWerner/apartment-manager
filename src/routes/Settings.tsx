@@ -1,32 +1,100 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2,
   Save,
   Download,
+  Users,
 } from 'lucide-react';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { useBookings } from '@/hooks/use-bookings';
 import { useExpenses } from '@/hooks/use-expenses';
 import { useDamages } from '@/hooks/use-damages';
+import { usePropertyMembers } from '@/hooks/use-team';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import type { Property, Booking, Expense, Damage } from '@/types/database';
+import { TeamManagementTab } from '@/components/team/TeamManagementTab';
+import type { Property, Booking, Expense, Damage, UserRole } from '@/types/database';
 import { toast } from 'sonner';
 
 export default function Settings() {
-  const { activeProperty, updateProperty, activePropertyId } = useActiveProperty();
+  const { activeProperty, updateProperty, activePropertyId, role } = useActiveProperty();
   const { data: bookings = [] } = useBookings(activePropertyId);
   const { data: expenses = [] } = useExpenses(activePropertyId);
   const { data: damages = [] } = useDamages(activePropertyId);
+  const { data: members = [] } = usePropertyMembers(activePropertyId);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab');
+  const activeTab = rawTab === 'team' || rawTab === 'members' || rawTab === 'usuarios' ? 'team' : 'property';
+
+  const handleTabChange = (tab: 'property' | 'team') => {
+    setSearchParams(tab === 'team' ? { tab: 'team' } : {});
+  };
 
   return (
-    <SettingsContent
-      key={activeProperty?.id || 'empty'}
-      activeProperty={activeProperty}
-      updateProperty={updateProperty}
-      bookings={bookings}
-      expenses={expenses}
-      damages={damages}
-    />
+    <div className="space-y-6 max-w-4xl">
+      {/* Settings Navigation Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange('property')}
+          className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'property'
+              ? 'border-rose-600 text-rose-600 dark:text-rose-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Inmueble y Tarifas</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('team')}
+          className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'team'
+              ? 'border-rose-600 text-rose-600 dark:text-rose-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Equipo y Usuarios</span>
+          {members.length > 0 && (
+            <span
+              className={`px-2 py-0.5 text-xs font-bold rounded-full ${
+                activeTab === 'team'
+                  ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              {members.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Tab 1: Property Profile & Backup */}
+      {activeTab === 'property' && (
+        <SettingsContent
+          key={activeProperty?.id || 'empty'}
+          activeProperty={activeProperty}
+          updateProperty={updateProperty}
+          bookings={bookings}
+          expenses={expenses}
+          damages={damages}
+        />
+      )}
+
+      {/* Tab 2: Team Members & Invitations */}
+      {activeTab === 'team' && (
+        <TeamManagementTab
+          key={`team-${activePropertyId}`}
+          propertyId={activePropertyId}
+          propertyName={activeProperty?.name || ''}
+          currentUserRole={role as UserRole}
+        />
+      )}
+    </div>
   );
 }
 
@@ -91,8 +159,7 @@ function SettingsContent({
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-
+    <div className="space-y-6">
       {/* Property Profile Form */}
       <form
         onSubmit={handleSaveProfile}
@@ -218,7 +285,7 @@ function SettingsContent({
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all"
+            className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>Guardar Configuración</span>
@@ -250,7 +317,7 @@ function SettingsContent({
           <button
             type="button"
             onClick={handleExportData}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4 text-emerald-600" />
             <span>Descargar JSON de Respaldo</span>
