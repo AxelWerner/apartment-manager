@@ -90,17 +90,22 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center justify-between gap-2.5 sm:gap-3 px-3 py-1.5 sm:py-2 rounded-xl bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-900/60 shadow-2xs hover:shadow-xs transition-all text-left cursor-pointer max-w-[200px] sm:max-w-xs md:max-w-sm"
+        className="group flex items-center justify-between gap-3 px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-900/60 shadow-2xs hover:shadow-xs transition-all text-left cursor-pointer max-w-[220px] sm:max-w-xs md:max-w-sm"
         aria-expanded={isOpen}
       >
         <div className="min-w-0 flex-1 pr-1">
           <p
-            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug break-words tracking-tight"
+            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-1 leading-snug break-words tracking-tight"
             title={activeProperty?.name}
           >
             {activeProperty?.name || 'Selecciona un Apartamento'}
           </p>
-          <div className="mt-0.5">
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {activeProperty?.city && (
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                {activeProperty.city}
+              </span>
+            )}
             <RoleBadge role={role} />
           </div>
         </div>
@@ -151,14 +156,19 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
                 >
                   <div className="min-w-0 flex-1 pr-2">
                     <p
-                      className={`text-xs font-semibold line-clamp-2 leading-snug break-words ${
+                      className={`text-xs font-semibold line-clamp-1 leading-snug break-words ${
                         isActive ? 'text-rose-950 dark:text-rose-100' : 'text-slate-800 dark:text-slate-200'
                       }`}
                       title={property.name}
                     >
                       {property.name}
                     </p>
-                    <div className="mt-1">
+                    <div className="flex items-center gap-1.5 mt-1">
+                      {property.city && (
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                          {property.city}
+                        </span>
+                      )}
                       <RoleBadge role={propRole} />
                     </div>
                   </div>
