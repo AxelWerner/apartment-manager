@@ -145,14 +145,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (user ? 'VIEWER' : null);
 
   const isSuperUser = role === 'SUPER_USER';
-  const isAdmin = role === 'ADMINISTRATOR' || isSuperUser;
-  const isOwner = role === 'OWNER';
+  const isPrimaryOwner = role === 'PRIMARY_OWNER';
+  const isOwner = role === 'OWNER' || isPrimaryOwner;
+  const isAdmin = role === 'ADMINISTRATOR' || isOwner || isSuperUser;
   const isCleaner = role === 'CLEANER';
   const isViewer = role === 'VIEWER';
 
   const hasRole = (allowed: UserRole | UserRole[]): boolean => {
     if (!role) return false;
-    if (role === 'SUPER_USER') return true;
+    if (role === 'SUPER_USER' || role === 'PRIMARY_OWNER') return true;
     const list = Array.isArray(allowed) ? allowed : [allowed];
     return list.includes(role);
   };
@@ -170,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         resendConfirmationEmail,
         signOut,
         isSuperUser,
+        isPrimaryOwner,
         isAdmin,
         isOwner,
         isCleaner,

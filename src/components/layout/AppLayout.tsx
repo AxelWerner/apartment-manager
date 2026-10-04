@@ -83,7 +83,7 @@ export function AppLayout() {
         title: 'Dashboard de Rentabilidad',
         description: 'Monitoreo en tiempo real de ingresos, gastos y rentabilidad en Pesos Colombianos (COP)',
         icon: LayoutDashboard,
-        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/analytics`,
@@ -92,7 +92,7 @@ export function AppLayout() {
         title: 'Analíticas del Apto',
         description: 'Indicadores de desempeño hotelero y rentabilidad',
         icon: BarChart3,
-        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/bookings`,
@@ -101,6 +101,7 @@ export function AppLayout() {
         title: 'Reservas e Ingresos',
         description: 'Control de estadías de Airbnb, reservas directas y carga de archivos CSV',
         icon: CalendarDays,
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'],
       },
       {
         to: `${basePath}/expenses`,
@@ -109,7 +110,7 @@ export function AppLayout() {
         title: 'Gastos y Servicios del Apartamento',
         description: 'Administración, servicios públicos (EPM), seguro anual, insumos y limpiezas',
         icon: Receipt,
-        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR'],
       },
       {
         to: `${basePath}/damages`,
@@ -118,6 +119,7 @@ export function AppLayout() {
         title: 'Daños e Incidentes del Apartamento',
         description: 'Inspecciones de check-out, fotos de evidencia, reclamos de AirCover y reembolsos',
         icon: ShieldAlert,
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER'],
       },
       {
         to: `${basePath}/guest-guide`,
@@ -126,6 +128,7 @@ export function AppLayout() {
         title: 'Guía Digital del Huésped',
         description: 'Configura la información visible para tus huéspedes, genera el código QR y comparte el enlace público',
         icon: Compass,
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER'],
       },
       {
         to: `${basePath}/settings`,
@@ -134,12 +137,14 @@ export function AppLayout() {
         title: 'Configuración del Apartamento',
         description: 'Datos de la propiedad, tarifas predeterminadas en COP, gestión de equipo y usuarios',
         icon: Settings,
-        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'ADMINISTRATOR', 'OWNER'],
+        roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR'],
       },
     ];
 
+  const isUserPrimaryOwner = currentRole === 'PRIMARY_OWNER' || currentRole === 'SUPER_USER';
+
   const navItems = hasProperties
-    ? allNavItems.filter((item) => !item.roles || item.roles.includes(currentRole))
+    ? allNavItems.filter((item) => isUserPrimaryOwner || !item.roles || item.roles.includes(currentRole))
     : [];
 
   const currentNavItem = allNavItems.find(

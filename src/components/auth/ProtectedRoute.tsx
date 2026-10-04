@@ -43,6 +43,8 @@ export function ProtectedRoute({ allowedRoles, children }: ProtectedRouteProps =
 
     const isAllowed =
       effectiveRole === 'SUPER_USER' ||
+      effectiveRole === 'PRIMARY_OWNER' ||
+      Boolean(propertyCtx?.isPrimaryOwner) ||
       allowedRoles.includes(effectiveRole);
 
     if (!isAllowed) {

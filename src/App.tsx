@@ -19,7 +19,7 @@ import AcceptInvitation from '@/routes/AcceptInvitation';
 import { EmptyPropertyView } from '@/components/properties/EmptyPropertyView';
 
 function RootView() {
-  const { properties, isLoading } = useActiveProperty();
+  const { properties, role, isLoading } = useActiveProperty();
 
   if (isLoading) {
     return (
@@ -38,7 +38,14 @@ function RootView() {
     ? storedId
     : properties[0]?.property.id;
 
-  return <Navigate to={`/p/${targetId}/dashboard`} replace />;
+  const defaultSection = role === 'CLEANER' ? 'bookings' : 'dashboard';
+  return <Navigate to={`/p/${targetId}/${defaultSection}`} replace />;
+}
+
+function DefaultPropertyRedirect() {
+  const { role } = useActiveProperty();
+  const defaultSection = role === 'CLEANER' ? 'bookings' : 'dashboard';
+  return <Navigate to={defaultSection} replace />;
 }
 
 function LegacyRedirect({ toSection }: { toSection: string }) {
@@ -95,11 +102,11 @@ export default function App() {
 
             {/* Rutas principales con prefijo de Apartamento: /p/:propertyId/... */}
             <Route path="/p/:propertyId" element={<AppLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route index element={<DefaultPropertyRedirect />} />
               <Route
                 path="dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER']}>
                     <Dashboard />
                   </ProtectedRoute>
                 }
@@ -107,26 +114,47 @@ export default function App() {
               <Route
                 path="analytics"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR', 'VIEWER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER']}>
                     <Analytics />
                   </ProtectedRoute>
                 }
               />
-              <Route path="bookings" element={<Bookings />} />
+              <Route
+                path="bookings"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER']}>
+                    <Bookings />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="expenses"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER', 'OPERATOR']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR']}>
                     <Expenses />
                   </ProtectedRoute>
                 }
               />
-              <Route path="damages" element={<Damages />} />
-              <Route path="guest-guide" element={<GuestGuideAdmin />} />
+              <Route
+                path="damages"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'CLEANER', 'VIEWER']}>
+                    <Damages />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="guest-guide"
+                element={
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER']}>
+                    <GuestGuideAdmin />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="settings"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'ADMINISTRATOR', 'OWNER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR']}>
                     <Settings />
                   </ProtectedRoute>
                 }

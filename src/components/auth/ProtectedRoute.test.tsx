@@ -246,5 +246,55 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText('Verificando acceso...')).toBeInTheDocument();
     expect(screen.queryByText('Configuración')).not.toBeInTheDocument();
   });
+
+  it('permite acceso total si el usuario es PRIMARY_OWNER en PropertyContext', () => {
+    vi.spyOn(UseAuthModule, 'useAuth').mockReturnValue({
+      user: { id: 'owner-user', email: 'owner@test.com' } as never,
+      session: { user: { id: 'owner-user' } } as never,
+      profile: null,
+      role: 'VIEWER',
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+      isSuperUser: false,
+      isPrimaryOwner: true,
+      isAdmin: true,
+      isOwner: true,
+      isCleaner: false,
+      isViewer: false,
+      hasRole: () => true,
+      refreshProfile: vi.fn(),
+    });
+
+    vi.spyOn(PropertyContextModule, 'usePropertyContext').mockReturnValue({
+      properties: [],
+      activeProperty: null,
+      activePropertyId: 'prop-1',
+      role: 'PRIMARY_OWNER',
+      isOwner: true,
+      isPrimaryOwner: true,
+      isAdmin: true,
+      isOperator: true,
+      isCleaner: false,
+      isViewer: false,
+      isLoading: false,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
+      switchProperty: vi.fn(),
+      refreshProperties: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/p/prop-1/settings']}>
+        <Routes>
+          <Route element={<ProtectedRoute allowedRoles={['ADMINISTRATOR']} />}>
+            <Route path="/p/prop-1/settings" element={<div>Configuración del Apto</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Configuración del Apto')).toBeInTheDocument();
+  });
 });
 

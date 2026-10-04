@@ -13,6 +13,7 @@ export interface AuthContextType {
   resendConfirmationEmail?: (email: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   isSuperUser?: boolean;
+  isPrimaryOwner?: boolean;
   isAdmin?: boolean;
   isOwner?: boolean;
   isCleaner?: boolean;

@@ -118,34 +118,37 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     return properties[0] || null;
   }, [properties, activePropertyId]);
 
-  // Determinar rol del usuario en la propiedad activa
+  // Determinar si es Dueño Principal de la propiedad
+  const isPrimaryOwner = Boolean(
+    activeMembership?.role === 'PRIMARY_OWNER' ||
+    (activeProperty?.primary_owner_id && user?.id && activeProperty.primary_owner_id === user.id) ||
+    (!activeProperty?.primary_owner_id && activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
+  );
+
+  // Determinar rol efectivo del usuario en la propiedad activa
   const role: UserRole = useMemo(() => {
     const userRole = (user as { role?: UserRole } | null)?.role || (user?.user_metadata?.role as UserRole | undefined);
     if (userRole === 'SUPER_USER') {
       return 'SUPER_USER';
     }
+    if (isPrimaryOwner) {
+      return 'PRIMARY_OWNER';
+    }
     if (activeMembership) {
       return activeMembership.role;
     }
     return 'VIEWER';
-  }, [activeMembership, user]);
-
-  const isPrimaryOwner = Boolean(
-    role === 'PRIMARY_OWNER' ||
-    role === 'SUPER_USER' ||
-    (activeProperty?.primary_owner_id && user?.id && activeProperty.primary_owner_id === user.id) ||
-    (!activeProperty?.primary_owner_id && activeProperty?.created_by && user?.id && activeProperty.created_by === user.id)
-  );
+  }, [activeMembership, isPrimaryOwner, user]);
 
   const isOwner = Boolean(
     isPrimaryOwner ||
     role === 'OWNER' ||
-    activeMembership?.isOwner
+    role === 'PRIMARY_OWNER'
   );
-  const isAdmin = isOwner || role === 'ADMINISTRATOR';
-  const isOperator = isAdmin || role === 'OPERATOR';
-  const isCleaner = role === 'CLEANER';
-  const isViewer = role === 'VIEWER';
+  const isAdmin = Boolean(isOwner || role === 'ADMINISTRATOR');
+  const isOperator = Boolean(isAdmin || role === 'OPERATOR');
+  const isCleaner = Boolean(role === 'CLEANER');
+  const isViewer = Boolean(role === 'VIEWER');
 
   // Cambiar de propiedad en la interfaz
   const switchProperty = useCallback(
