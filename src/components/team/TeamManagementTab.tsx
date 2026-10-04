@@ -249,21 +249,24 @@ export function TeamManagementTab({
               const isCurrentUser = member.user_id === user?.id;
               const roleCfg = roleBadgeConfig[member.role] || roleBadgeConfig.VIEWER;
               const RoleIcon = roleCfg.icon;
+              const memberEmail =
+                member.profile?.email || (isCurrentUser ? user?.email : null);
               const displayName =
                 member.profile?.full_name ||
-                (isCurrentUser ? user?.email : null) ||
+                memberEmail ||
                 `Usuario ${member.user_id.slice(0, 6)}`;
-              const initials = displayName
-                .split(' ')
+              const initials = (member.profile?.full_name || memberEmail || displayName)
+                .split(/[\s@._-]+/)
+                .filter(Boolean)
                 .map((n) => n[0])
                 .slice(0, 2)
                 .join('')
-                .toUpperCase();
+                .toUpperCase() || 'U';
 
               return (
                 <div
                   key={member.id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-850/40 transition-colors"
+                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-855/40 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
@@ -291,7 +294,20 @@ export function TeamManagementTab({
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                        {member.profile?.phone && <span>{member.profile.phone}</span>}
+                        {memberEmail && member.profile?.full_name && (
+                          <span className="text-slate-500 dark:text-slate-400">
+                            {memberEmail}
+                          </span>
+                        )}
+                        {memberEmail && member.profile?.full_name && member.created_at && (
+                          <span>•</span>
+                        )}
+                        {member.profile?.phone && (
+                          <>
+                            <span>{member.profile.phone}</span>
+                            {member.created_at && <span>•</span>}
+                          </>
+                        )}
                         {member.created_at && (
                           <span>
                             Miembro desde {new Date(member.created_at).toLocaleDateString('es-CO', {
