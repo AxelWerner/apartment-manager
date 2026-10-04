@@ -16,6 +16,7 @@ import {
   Loader2,
   AlertTriangle,
   ArrowRightLeft,
+  ChevronDown,
 } from 'lucide-react';
 import {
   usePropertyMembers,
@@ -423,17 +424,20 @@ export function TeamManagementTab({
                       <>
                         {/* Unified Role Selector */}
                         {isOwner && !isCurrentUser ? (
-                          <select
-                            value={member.role}
-                            onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
-                            className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 shadow-2xs hover:shadow-xs transition-all ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
-                          >
-                            <option value="OWNER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Dueño (Copropietario)</option>
-                            <option value="ADMINISTRATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Administrador</option>
-                            <option value="OPERATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Gestor Operativo</option>
-                            <option value="CLEANER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Limpieza</option>
-                            <option value="VIEWER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Lector</option>
-                          </select>
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={member.role}
+                              onChange={(e) => handleRoleChange(member, e.target.value as UserRole)}
+                              className={`text-xs font-semibold pl-3 pr-8 py-1.5 rounded-lg border appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-rose-500 shadow-2xs hover:shadow-xs transition-all ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
+                            >
+                              <option value="OWNER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Dueño (Copropietario)</option>
+                              <option value="ADMINISTRATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Administrador</option>
+                              <option value="OPERATOR" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Gestor Operativo</option>
+                              <option value="CLEANER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Limpieza</option>
+                              <option value="VIEWER" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Lector</option>
+                            </select>
+                            <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 pointer-events-none ${roleCfg.text} opacity-80`} />
+                          </div>
                         ) : (
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${roleCfg.bg} ${roleCfg.text} ${roleCfg.border}`}
