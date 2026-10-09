@@ -1,31 +1,23 @@
 -- ==============================================================================
--- MIGRATION 007: Unified Roles System (Elimination of is_owner flag)
+-- MIGRATION 005: Unified Roles System, Permissions & Operator Support
 -- ==============================================================================
 
--- 1. Ensure 'PRIMARY_OWNER' exists in user_role enum
-ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'PRIMARY_OWNER';
+-- 1. Add primary_owner_id to properties table
+ALTER TABLE public.properties
+ADD COLUMN IF NOT EXISTS primary_owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 
--- 2. Drop existing RLS policies on property_members that reference is_owner
-DROP POLICY IF EXISTS "Owners and Admins can update members" ON property_members;
-DROP POLICY IF EXISTS "Owners and Admins can delete members" ON property_members;
+-- Backfill primary_owner_id with created_by if null
+UPDATE public.properties
+SET primary_owner_id = created_by
+WHERE primary_owner_id IS NULL AND created_by IS NOT NULL;
 
--- 3. Backfill existing roles and drop is_owner columns safely
+-- 2. Clean up legacy is_owner column if present
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_name = 'property_members' AND column_name = 'is_owner'
   ) THEN
-    UPDATE public.property_members pm
-    SET role = 'PRIMARY_OWNER'
-    FROM public.properties p
-    WHERE pm.property_id = p.id
-      AND (pm.user_id = p.primary_owner_id OR (p.primary_owner_id IS NULL AND pm.user_id = p.created_by));
-
-    UPDATE public.property_members
-    SET role = 'OWNER'
-    WHERE is_owner = true AND role != 'PRIMARY_OWNER';
-
     ALTER TABLE public.property_members DROP COLUMN is_owner;
   END IF;
 
@@ -33,15 +25,42 @@ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_name = 'property_invitations' AND column_name = 'is_owner'
   ) THEN
-    UPDATE public.property_invitations
-    SET role = 'OWNER'
-    WHERE is_owner = true;
-
     ALTER TABLE public.property_invitations DROP COLUMN is_owner;
   END IF;
 END $$;
 
--- 4. Update helper function is_property_owner
+-- 3. Backfill property creators / primary owners to PRIMARY_OWNER role
+UPDATE public.property_members pm
+SET role = 'PRIMARY_OWNER'
+FROM public.properties p
+WHERE pm.property_id = p.id
+  AND (pm.user_id = p.primary_owner_id OR (p.primary_owner_id IS NULL AND pm.user_id = p.created_by));
+
+-- 4. Helper function: is_property_operator
+CREATE OR REPLACE FUNCTION public.is_property_operator(p_id uuid, u_id uuid DEFAULT auth.uid())
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT (
+    EXISTS (
+      SELECT 1 FROM public.properties
+      WHERE id = p_id AND (primary_owner_id = u_id OR created_by = u_id)
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.property_members
+      WHERE property_id = p_id AND user_id = u_id AND role IN ('PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'SUPER_USER')
+    )
+    OR (
+      COALESCE(auth.jwt() ->> 'role', '') = 'SUPER_USER'
+      OR COALESCE(auth.jwt() -> 'user_metadata' ->> 'role', '') = 'SUPER_USER'
+    )
+  );
+$$;
+
+-- 5. Helper function: is_property_owner
 CREATE OR REPLACE FUNCTION public.is_property_owner(p_id uuid, u_id uuid DEFAULT auth.uid())
 RETURNS boolean
 LANGUAGE sql
@@ -51,12 +70,12 @@ STABLE
 AS $$
   SELECT (
     EXISTS (
-      SELECT 1 FROM property_members
-      WHERE property_id = p_id AND user_id = u_id AND role IN ('PRIMARY_OWNER', 'OWNER')
+      SELECT 1 FROM public.properties
+      WHERE id = p_id AND (primary_owner_id = u_id OR created_by = u_id)
     )
     OR EXISTS (
-      SELECT 1 FROM properties
-      WHERE id = p_id AND (primary_owner_id = u_id OR created_by = u_id)
+      SELECT 1 FROM public.property_members
+      WHERE property_id = p_id AND user_id = u_id AND role IN ('PRIMARY_OWNER', 'OWNER')
     )
     OR (
       COALESCE(auth.jwt() ->> 'role', '') = 'SUPER_USER'
@@ -65,7 +84,7 @@ AS $$
   );
 $$;
 
--- 5. Update helper function is_property_admin
+-- 6. Helper function: is_property_admin
 CREATE OR REPLACE FUNCTION public.is_property_admin(p_id uuid, u_id uuid DEFAULT auth.uid())
 RETURNS boolean
 LANGUAGE sql
@@ -75,12 +94,12 @@ STABLE
 AS $$
   SELECT (
     EXISTS (
-      SELECT 1 FROM property_members
-      WHERE property_id = p_id AND user_id = u_id AND role IN ('PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'SUPER_USER')
+      SELECT 1 FROM public.properties
+      WHERE id = p_id AND (primary_owner_id = u_id OR created_by = u_id)
     )
     OR EXISTS (
-      SELECT 1 FROM properties
-      WHERE id = p_id AND (primary_owner_id = u_id OR created_by = u_id)
+      SELECT 1 FROM public.property_members
+      WHERE property_id = p_id AND user_id = u_id AND role IN ('PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'SUPER_USER')
     )
     OR (
       COALESCE(auth.jwt() ->> 'role', '') = 'SUPER_USER'
@@ -89,7 +108,46 @@ AS $$
   );
 $$;
 
--- 6. Update on_property_created trigger to assign PRIMARY_OWNER
+-- 7. Update bookings RLS policy to allow OPERATOR
+DROP POLICY IF EXISTS "Property managers can modify bookings" ON public.bookings;
+CREATE POLICY "Property managers can modify bookings"
+  ON public.bookings FOR ALL
+  USING (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  )
+  WITH CHECK (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  );
+
+-- 8. Update expenses RLS policy to allow OPERATOR
+DROP POLICY IF EXISTS "Property managers can modify expenses" ON public.expenses;
+CREATE POLICY "Property managers can modify expenses"
+  ON public.expenses FOR ALL
+  USING (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  )
+  WITH CHECK (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  );
+
+-- 9. Update recurring_bill_templates RLS policy to allow OPERATOR
+DROP POLICY IF EXISTS "Property managers can modify recurring templates" ON public.recurring_bill_templates;
+CREATE POLICY "Property managers can modify recurring templates"
+  ON public.recurring_bill_templates FOR ALL
+  USING (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  )
+  WITH CHECK (
+    auth.role() = 'anon' OR
+    public.is_property_operator(property_id)
+  );
+
+-- 10. Update handle_property_created trigger function
 CREATE OR REPLACE FUNCTION public.handle_property_created()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -107,7 +165,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 7. Update transfer_primary_ownership RPC
+-- 11. Transfer Primary Ownership RPC function
 CREATE OR REPLACE FUNCTION public.transfer_primary_ownership(
   p_property_id UUID,
   p_new_primary_owner_id UUID
@@ -169,7 +227,7 @@ BEGIN
 END;
 $$;
 
--- 8. Update accept_property_invitation RPC
+-- 12. Accept property invitation RPC function
 DROP FUNCTION IF EXISTS public.accept_property_invitation(text);
 CREATE OR REPLACE FUNCTION public.accept_property_invitation(p_token text)
 RETURNS jsonb
@@ -186,7 +244,7 @@ BEGIN
   END IF;
 
   SELECT * INTO v_invitation
-  FROM property_invitations
+  FROM public.property_invitations
   WHERE token = p_token
     AND status = 'pending'
     AND expires_at > now();
@@ -195,7 +253,7 @@ BEGIN
     RAISE EXCEPTION 'La invitación no es válida o ha expirado.';
   END IF;
 
-  INSERT INTO property_members (property_id, user_id, role)
+  INSERT INTO public.property_members (property_id, user_id, role)
   VALUES (
     v_invitation.property_id,
     v_user_id,
@@ -206,7 +264,7 @@ BEGIN
     role = EXCLUDED.role,
     updated_at = now();
 
-  UPDATE property_invitations
+  UPDATE public.property_invitations
   SET status = 'accepted',
       updated_at = now()
   WHERE id = v_invitation.id;
@@ -219,7 +277,7 @@ BEGIN
 END;
 $$;
 
--- 9. Update check_member_hierarchy_guard trigger function
+-- 13. Member Hierarchy & Immunity Guard Trigger function
 CREATE OR REPLACE FUNCTION public.check_member_hierarchy_guard()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -274,9 +332,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 10. Re-create RLS policies on property_members without is_owner
+DROP TRIGGER IF EXISTS trg_member_hierarchy_guard ON public.property_members;
+CREATE TRIGGER trg_member_hierarchy_guard
+  BEFORE UPDATE OR DELETE ON public.property_members
+  FOR EACH ROW
+  EXECUTE FUNCTION public.check_member_hierarchy_guard();
+
+-- 14. Update RLS policies on property_members
+DROP POLICY IF EXISTS "Owners and Admins can manage members" ON public.property_members;
+DROP POLICY IF EXISTS "Owners and Admins can insert members" ON public.property_members;
+DROP POLICY IF EXISTS "Owners and Admins can update members" ON public.property_members;
+DROP POLICY IF EXISTS "Owners and Admins can delete members" ON public.property_members;
+
+CREATE POLICY "Owners and Admins can insert members"
+  ON public.property_members FOR INSERT
+  WITH CHECK (
+    auth.role() = 'anon' OR
+    public.is_property_admin(property_id)
+  );
+
 CREATE POLICY "Owners and Admins can update members"
-  ON property_members FOR UPDATE
+  ON public.property_members FOR UPDATE
   USING (
     auth.role() = 'anon' OR
     public.is_property_owner(property_id) OR
@@ -284,7 +360,7 @@ CREATE POLICY "Owners and Admins can update members"
   );
 
 CREATE POLICY "Owners and Admins can delete members"
-  ON property_members FOR DELETE
+  ON public.property_members FOR DELETE
   USING (
     auth.role() = 'anon' OR
     public.is_property_owner(property_id) OR
