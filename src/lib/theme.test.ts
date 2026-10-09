@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getThemePreference, applyTheme, initThemeListener } from './theme';
+import { getThemePreference, applyTheme, initThemeListener, setThemePreference, THEME_CHANGE_EVENT } from './theme';
 
 describe('theme system synchronization', () => {
   beforeEach(() => {
@@ -85,5 +85,33 @@ describe('theme system synchronization', () => {
 
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(document.documentElement.style.colorScheme).toBe('dark');
+  });
+
+  it('explicitly applies dark theme and removes light class', () => {
+    document.documentElement.classList.add('light');
+    applyTheme('dark');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(document.documentElement.classList.contains('light')).toBe(false);
+    expect(document.documentElement.style.colorScheme).toBe('dark');
+  });
+
+  it('explicitly applies light theme and removes dark class', () => {
+    document.documentElement.classList.add('dark');
+    applyTheme('light');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+    expect(document.documentElement.style.colorScheme).toBe('light');
+  });
+
+  it('dispatches THEME_CHANGE_EVENT when setThemePreference is called', () => {
+    const listener = vi.fn();
+    window.addEventListener(THEME_CHANGE_EVENT, listener);
+
+    setThemePreference('dark');
+    expect(listener).toHaveBeenCalled();
+    expect(localStorage.getItem('app_theme_preference')).toBe('dark');
+
+    setThemePreference('system');
+    expect(localStorage.getItem('app_theme_preference')).toBeNull();
   });
 });

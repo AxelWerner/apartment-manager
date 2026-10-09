@@ -1,19 +1,32 @@
 import { useState, useEffect } from 'react';
 import { Sun, Moon, Laptop } from 'lucide-react';
-import { getThemePreference, setThemePreference, type ThemePreference } from '@/lib/theme';
+import { getThemePreference, setThemePreference, THEME_CHANGE_EVENT, type ThemePreference } from '@/lib/theme';
 
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const [theme, setTheme] = useState<ThemePreference>(getThemePreference());
 
   useEffect(() => {
-    const handleStorage = () => setTheme(getThemePreference());
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    const handleUpdate = () => setTheme(getThemePreference());
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener(THEME_CHANGE_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleUpdate);
+    };
   }, []);
 
   const cycleTheme = () => {
-    const nextTheme: ThemePreference =
-      theme === 'system' ? 'dark' : theme === 'dark' ? 'light' : 'system';
+    let nextTheme: ThemePreference;
+    if (theme === 'system') {
+      const isSystemDark =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+      nextTheme = isSystemDark ? 'light' : 'dark';
+    } else if (theme === 'light') {
+      nextTheme = 'dark';
+    } else {
+      nextTheme = 'system';
+    }
     setThemePreference(nextTheme);
     setTheme(nextTheme);
   };

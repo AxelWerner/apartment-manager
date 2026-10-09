@@ -16,6 +16,8 @@ export function getThemePreference(): ThemePreference {
   return 'system';
 }
 
+export const THEME_CHANGE_EVENT = 'app_theme_preference_changed';
+
 export function applyTheme(preference: ThemePreference = getThemePreference()) {
   if (typeof window === 'undefined') return;
 
@@ -27,9 +29,11 @@ export function applyTheme(preference: ThemePreference = getThemePreference()) {
 
   if (isDark) {
     root.classList.add('dark');
+    root.classList.remove('light');
     root.style.colorScheme = 'dark';
   } else {
     root.classList.remove('dark');
+    root.classList.add('light');
     root.style.colorScheme = 'light';
   }
 }
@@ -42,6 +46,7 @@ export function setThemePreference(preference: ThemePreference) {
     localStorage.setItem(THEME_STORAGE_KEY, preference);
   }
   applyTheme(preference);
+  window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: preference }));
 }
 
 /**
@@ -56,6 +61,7 @@ export function initThemeListener() {
   const handleChange = () => {
     if (getThemePreference() === 'system') {
       applyTheme('system');
+      window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: 'system' }));
     }
   };
 
