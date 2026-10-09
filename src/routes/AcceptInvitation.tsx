@@ -25,6 +25,7 @@ import {
 } from '@/lib/invitations-service';
 import type { UserRole } from '@/types/database';
 import { toast } from 'sonner';
+import { useSEO } from '@/hooks/use-seo';
 
 const roleLabels: Record<
   UserRole,
@@ -83,6 +84,11 @@ export default function AcceptInvitation() {
   const [invitationData, setInvitationData] = useState<InvitationDetails | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useSEO({
+    title: invitationData?.property?.name ? `Invitación a ${invitationData.property.name}` : 'Invitación al Equipo',
+    description: 'Has recibido una invitación para unirte al equipo de gestión en AptOS.',
+  });
 
   useEffect(() => {
     let ignore = false;

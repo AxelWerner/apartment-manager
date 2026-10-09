@@ -20,13 +20,20 @@ import {
   Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
+import { useSEO } from '@/hooks/use-seo';
 
 export default function GuestPortal() {
   const { propertyId } = useParams();
   const { data: guide, isLoading } = useGuestGuide(propertyId);
   const [activeTab, setActiveTab] = useState<'all' | 'wifi' | 'access' | 'distances' | 'rules' | 'appliances' | 'places' | 'emergency'>('all');
   const [copiedCode, setCopiedCode] = useState(false);
+
+  useSEO({
+    title: guide?.welcome_title ? `Guía del Huésped — ${guide.welcome_title}` : 'Guía del Huésped',
+    description: guide?.welcome_title
+      ? `Guía digital de estancia para ${guide.welcome_title}: accesos, red WiFi, electrodomésticos y recomendaciones.`
+      : 'Guía digital para huéspedes con toda la información de acceso y estancia.',
+  });
 
   if (isLoading || !guide) {
     return (

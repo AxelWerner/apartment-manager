@@ -17,10 +17,16 @@ import { DamageDetailModal } from '@/components/damages/DamageDetailModal';
 import { formatCOP, formatDate, SEVERITY_CONFIG, CLAIM_STATUS_CONFIG } from '@/lib/formatters';
 import type { Damage } from '@/types/database';
 import { toast } from 'sonner';
+import { useSEO } from '@/hooks/use-seo';
 
 export default function Damages() {
   const { data: damages = [], isLoading } = useDamages();
   const deleteDamageMutation = useDeleteDamage();
+
+  useSEO({
+    title: 'Incidencias y Daños',
+    description: 'Registro de daños, reclamaciones de AirCover y reparaciones en propiedades.',
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');

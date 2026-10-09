@@ -27,6 +27,7 @@ import { formatCOP, formatDate, formatMonthYear, getColombiaDateTime, CATEGORY_L
 import { calculateApartmentDailyCosts } from '@/lib/daily-costs';
 import type { Expense, ExpenseCategory } from '@/types/database';
 import { toast } from 'sonner';
+import { useSEO } from '@/hooks/use-seo';
 
 type ActiveTab = 'checklist' | 'ledger' | 'insurance';
 
@@ -35,6 +36,11 @@ export default function Expenses() {
   const activePropertyId = propertyCtx?.activePropertyId;
   const { data: expenses = [], isLoading } = useExpenses(activePropertyId);
   const deleteExpenseMutation = useDeleteExpense();
+
+  useSEO({
+    title: 'Control de Gastos',
+    description: 'Registro de gastos operativos, suministros, seguros y costes diarios del apartamento.',
+  });
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('checklist');
   const [isModalOpen, setIsModalOpen] = useState(false);

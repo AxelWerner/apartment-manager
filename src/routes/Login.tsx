@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
+import { useSEO } from '@/hooks/use-seo';
 import { Building2, Lock, Mail, User, ArrowRight, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
@@ -25,6 +26,11 @@ export default function Login() {
   const { user, signIn, signUp, resendConfirmationEmail, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useSEO({
+    title: 'Iniciar Sesión',
+    description: 'Accede a AptOS para gestionar tus apartamentos turísticos, reservas de Airbnb, finanzas y cerraduras.',
+  });
 
   const [mode, setMode] = useState<'signin' | 'signup' | 'verification_pending'>('signin');
   const [fullName, setFullName] = useState('');

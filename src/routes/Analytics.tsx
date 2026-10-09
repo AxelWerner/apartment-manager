@@ -14,9 +14,15 @@ import { OccupancyDayMatrix } from '@/components/analytics/OccupancyDayMatrix';
 import { StayDistributionCards } from '@/components/analytics/StayDistributionCards';
 import { MonthlyComparisonTable } from '@/components/analytics/MonthlyComparisonTable';
 import { MonthBookingsList } from '@/components/analytics/MonthBookingsList';
+import { useSEO } from '@/hooks/use-seo';
 
 export default function Analytics() {
   const { data: bookings = [], isLoading } = useBookings();
+
+  useSEO({
+    title: 'Analíticas y Rendimiento',
+    description: 'Estadísticas detalladas de ocupación, ADR, RevPAR y tendencias de reservas.',
+  });
 
   // Current date reference in Colombia
   const { dateStr } = getColombiaDateTime();

@@ -15,6 +15,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { TeamManagementTab } from '@/components/team/TeamManagementTab';
 import type { Property, Booking, Expense, Damage, UserRole } from '@/types/database';
 import { toast } from 'sonner';
+import { useSEO } from '@/hooks/use-seo';
 
 export default function Settings() {
   const { activeProperty, updateProperty, activePropertyId, role, isOwner, isPrimaryOwner } = useActiveProperty();
@@ -22,6 +23,11 @@ export default function Settings() {
   const { data: expenses = [] } = useExpenses(activePropertyId);
   const { data: damages = [] } = useDamages(activePropertyId);
   const { data: members = [] } = usePropertyMembers(activePropertyId);
+
+  useSEO({
+    title: 'Configuración y Equipo',
+    description: 'Ajustes del alojamiento, gestión del equipo de trabajo y permisos de acceso.',
+  });
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');

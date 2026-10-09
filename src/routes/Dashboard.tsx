@@ -49,6 +49,7 @@ import {
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
+import { useSEO } from '@/hooks/use-seo';
 
 type TimeRange = 'this_month' | 'next_month' | 'last_month' | 'ytd' | 'all_time';
 type FinancialHorizon = 'all' | 'real' | 'future';
@@ -58,6 +59,11 @@ export default function Dashboard() {
   const { data: expenses = [] } = useExpenses();
   const { data: damages = [] } = useDamages();
   const { data: property } = useProperty();
+
+  useSEO({
+    title: property?.name ? `Panel — ${property.name}` : 'Panel de Control',
+    description: 'Resumen financiero, métricas de ocupación y reservas de tu apartamento turístico.',
+  });
 
   const [timeRange, setTimeRange] = useState<TimeRange>('this_month');
   const [financialHorizon, setFinancialHorizon] = useState<FinancialHorizon>('all');

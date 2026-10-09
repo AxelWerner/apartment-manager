@@ -16,12 +16,20 @@ import {
   Share2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSEO } from '@/hooks/use-seo';
 
 export default function WifiCardPage() {
   const { propertyId } = useParams();
   const { data: guide, isLoading } = useGuestGuide(propertyId);
   const [copied, setCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useSEO({
+    title: guide?.welcome_title ? `Conexión WiFi — ${guide.welcome_title}` : 'Tarjeta WiFi',
+    description: guide?.wifi_ssid
+      ? `Conéctate a la red WiFi ${guide.wifi_ssid} escaneando el código QR.`
+      : 'Conexión rápida a la red WiFi del alojamiento mediante código QR.',
+  });
 
   if (isLoading || !guide) {
     return (

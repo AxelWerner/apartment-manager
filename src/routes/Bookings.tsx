@@ -23,6 +23,7 @@ import {
 import { useBookings, useDeleteBooking } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
 import { CsvImportModal } from '@/components/bookings/CsvImportModal';
+import { useSEO } from '@/hooks/use-seo';
 import {
   formatCOP,
   formatDate,
@@ -44,6 +45,11 @@ import { toast } from 'sonner';
 export default function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
   const deleteBookingMutation = useDeleteBooking();
+
+  useSEO({
+    title: 'Gestión de Reservas',
+    description: 'Listado completo de reservas, sincronización con Airbnb, canales directos y estados.',
+  });
 
   const { dateStr: colDateStr } = getColombiaDateTime();
   const [financialHorizon, setFinancialHorizon] = useState<'all' | 'real' | 'future'>('all');

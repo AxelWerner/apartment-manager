@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+Allow: /guide
+Allow: /wifi
+Allow: /login
+
+# Private routes that require authentication
+Disallow: /p/
+Disallow: /dashboard
+Disallow: /analytics
+Disallow: /bookings
+Disallow: /expenses
+Disallow: /damages
+Disallow: /settings
