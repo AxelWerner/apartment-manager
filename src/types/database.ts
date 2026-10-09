@@ -52,6 +52,14 @@ export interface PropertyInvitation {
   updated_at?: string;
 }
 
+export interface UserPendingInvitation extends PropertyInvitation {
+  property_name?: string | null;
+  property_city?: string | null;
+  property_address?: string | null;
+  inviter_name?: string | null;
+  inviter_email?: string | null;
+}
+
 export type BookingStatus = 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
 export type PayoutStatus = 'pending' | 'paid';
 

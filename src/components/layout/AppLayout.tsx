@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { PropertySwitcher } from '@/components/properties/PropertySwitcher';
 import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
+import { InvitationsBell } from '@/components/invitations/InvitationsBell';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import type { UserRole } from '@/types/database';
 
@@ -275,7 +276,8 @@ export function AppLayout() {
           </div>
 
           {/* Right: PropertySwitcher (bien a la derecha) */}
-          <div className="flex items-center gap-3 shrink-0 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+            <InvitationsBell />
             {hasProperties ? (
               <PropertySwitcher />
             ) : (
@@ -303,8 +305,9 @@ export function AppLayout() {
             </h2>
           </div>
 
-          {/* Right: Switcher, ThemeToggle and Signout */}
+          {/* Right: Invitations, Switcher, ThemeToggle and Signout */}
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <InvitationsBell />
             {hasProperties && <PropertySwitcher />}
             <ThemeToggle className="text-[10px] px-1.5 py-1" />
             {user && (

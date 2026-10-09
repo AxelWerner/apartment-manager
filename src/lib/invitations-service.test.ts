@@ -8,6 +8,8 @@ import {
   cancelPropertyInvitation,
   fetchInvitationByToken,
   acceptPropertyInvitation,
+  fetchUserPendingInvitations,
+  declinePropertyInvitation,
 } from './invitations-service';
 import { supabase } from './supabase';
 
@@ -255,8 +257,129 @@ describe('Invitations & Members Service', () => {
       expect(res.success).toBe(true);
       expect(res.property_id).toBe('prop-1');
       expect(supabase.rpc).toHaveBeenCalledWith('accept_property_invitation', {
-        invitation_token: 'tok-abc',
+        p_token: 'tok-abc',
       });
+    });
+  });
+
+  describe('fetchUserPendingInvitations', () => {
+    it('returns empty array when user is not logged in', async () => {
+      (supabase.auth.getUser as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { user: null },
+      });
+
+      const res = await fetchUserPendingInvitations();
+      expect(res).toEqual([]);
+    });
+
+    it('returns invitations from get_my_pending_invitations RPC when available', async () => {
+      (supabase.auth.getUser as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { user: { id: 'user-1', email: 'test@example.com' } },
+      });
+
+      const mockInvites = [
+        {
+          id: 'inv-1',
+          property_id: 'prop-1',
+          email: 'test@example.com',
+          role: 'ADMINISTRATOR',
+          property_name: 'Apto Poblado',
+          status: 'pending',
+          token: 'tok-123',
+          expires_at: '2026-12-31',
+        },
+      ];
+
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: mockInvites,
+        error: null,
+      });
+
+      const res = await fetchUserPendingInvitations();
+      expect(res).toHaveLength(1);
+      expect(res[0].property_name).toBe('Apto Poblado');
+      expect(supabase.rpc).toHaveBeenCalledWith('get_my_pending_invitations');
+    });
+
+    it('falls back to querying property_invitations table if RPC fails', async () => {
+      (supabase.auth.getUser as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { user: { id: 'user-1', email: 'test@example.com' } },
+      });
+
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: null,
+        error: new Error('RPC not found'),
+      });
+
+      const mockTableData = [
+        {
+          id: 'inv-1',
+          property_id: 'prop-1',
+          email: 'test@example.com',
+          role: 'VIEWER',
+          status: 'pending',
+          token: 'tok-xyz',
+          expires_at: '2026-12-31',
+          property: {
+            id: 'prop-1',
+            name: 'Apto Laureles',
+            city: 'Medellín',
+          },
+        },
+      ];
+
+      vi.mocked(supabase.from).mockImplementationOnce(() => {
+        return {
+          select: vi.fn().mockReturnValue({
+            ilike: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                gt: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({ data: mockTableData, error: null }),
+                }),
+              }),
+            }),
+          }),
+        } as unknown as ReturnType<typeof supabase.from>;
+      });
+
+      const res = await fetchUserPendingInvitations();
+      expect(res).toHaveLength(1);
+      expect(res[0].property_name).toBe('Apto Laureles');
+    });
+  });
+
+  describe('declinePropertyInvitation', () => {
+    it('invokes decline_property_invitation RPC and succeeds', async () => {
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { success: true },
+        error: null,
+      });
+
+      const res = await declinePropertyInvitation('tok-abc');
+      expect(res.success).toBe(true);
+      expect(supabase.rpc).toHaveBeenCalledWith('decline_property_invitation', {
+        p_token: 'tok-abc',
+      });
+    });
+
+    it('falls back to direct table update if RPC fails', async () => {
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: null,
+        error: new Error('RPC not found'),
+      });
+
+      vi.mocked(supabase.from).mockImplementationOnce(() => {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          }),
+        } as unknown as ReturnType<typeof supabase.from>;
+      });
+
+      const res = await declinePropertyInvitation('tok-abc');
+      expect(res.success).toBe(true);
     });
   });
 });

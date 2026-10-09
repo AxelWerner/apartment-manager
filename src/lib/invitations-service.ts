@@ -1,5 +1,12 @@
 import { supabase } from './supabase';
-import type { PropertyMember, PropertyInvitation, UserRole, Property, UserProfile } from '@/types/database';
+import type {
+  PropertyMember,
+  PropertyInvitation,
+  UserPendingInvitation,
+  UserRole,
+  Property,
+  UserProfile,
+} from '@/types/database';
 
 /**
  * Obtener todos los miembros con acceso a un apartamento específico
@@ -311,9 +318,19 @@ export async function acceptPropertyInvitation(
   token: string
 ): Promise<{ success: boolean; property_id?: string; error?: string }> {
   try {
-    const { data, error } = await supabase.rpc('accept_property_invitation', {
-      invitation_token: token,
+    // Intentar primero con 'p_token' (nombre del parámetro en la función RPC de Supabase)
+    let { data, error } = await supabase.rpc('accept_property_invitation', {
+      p_token: token,
     });
+
+    // Fallback con 'invitation_token' por compatibilidad
+    if (error && (error.message?.includes('schema cache') || error.code === 'PGRST202')) {
+      const retry = await supabase.rpc('accept_property_invitation', {
+        invitation_token: token,
+      });
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return { success: false, error: error.message };
@@ -323,6 +340,112 @@ export async function acceptPropertyInvitation(
     return res;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error al procesar la invitación';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Obtener las invitaciones pendientes dirigidas al usuario autenticado actual
+ */
+export async function fetchUserPendingInvitations(): Promise<UserPendingInvitation[]> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user?.email) {
+      return [];
+    }
+
+    // Intentar primero con la función RPC optimizada
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_pending_invitations');
+
+    if (!rpcError && Array.isArray(rpcData)) {
+      return rpcData as UserPendingInvitation[];
+    }
+
+    // Fallback: consulta directa a property_invitations con join de properties
+    const { data, error } = await supabase
+      .from('property_invitations')
+      .select('*, property:properties(id, name, city, address)')
+      .ilike('email', user.email)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Error fetching pending invitations directly:', error);
+      return [];
+    }
+
+    interface RawInvitationRow {
+      id: string;
+      property_id: string;
+      email: string;
+      role: UserRole;
+      invited_by: string | null;
+      token: string;
+      status: PropertyInvitation['status'];
+      expires_at: string;
+      created_at?: string;
+      updated_at?: string;
+      property?: {
+        name?: string | null;
+        city?: string | null;
+        address?: string | null;
+      } | null;
+    }
+
+    return ((data as unknown as RawInvitationRow[]) || []).map((row) => ({
+      id: row.id,
+      property_id: row.property_id,
+      email: row.email,
+      role: row.role,
+      invited_by: row.invited_by,
+      token: row.token,
+      status: row.status,
+      expires_at: row.expires_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      property_name: row.property?.name ?? null,
+      property_city: row.property?.city ?? null,
+      property_address: row.property?.address ?? null,
+    }));
+  } catch (err) {
+    console.error('Failed to fetch user pending invitations:', err);
+    return [];
+  }
+}
+
+/**
+ * Rechazar una invitación por token
+ */
+export async function declinePropertyInvitation(
+  token: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('decline_property_invitation', {
+      p_token: token,
+    });
+
+    const rpcResult = data as { success?: boolean } | null;
+    if (!error && rpcResult?.success) {
+      return { success: true };
+    }
+
+    // Fallback directo: actualizar estado si RPC no estaba configurada aún
+    const { error: updateError } = await supabase
+      .from('property_invitations')
+      .update({ status: 'declined', updated_at: new Date().toISOString() })
+      .eq('token', token)
+      .eq('status', 'pending');
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error al rechazar la invitación';
     return { success: false, error: message };
   }
 }
