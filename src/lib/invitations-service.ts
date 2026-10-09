@@ -432,15 +432,37 @@ export async function declinePropertyInvitation(
       return { success: true };
     }
 
+    // Si el RPC falló con un error de negocio o permisos (no por ausencia de la función), reportarlo
+    const isRpcMissing =
+      error &&
+      (error.code === 'PGRST202' ||
+        error.message?.includes('schema cache') ||
+        error.message?.includes('Could not find the function'));
+
+    if (error && !isRpcMissing) {
+      console.warn('decline_property_invitation RPC returned error:', error);
+      return { success: false, error: error.message };
+    }
+
     // Fallback directo: actualizar estado si RPC no estaba configurada aún
-    const { error: updateError } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from('property_invitations')
       .update({ status: 'declined', updated_at: new Date().toISOString() })
       .eq('token', token)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateError) {
       return { success: false, error: updateError.message };
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return {
+        success: false,
+        error: isRpcMissing
+          ? 'No se pudo rechazar la invitación o ya no está pendiente.'
+          : error?.message || 'No se pudo rechazar la invitación o ya no está pendiente.',
+      };
     }
 
     return { success: true };

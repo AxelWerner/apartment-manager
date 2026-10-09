@@ -106,6 +106,7 @@ export function useDeclinePendingInvitation() {
           : 'Invitación rechazada'
       );
       queryClient.invalidateQueries({ queryKey: ['my_pending_invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['property_invitations'] });
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Error al rechazar la invitación');

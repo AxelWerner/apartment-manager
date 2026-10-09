@@ -362,17 +362,19 @@ describe('Invitations & Members Service', () => {
       });
     });
 
-    it('falls back to direct table update if RPC fails', async () => {
+    it('falls back to direct table update if RPC is missing', async () => {
       (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: null,
-        error: new Error('RPC not found'),
+        error: { code: 'PGRST202', message: 'Could not find the function in schema cache' },
       });
 
       vi.mocked(supabase.from).mockImplementationOnce(() => {
         return {
           update: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ error: null }),
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: [{ id: 'inv-1' }], error: null }),
+              }),
             }),
           }),
         } as unknown as ReturnType<typeof supabase.from>;
@@ -380,6 +382,40 @@ describe('Invitations & Members Service', () => {
 
       const res = await declinePropertyInvitation('tok-abc');
       expect(res.success).toBe(true);
+    });
+
+    it('returns error if RPC returns business/permission error', async () => {
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: null,
+        error: { code: 'P0001', message: 'No tienes permiso para responder a esta invitación.' },
+      });
+
+      const res = await declinePropertyInvitation('tok-abc');
+      expect(res.success).toBe(false);
+      expect(res.error).toBe('No tienes permiso para responder a esta invitación.');
+    });
+
+    it('returns error if fallback updates 0 rows', async () => {
+      (supabase.rpc as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: null,
+        error: { code: 'PGRST202', message: 'Could not find the function' },
+      });
+
+      vi.mocked(supabase.from).mockImplementationOnce(() => {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                select: vi.fn().mockResolvedValue({ data: [], error: null }),
+              }),
+            }),
+          }),
+        } as unknown as ReturnType<typeof supabase.from>;
+      });
+
+      const res = await declinePropertyInvitation('tok-abc');
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('No se pudo rechazar la invitación');
     });
   });
 });
