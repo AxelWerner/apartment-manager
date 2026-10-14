@@ -67,7 +67,7 @@ const roleOptions: Array<{
   {
     role: 'OPERATOR',
     title: 'Gestor Operativo',
-    description: 'Operativa diaria: reservas, gastos del apto, guía del huésped y daños sin acceso a finanzas críticas ni miembros.',
+    description: 'Operativa diaria: reservas, gastos del apto y daños sin acceso a finanzas críticas ni miembros.',
     icon: SlidersHorizontal,
     selectedCardClass:
       'border-blue-500 dark:border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 ring-2 ring-blue-500/25 shadow-xs',

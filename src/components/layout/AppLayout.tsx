@@ -185,7 +185,7 @@ export function AppLayout() {
       title: 'Guía Digital del Huésped',
       description: 'Configura la información visible para tus huéspedes, genera el código QR y comparte el enlace público',
       icon: Compass,
-      roles: ['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER'],
+      roles: ['SUPER_USER', 'PRIMARY_OWNER'],
     },
     {
       to: `${basePath}/settings`,

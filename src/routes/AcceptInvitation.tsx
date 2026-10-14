@@ -51,13 +51,13 @@ const roleLabels: Record<
   },
   ADMINISTRATOR: {
     label: 'Administrador',
-    description: 'Gestión de reservas, gastos, guía del huésped y equipo',
+    description: 'Gestión de reservas, gastos y equipo',
     icon: Briefcase,
     colorClass: 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800',
   },
   OPERATOR: {
     label: 'Gestor Operativo',
-    description: 'Operación diaria: reservas, gastos, guía del huésped y daños',
+    description: 'Operación diaria: reservas, gastos y daños',
     icon: SlidersHorizontal,
     colorClass: 'text-amber-600 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
   },
