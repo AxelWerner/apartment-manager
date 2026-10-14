@@ -105,11 +105,12 @@ export function MultiMonthChart({ data, selectedMonth, onSelectMonth }: MultiMon
               tickFormatter={(val) => `${val}%`}
             />
             <Tooltip
+              cursor={{ fill: 'currentColor', className: 'text-slate-400/10' }}
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   const p = payload[0].payload;
                   return (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl shadow-lg text-xs space-y-2 z-50">
+                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 rounded-xl shadow-xl text-xs space-y-2 z-50 pointer-events-none">
                       <p className="font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-1">
                         {p.fullLabel}
                       </p>

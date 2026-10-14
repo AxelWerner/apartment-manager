@@ -120,8 +120,8 @@ export function MiniPieCardChart({
                       : `${val} ${unitLabel || ''}`.trim();
 
                     return (
-                      <div className="bg-slate-900/95 dark:bg-slate-800/95 text-white border border-slate-700/80 shadow-2xl rounded-xl px-2.5 py-1.5 text-xs z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-75">
-                        <div className="flex items-center gap-1.5 font-semibold text-slate-100">
+                      <div className="bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 border border-slate-200/90 dark:border-slate-800 shadow-xl rounded-xl px-2.5 py-1.5 text-xs z-50 pointer-events-none backdrop-blur-md animate-in fade-in zoom-in-95 duration-75">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
                           <span
                             className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: item.color }}
@@ -129,7 +129,7 @@ export function MiniPieCardChart({
                           <span>{item.name}</span>
                         </div>
                         <div className="flex items-center justify-between gap-3 mt-1 text-[11px]">
-                          <span className="text-slate-300 font-mono font-medium">{formattedValue}</span>
+                          <span className="text-slate-600 dark:text-slate-300 font-mono font-medium">{formattedValue}</span>
                           <span
                             className="font-bold px-1.5 py-0.5 rounded text-[10px]"
                             style={{

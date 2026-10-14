@@ -895,24 +895,59 @@ export default function Dashboard() {
           <div className="h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={cashFlowData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                <XAxis dataKey="monthLabel" tickLine={false} axisLine={false} fontSize={12} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-slate-200/70 dark:text-slate-800/80" />
+                <XAxis
+                  dataKey="monthLabel"
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fontSize: 12, fill: 'currentColor' }}
+                  className="text-slate-500 dark:text-slate-400"
+                />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  fontSize={11}
+                  tick={{ fontSize: 11, fill: 'currentColor' }}
+                  className="text-slate-400 dark:text-slate-500"
                   tickFormatter={(val) => `$${(val / 1000000).toFixed(1)}M`}
                 />
                 <Tooltip
-                  formatter={(value: unknown, name: unknown) => [formatCOP(Number(value)) + ' COP', String(name)]}
-                  labelFormatter={(label) => `Mes: ${label}`}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                  cursor={{ fill: 'currentColor', className: 'text-slate-400/10' }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    return (
+                      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-3 rounded-xl shadow-xl text-xs z-50 pointer-events-none min-w-[240px] space-y-2">
+                        <div className="font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-1.5 flex items-center justify-between">
+                          <span>Mes: {label}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {payload.map((entry) => (
+                            <div key={String(entry.name)} className="flex items-center justify-between gap-3 text-xs">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: entry.color }}
+                                />
+                                <span className="text-slate-600 dark:text-slate-300 truncate">
+                                  {entry.name}
+                                </span>
+                              </div>
+                              <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                                {formatCOP(Number(entry.value))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
                   }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                <Legend
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                  formatter={(value: string) => (
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">{value}</span>
+                  )}
+                />
                 <Bar dataKey="realIncome" stackId="income" name="Ingreso Real (Cobrado)" fill="#10b981" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="futureIncome" stackId="income" name="Ingreso Futuro (Por cobrar)" fill="#60a5fa" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="realExpenses" stackId="expenses" name="Gastos Pagados" fill="#f43f5e" radius={[0, 0, 0, 0]} />
@@ -962,8 +997,40 @@ export default function Dashboard() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(val: unknown) => [formatCOP(Number(val)), 'Gasto']}
-                    contentStyle={{ borderRadius: '12px', fontSize: '12px' }}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const item = payload[0];
+                      const val = Number(item.value) || 0;
+                      const totalExpenses = expenseCategoryData.reduce((acc, curr) => acc + curr.amount, 0);
+                      const pct = totalExpenses > 0 ? ((val / totalExpenses) * 100).toFixed(1) : '0';
+                      const color = (item.payload as { color?: string })?.color || '#f43f5e';
+
+                      return (
+                        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 p-2.5 rounded-xl shadow-xl text-xs z-50 pointer-events-none min-w-[170px]">
+                          <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                            <span className="text-slate-600 dark:text-slate-300 font-mono font-medium">
+                              {formatCOP(val)}
+                            </span>
+                            <span
+                              className="font-bold px-1.5 py-0.5 rounded text-[10px]"
+                              style={{
+                                backgroundColor: `${color}25`,
+                                color: color,
+                              }}
+                            >
+                              {pct}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
