@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react';
 import { Sun, Moon, Laptop } from 'lucide-react';
 import { getThemePreference, setThemePreference, THEME_CHANGE_EVENT, type ThemePreference } from '@/lib/theme';
 
-export function ThemeToggle({ className = '' }: { className?: string }) {
+export function ThemeToggle({
+  className = '',
+  showLabel = true,
+}: {
+  className?: string;
+  showLabel?: boolean;
+}) {
   const [theme, setTheme] = useState<ThemePreference>(getThemePreference());
 
   useEffect(() => {
@@ -57,12 +63,18 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
     <button
       type="button"
       onClick={cycleTheme}
-      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-slate-200/80 dark:border-slate-800 ${className}`}
+      className={`flex items-center justify-center gap-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border border-slate-200/80 dark:border-slate-800 ${
+        showLabel ? 'px-2.5 py-1.5' : 'p-2'
+      } ${className}`}
       title={`Tema actual: ${getLabel()}. Haz clic para cambiar.`}
       aria-label={`Tema: ${getLabel()}`}
     >
       {getIcon()}
-      <span>Tema: {getLabel()}</span>
+      {showLabel ? (
+        <span>Tema: {getLabel()}</span>
+      ) : (
+        <span className="sr-only">Tema: {getLabel()}</span>
+      )}
     </button>
   );
 }
