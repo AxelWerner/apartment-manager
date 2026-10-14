@@ -64,18 +64,26 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
   // Sincronizar propiedades desde Supabase
   const loadProperties = useCallback(async () => {
     try {
-      const list = await fetchUserProperties();
+      const list = await fetchUserProperties(user?.id);
       setProperties(list);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     let ignore = false;
+
+    // Timeout de seguridad para evitar que la interfaz quede congelada en "Verificando..."
+    const safetyTimer = setTimeout(() => {
+      if (!ignore) {
+        setIsLoading(false);
+      }
+    }, 4000);
+
     async function init() {
       try {
-        const list = await fetchUserProperties();
+        const list = await fetchUserProperties(user?.id);
         if (ignore) return;
         setProperties(list);
       } finally {
@@ -88,6 +96,7 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     init();
     return () => {
       ignore = true;
+      clearTimeout(safetyTimer);
     };
   }, [user?.id]);
 
