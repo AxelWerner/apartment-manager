@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -13,6 +13,7 @@ import {
   LogOut,
   User as UserIcon,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useActiveProperty } from '@/context/PropertyContext';
@@ -20,6 +21,7 @@ import { PropertySwitcher } from '@/components/properties/PropertySwitcher';
 import { CreatePropertyModal } from '@/components/properties/CreatePropertyModal';
 import { InvitationsBell } from '@/components/invitations/InvitationsBell';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { AiAssistantDrawer } from '@/components/ai/AiAssistantDrawer';
 import type { UserRole } from '@/types/database';
 
 const roleConfig: Record<UserRole, { label: string; badgeClass: string }> = {
@@ -58,6 +60,21 @@ export function AppLayout() {
   const { user, role: globalRole, signOut } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+
+  // Shortcut Cmd+J / Ctrl+J to toggle AI drawer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setIsAiDrawerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const activeProperty = properties.find((p) => p.property.id === activePropertyId)?.property;
 
   // Si no tiene propiedades y está intentando acceder a una sub-ruta (/p/:id/...), redirigir a /
   if (!isLoading && properties.length === 0 && location.pathname !== '/') {
@@ -275,8 +292,17 @@ export function AppLayout() {
             </div>
           </div>
 
-          {/* Right: PropertySwitcher (bien a la derecha) */}
+          {/* Right: Actions, AI Assistant, PropertySwitcher */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => setIsAiDrawerOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-rose-500/10 hover:from-amber-500/20 hover:via-indigo-500/20 hover:to-rose-500/20 border border-amber-300/50 dark:border-indigo-700/50 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all hover:scale-[1.02] shadow-2xs cursor-pointer group"
+              title="Abrir Asistente Financiero IA (Cmd+J)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 group-hover:rotate-12 transition-transform" />
+              <span>Asistente IA</span>
+            </button>
             <InvitationsBell />
             {hasProperties ? (
               <PropertySwitcher />
@@ -307,6 +333,15 @@ export function AppLayout() {
 
           {/* Right: Invitations, Switcher, ThemeToggle and Signout */}
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <button
+              type="button"
+              onClick={() => setIsAiDrawerOpen(true)}
+              className="p-1.5 rounded-lg bg-amber-50 dark:bg-indigo-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-indigo-800/60"
+              title="Asistente IA"
+              aria-label="Asistente IA"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
             <InvitationsBell />
             {hasProperties && <PropertySwitcher />}
             <ThemeToggle className="text-[10px] px-1.5 py-1" />
@@ -357,6 +392,14 @@ export function AppLayout() {
       <CreatePropertyModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      {/* Drawer del Asistente Financiero IA */}
+      <AiAssistantDrawer
+        isOpen={isAiDrawerOpen}
+        onClose={() => setIsAiDrawerOpen(false)}
+        activePropertyId={activePropertyId ?? undefined}
+        propertyName={activeProperty?.name}
       />
     </div>
   );
