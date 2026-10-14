@@ -2,7 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import { useBookings, useCreateBooking } from './use-bookings';
+import {
+  useBookings,
+  useCreateBooking,
+  useCreateBookingsBatch,
+  useUpdateBooking,
+  useDeleteBooking,
+  useClearBookings,
+} from './use-bookings';
 import * as apiService from '@/lib/api-service';
 import type { Booking } from '@/types/database';
 
@@ -109,4 +116,101 @@ describe('use-bookings hooks', () => {
 
     expect(apiService.createBooking).toHaveBeenCalledWith(newBookingData);
   });
+
+  it('creates batch of bookings via useCreateBookingsBatch with array or object', async () => {
+    const batchData = [
+      {
+        property_id: 'p-1',
+        airbnb_confirmation_code: 'BATCH1',
+        guest_name: 'Guest 1',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-11-01',
+        check_out: '2026-11-03',
+        number_of_nights: 2,
+        nightly_rate: 100000,
+        gross_amount: 200000,
+        cleaning_fee_collected: 50000,
+        airbnb_service_fee: 30000,
+        taxes_withheld: 0,
+        net_payout: 170000,
+        status: 'confirmed' as const,
+        payout_status: 'pending' as const,
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      },
+    ];
+
+    const batchResult: apiService.UpsertBatchResult = {
+      inserted: 1,
+      updated: 0,
+      unchanged: 0,
+      deleted: 0,
+      total: 1,
+    };
+
+    vi.mocked(apiService.createBookingsBatch).mockResolvedValue(batchResult);
+
+    const { result } = renderHook(() => useCreateBookingsBatch(), {
+      wrapper: createWrapper(),
+    });
+
+    // Test with array
+    const res1 = await result.current.mutateAsync(batchData);
+    expect(apiService.createBookingsBatch).toHaveBeenCalledWith(batchData);
+    expect(res1).toEqual(batchResult);
+
+    // Test with object containing options
+    const res2 = await result.current.mutateAsync({
+      bookings: batchData,
+      options: { deleteMissing: true },
+    });
+    expect(apiService.createBookingsBatch).toHaveBeenCalledWith(batchData, {
+      deleteMissing: true,
+    });
+    expect(res2).toEqual(batchResult);
+  });
+
+  it('updates booking via useUpdateBooking', async () => {
+    vi.mocked(apiService.updateBooking).mockResolvedValue({} as unknown as Booking);
+
+    const { result } = renderHook(() => useUpdateBooking(), {
+      wrapper: createWrapper(),
+    });
+
+    await result.current.mutateAsync({
+      id: 'b-100',
+      updates: { guest_name: 'Ana Updated' },
+    });
+
+    expect(apiService.updateBooking).toHaveBeenCalledWith('b-100', {
+      guest_name: 'Ana Updated',
+    });
+  });
+
+  it('deletes booking via useDeleteBooking', async () => {
+    vi.mocked(apiService.deleteBooking).mockResolvedValue(undefined as unknown as void);
+
+    const { result } = renderHook(() => useDeleteBooking(), {
+      wrapper: createWrapper(),
+    });
+
+    await result.current.mutateAsync('b-100');
+
+    expect(apiService.deleteBooking).toHaveBeenCalledWith('b-100');
+  });
+
+  it('clears all bookings via useClearBookings', async () => {
+    vi.mocked(apiService.clearAllBookings).mockResolvedValue(undefined as unknown as void);
+
+    const { result } = renderHook(() => useClearBookings(), {
+      wrapper: createWrapper(),
+    });
+
+    await result.current.mutateAsync();
+
+    expect(apiService.clearAllBookings).toHaveBeenCalledTimes(1);
+  });
 });
+
