@@ -39,6 +39,9 @@ pnpm build            # Production build
 pnpm test             # Run test suite
 pnpm test:watch       # Run test suite in watch mode
 pnpm test:coverage    # Run test suite with code coverage report
+pnpm test:e2e         # Run Playwright E2E tests
+pnpm test:e2e:ui      # Run Playwright E2E tests with UI runner & time-travel
+pnpm test:e2e:codegen # Launch Playwright test generator against local dev
 pnpm lint             # Lint
 pnpm preview          # Preview production build
 pnpm seed             # Seed database with sample data
@@ -54,3 +57,4 @@ pnpm seed             # Seed database with sample data
 | 2026-06-04 | TanStack Query | Caching, refetching, optimistic updates for Supabase data |
 | 2026-06-04 | pnpm | Fast, disk-efficient, strict |
 | 2026-06-04 | shadcn/ui + Tailwind | Full control, no runtime overhead |
+| 2026-10-15 | Playwright E2E Suite | Zero-seed user journey testing, Page Object Model, GitHub Actions with Supabase Local |

@@ -293,14 +293,18 @@ export function getColombiaDateTime(): {
  * - Días de estadía (días intermedios y día de check-out inclusive): 'checked_in' ("En el Apto")
  * - Días posteriores a la fecha de check-out: 'completed' ("Completada")
  */
-export function resolveBookingStatus(booking: {
-  status?: BookingStatus;
-  check_in: string;
-  check_out: string;
-}): BookingStatus {
+export function resolveBookingStatus(
+  booking: {
+    status?: BookingStatus;
+    check_in: string;
+    check_out: string;
+  },
+  referenceDateStr?: string
+): BookingStatus {
   if (booking.status === 'cancelled') return 'cancelled';
 
-  const { dateStr: todayStr, hours } = getColombiaDateTime();
+  const todayStr = referenceDateStr || getColombiaDateTime().dateStr;
+  const hours = referenceDateStr ? 12 : getColombiaDateTime().hours;
 
   // Fecha anterior al día de check-in
   if (todayStr < booking.check_in) {
@@ -340,7 +344,7 @@ export function isBookingReal(
 ): boolean {
   if (booking.status === 'cancelled') return false;
   if (booking.payout_status === 'paid') return true;
-  const status = resolveBookingStatus(booking);
+  const status = resolveBookingStatus(booking, referenceDateStr);
   if (status === 'cancelled') return false;
   if (status === 'checked_in' || status === 'completed') return true;
 
