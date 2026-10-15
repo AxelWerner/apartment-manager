@@ -10,13 +10,18 @@ export interface UserPropertyMembership {
 /**
  * Obtener todos los apartamentos a los que tiene acceso el usuario actual
  */
-export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
+export async function fetchUserProperties(explicitUserId?: string): Promise<UserPropertyMembership[]> {
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let userId = explicitUserId;
 
-    if (!user) {
+    if (!userId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      userId = user?.id;
+    }
+
+    if (!userId) {
       // Fallback para modo offline o desarrollo sin sesión
       const { data: fallbackProp } = await supabase
         .from('properties')
@@ -38,7 +43,7 @@ export async function fetchUserProperties(): Promise<UserPropertyMembership[]> {
     const { data, error } = await supabase
       .from('property_members')
       .select('role, properties (*)')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error || !data) {
       console.warn('Error fetching property memberships:', error);

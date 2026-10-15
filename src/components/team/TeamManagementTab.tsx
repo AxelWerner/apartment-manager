@@ -285,10 +285,10 @@ export function TeamManagementTab({
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                {r === 'PRIMARY_OWNER' && 'Titular supremo e inmune. Único que puede transferir titularidad o eliminar el apto.'}
+                {r === 'PRIMARY_OWNER' && 'Titular supremo e inmune. Único con acceso a la guía del huésped, transferir titularidad o eliminar el apto.'}
                 {r === 'OWNER' && 'Copropietario con acceso total financiero y de gestión.'}
                 {r === 'ADMINISTRATOR' && 'Gestión completa de tarifas, comisiones y configuración técnica.'}
-                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos, guía del huésped y daños.'}
+                {r === 'OPERATOR' && 'Operativa diaria: reservas, gastos y daños.'}
                 {r === 'CLEANER' && 'Calendario de entradas/salidas y reporte fotográfico de incidencias.'}
                 {r === 'VIEWER' && 'Lectura de estadísticas e ingresos sin permisos de modificación.'}
               </p>

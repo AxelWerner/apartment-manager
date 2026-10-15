@@ -146,7 +146,7 @@ export default function App() {
               <Route
                 path="guest-guide"
                 element={
-                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER', 'OWNER', 'ADMINISTRATOR', 'OPERATOR', 'VIEWER']}>
+                  <ProtectedRoute allowedRoles={['SUPER_USER', 'PRIMARY_OWNER']}>
                     <GuestGuideAdmin />
                   </ProtectedRoute>
                 }

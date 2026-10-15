@@ -4,6 +4,7 @@ import {
   Plus,
   Check,
   Sparkles,
+  Building2,
 } from 'lucide-react';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { CreatePropertyModal } from './CreatePropertyModal';
@@ -59,9 +60,10 @@ export const RoleAvatar = RoleBadge;
 
 interface PropertySwitcherProps {
   className?: string;
+  compact?: boolean;
 }
 
-export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
+export function PropertySwitcher({ className = '', compact = false }: PropertySwitcherProps) {
   const {
     properties,
     activeProperty,
@@ -101,30 +103,39 @@ export function PropertySwitcher({ className = '' }: PropertySwitcherProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center justify-between gap-3 px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-900/60 shadow-2xs hover:shadow-xs transition-all text-left cursor-pointer max-w-[220px] sm:max-w-xs md:max-w-sm"
+        className={`group flex items-center justify-between rounded-xl bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-rose-300 dark:hover:border-rose-900/60 shadow-2xs hover:shadow-xs transition-all text-left cursor-pointer ${
+          compact
+            ? 'px-2.5 py-1.5 gap-1.5 max-w-[125px] sm:max-w-[160px]'
+            : 'px-3.5 py-1.5 sm:py-2 gap-3 max-w-[220px] sm:max-w-xs md:max-w-sm'
+        }`}
         aria-expanded={isOpen}
       >
-        <div className="min-w-0 flex-1 pr-1">
-          <p
-            className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-1 leading-snug break-words tracking-tight"
-            title={activeProperty?.name}
-          >
-            {activeProperty?.name || 'Selecciona un Apartamento'}
-          </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {activeProperty?.city && (
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
-                {activeProperty.city}
-              </span>
+        <div className="min-w-0 flex-1 pr-0.5 flex items-center gap-1.5">
+          {compact && <Building2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate leading-snug tracking-tight"
+              title={activeProperty?.name}
+            >
+              {activeProperty?.name || 'Apartamento'}
+            </p>
+            {!compact && (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {activeProperty?.city && (
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                    {activeProperty.city}
+                  </span>
+                )}
+                <RoleBadge role={role} isOwner={isOwner} />
+              </div>
             )}
-            <RoleBadge role={role} isOwner={isOwner} />
           </div>
         </div>
 
         <div className="shrink-0">
-          <div className="w-5 h-5 rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-md sm:rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
             <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+              className={`w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform duration-200 ${
                 isOpen ? 'rotate-180 text-rose-500' : ''
               }`}
             />

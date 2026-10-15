@@ -111,4 +111,27 @@
   }
 }
 
+/* Recharts tooltip dark theme defaults */
+.dark .recharts-default-tooltip {
+  background-color: rgb(15 23 42 / 0.95) !important;
+  border-color: rgb(30 41 59) !important;
+  color: rgb(241 245 249) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 0.75rem !important;
+}
+
+.dark .recharts-tooltip-label {
+  color: rgb(241 245 249) !important;
+  font-weight: 600 !important;
+}
+
+.dark .recharts-tooltip-item {
+  color: rgb(203 213 225) !important;
+}
+
+.dark .recharts-tooltip-cursor {
+  fill: rgba(148, 163, 184, 0.1) !important;
+}
+
+
 

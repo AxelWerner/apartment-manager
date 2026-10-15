@@ -47,6 +47,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
+    // Timeout de seguridad para evitar que quede bloqueado indefinidamente si Supabase no responde
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 4000);
+
     // Obtener sesión inicial
     supabase.auth
       .getSession()
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+        setLoading(false);
 
         if (currentUser) {
           const prof = await fetchUserProfile(currentUser);
@@ -62,7 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setProfile(null);
         }
-        setLoading(false);
       })
       .catch(() => {
         if (isMounted) {
@@ -73,23 +80,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Escuchar cambios de sesión
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) return;
       setSession(session);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
+      setLoading(false);
 
       if (currentUser) {
-        const prof = await fetchUserProfile(currentUser);
-        if (isMounted) setProfile(prof);
+        // Evitar deadlock de mutex en @supabase/supabase-js difiriendo la consulta a profiles
+        setTimeout(async () => {
+          if (!isMounted) return;
+          const prof = await fetchUserProfile(currentUser);
+          if (isMounted) setProfile(prof);
+        }, 0);
       } else {
         setProfile(null);
       }
-      setLoading(false);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, [fetchUserProfile]);
