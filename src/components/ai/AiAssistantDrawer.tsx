@@ -180,7 +180,7 @@ export function AiAssistantDrawer({
               <div className="space-y-2">
                 <h5 className="font-semibold text-slate-900 dark:text-white">Variables en tu archivo .env.local:</h5>
                 <pre className="p-3 rounded-lg bg-slate-900 text-slate-100 text-xs overflow-x-auto font-mono">
-{`CUSTOM_LLM_BASE_URL=http://localhost:11434/v1
+                  {`CUSTOM_LLM_BASE_URL=http://localhost:11434/v1
 CUSTOM_LLM_API_KEY=
 CUSTOM_LLM_MODEL=qwen2.5`}
                 </pre>
@@ -269,11 +269,10 @@ CUSTOM_LLM_MODEL=qwen2.5`}
                         )}
 
                         <div
-                          className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
-                            isUser
+                          className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${isUser
                               ? 'bg-indigo-600 text-white shadow-xs'
                               : 'bg-slate-100 dark:bg-slate-800/90 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/60 shadow-xs'
-                          }`}
+                            }`}
                         >
                           {hasToolCall && (
                             <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/60 dark:border-indigo-800/60 px-2 py-0.5 rounded-lg w-fit">

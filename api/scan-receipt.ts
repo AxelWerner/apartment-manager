@@ -273,9 +273,9 @@ export function normalizeExpenseType(
 export async function processReceiptExtraction(
   body: ScanReceiptRequestBody
 ): Promise<ReceiptExtractionResult> {
-  const baseURL = process.env.CUSTOM_LLM_BASE_URL || 'http://127.0.0.1:11434/v1';
+  const baseURL = process.env.CUSTOM_LLM_BASE_URL || 'https://cephei.ai/api/v1';
   const apiKey = process.env.CUSTOM_LLM_API_KEY || '';
-  const modelName = process.env.CUSTOM_LLM_VISION_MODEL || process.env.CUSTOM_LLM_MODEL || 'qwen3.8:27b';
+  const modelName = process.env.CUSTOM_LLM_VISION_MODEL || 'glm-5.3-flash:cloud';
 
   const provider = createOpenAICompatible({
     name: 'custom-llm',

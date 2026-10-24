@@ -1,9 +1,9 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { supabase } from '@/lib/supabase';
-import { calculateMonthAnalytics } from '@/lib/analytics-utils';
-import { getBookingSourceInfo, formatMonthYear, resolveBookingStatus } from '@/lib/formatters';
-import type { Booking, Expense, Property } from '@/types/database';
+import { supabase } from '../supabase';
+import { calculateMonthAnalytics } from '../analytics-utils';
+import { getBookingSourceInfo, formatMonthYear, resolveBookingStatus } from '../formatters';
+import type { Booking, Expense, Property } from '../../types/database';
 
 export interface FinancialStatsResult {
   monthKey: string;
@@ -172,18 +172,18 @@ export async function fetchMonthlyFinancialData(params: {
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
+          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          getBookingSourceInfo(b.source).ownerRate
+        );
     ownerPayout += op;
 
     const mf =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
+          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          getBookingSourceInfo(b.source).commissionRate
+        );
     managementFee += mf;
   }
 
@@ -249,8 +249,8 @@ export async function fetchMonthlyFinancialData(params: {
     baseRevenue > 0
       ? `${((netProfit / baseRevenue) * 100).toFixed(1)}%`
       : totalExpenses > 0
-      ? '-100%'
-      : '0%';
+        ? '-100%'
+        : '0%';
 
   // operationalProfit = Beneficio operativo antes de comisión de administración (accommodationRevenue - totalExpenses)
   const operationalProfit = accommodationRevenue - totalExpenses;
@@ -258,8 +258,8 @@ export async function fetchMonthlyFinancialData(params: {
     accommodationRevenue > 0
       ? `${((operationalProfit / accommodationRevenue) * 100).toFixed(1)}%`
       : totalExpenses > 0
-      ? '-100%'
-      : '0%';
+        ? '-100%'
+        : '0%';
 
   const airbnbShare =
     analytics.occupiedNights > 0
@@ -410,18 +410,18 @@ export async function fetchAnnualFinancialData(params: {
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
+          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          getBookingSourceInfo(b.source).ownerRate
+        );
     ownerPayout += op;
 
     const mf =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
+          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          getBookingSourceInfo(b.source).commissionRate
+        );
     managementFee += mf;
   }
 
@@ -454,9 +454,9 @@ export async function fetchAnnualFinancialData(params: {
         (b.owner_payout !== undefined && b.owner_payout !== null
           ? Number(b.owner_payout)
           : Math.round(
-              Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-                getBookingSourceInfo(b.source).ownerRate
-            ))
+            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+            getBookingSourceInfo(b.source).ownerRate
+          ))
       );
     }, 0);
     const mExp = mExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);

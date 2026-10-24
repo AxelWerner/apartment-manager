@@ -22,10 +22,14 @@ function aiChatDevPlugin(): Plugin {
 
         req.on("end", async () => {
           try {
+            const currentEnv = loadEnv(server.config.mode, process.cwd(), "");
+            Object.assign(process.env, currentEnv);
             const parsedBody = bodyData ? JSON.parse(bodyData) : {};
             const chatModule = await server.ssrLoadModule("./api/chat.ts");
             const result = await chatModule.handleChatStream(parsedBody);
-            result.pipeUIMessageStreamToResponse(res);
+            result.pipeUIMessageStreamToResponse(res, {
+              getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
+            });
           } catch (err: unknown) {
             console.error("AI Chat Dev Error:", err);
             const errorMessage = err instanceof Error ? err.message : "Error al conectar con tu servidor LLM";
