@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { generateText } from 'ai';
 import { z } from 'zod';

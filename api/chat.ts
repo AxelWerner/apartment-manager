@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { streamText, isStepCount } from 'ai';
 import { createFinancialTools } from '../src/lib/ai/financial-tools';
