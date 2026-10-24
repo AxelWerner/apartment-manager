@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CsvImportModal } from './CsvImportModal';
 import { renderWithProviders } from '@/test/test-utils';
+import { AuthContext, type AuthContextType } from '@/context/auth-context-def';
 
 const mockMutateAsync = vi.fn().mockResolvedValue({ inserted: 2, updated: 0, unchanged: 0, total: 2 });
 
@@ -486,6 +487,59 @@ describe('CsvImportModal Component', () => {
 
     await waitFor(() => {
       expect(localStorage.getItem('apt_mgr_last_import_completed')).toBeTruthy();
+    });
+  });
+
+  it('sets booking notes with "Importado vía CSV Airbnb por <nombre usuario>"', async () => {
+    const user = userEvent.setup();
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+10/15/2026,Buchung,HM_USER_NOTE,10/01/2026,10/15/2026,10/18/2026,3,Note Guest,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    const mockAuthContext: AuthContextType = {
+      user: { id: 'u-1', email: 'axel@example.com' } as unknown as AuthContextType['user'],
+      session: null,
+      profile: {
+        id: 'u-1',
+        full_name: 'Axel Werner',
+        phone: null,
+      },
+      loading: false,
+      signIn: vi.fn(),
+      signOut: vi.fn(),
+    };
+
+    renderWithProviders(
+      <AuthContext.Provider value={mockAuthContext}>
+        <CsvImportModal isOpen={true} onClose={vi.fn()} />
+      </AuthContext.Provider>
+    );
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Note Guest/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookings: expect.arrayContaining([
+            expect.objectContaining({
+              guest_name: 'Note Guest',
+              notes: 'Importado vía CSV Airbnb por Axel Werner',
+            }),
+          ]),
+        })
+      );
     });
   });
 });

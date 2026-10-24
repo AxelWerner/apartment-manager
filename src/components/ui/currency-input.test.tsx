@@ -57,4 +57,13 @@ describe('CurrencyInput Component', () => {
     rerender(<CurrencyInput value={3500000} placeholder="Monto" />);
     expect(input.value).toBe('3.500.000');
   });
+
+  it('renders rightLabel affix when provided', () => {
+    render(<CurrencyInput value={60000} rightLabel="Limpieza" placeholder="0" />);
+
+    expect(screen.getByText('Limpieza')).toBeInTheDocument();
+    const input = screen.getByPlaceholderText('0');
+    expect(input).toHaveClass('pr-28');
+    expect(input).toHaveClass('text-left');
+  });
 });

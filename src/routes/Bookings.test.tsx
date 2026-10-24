@@ -407,6 +407,43 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(screen.getByText('Juan Perez')).toBeInTheDocument();
     });
   });
-});
 
+  describe('Bookings with Extra Charges (e.g. late check-out)', () => {
+    it('displays extra amount badge and shows extra row in breakdown mode', async () => {
+      const user = userEvent.setup();
+      const bookingWithExtra: Booking = {
+        ...mockBookings[0],
+        id: 'b-extra-row',
+        guest_name: 'Santiago Botero',
+        extra_amount: 50000,
+        extra_description: 'Late check-out 5 horas',
+        management_fee: 14000, // 4000 + 20% of 50000 (10000)
+        owner_payout: 76000,  // 36000 + 80% of 50000 (40000)
+      };
+
+      vi.mocked(useBookings).mockReturnValue({
+        data: [bookingWithExtra],
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      expect(screen.getByText('Santiago Botero')).toBeInTheDocument();
+      // Badge under guest name
+      expect(
+        screen.getByText((content) => content.includes('50.000') && content.includes('Extra'))
+      ).toBeInTheDocument();
+
+      // Open breakdown by clicking the calculation toggle button
+      const breakdownBtn = screen.getAllByTitle(/Ver desglose de cálculo/i)[0];
+      await user.click(breakdownBtn);
+
+      // Check breakdown content includes Extra line
+      expect(screen.getByText(/Extra.*Late check-out/i)).toBeInTheDocument();
+      expect(
+        screen.getAllByText((content) => content.includes('50.000')).length
+      ).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
 

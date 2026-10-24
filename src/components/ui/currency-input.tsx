@@ -23,10 +23,11 @@ interface CurrencyInputProps {
   placeholder?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  rightLabel?: string;
 }
 
 export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ id, value, onChange, onBlur, name, className, placeholder, disabled, readOnly }, ref) => {
+  ({ id, value, onChange, onBlur, name, className, placeholder, disabled, readOnly, rightLabel }, ref) => {
     const [display, setDisplay] = useState(() =>
       value ? formatWithDots(String(value)) : ""
     );
@@ -53,7 +54,7 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
       onChange?.(numeric);
     }
 
-    return (
+    const inputElement = (
       <input
         ref={ref}
         id={id}
@@ -62,13 +63,26 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         inputMode="numeric"
         disabled={disabled}
         readOnly={readOnly}
-        className={className}
+        className={`${className || ""} ${rightLabel ? "pr-28 text-left" : ""}`}
         placeholder={placeholder}
         value={display}
         onChange={handleChange}
         onBlur={onBlur}
       />
     );
+
+    if (rightLabel) {
+      return (
+        <div className="relative w-full flex items-center">
+          {inputElement}
+          <span className="absolute right-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 pointer-events-none select-none">
+            {rightLabel}
+          </span>
+        </div>
+      );
+    }
+
+    return inputElement;
   }
 );
 

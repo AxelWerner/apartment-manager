@@ -168,11 +168,12 @@ export async function fetchMonthlyFinancialData(params: {
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
+    const extra = Number(b.extra_amount) || 0;
     const op =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
           getBookingSourceInfo(b.source).ownerRate
         );
     ownerPayout += op;
@@ -181,7 +182,7 @@ export async function fetchMonthlyFinancialData(params: {
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
           getBookingSourceInfo(b.source).commissionRate
         );
     managementFee += mf;
@@ -406,11 +407,12 @@ export async function fetchAnnualFinancialData(params: {
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
+    const extra = Number(b.extra_amount) || 0;
     const op =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
           getBookingSourceInfo(b.source).ownerRate
         );
     ownerPayout += op;
@@ -419,7 +421,7 @@ export async function fetchAnnualFinancialData(params: {
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-          Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
           getBookingSourceInfo(b.source).commissionRate
         );
     managementFee += mf;

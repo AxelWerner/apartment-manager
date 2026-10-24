@@ -888,6 +888,14 @@ export default function Bookings() {
                                     {b.airbnb_confirmation_code}
                                   </span>
                                 )}
+                                {Number(b.extra_amount) > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60"
+                                    title={b.extra_description ? `Cobro extra: ${b.extra_description}` : 'Cobro extra (late check-out, etc.)'}
+                                  >
+                                    +{formatCOP(Number(b.extra_amount))} Extra
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -948,6 +956,19 @@ export default function Bookings() {
                                   {formatCOP(bruto)}
                                 </span>
                               </div>
+                              {Number(b.extra_amount) > 0 && (
+                                <div className="flex items-center justify-between gap-3 text-indigo-600 dark:text-indigo-400 w-full min-w-[150px]">
+                                  <span
+                                    className="text-[11px] font-sans text-indigo-500 dark:text-indigo-400 font-normal truncate max-w-[90px]"
+                                    title={b.extra_description || 'Cobro extra'}
+                                  >
+                                    Extra{b.extra_description ? ` (${b.extra_description})` : ''}:
+                                  </span>
+                                  <span className="font-medium">
+                                    +{formatCOP(Number(b.extra_amount))}
+                                  </span>
+                                </div>
+                              )}
                               <div className="flex items-center justify-between gap-3 text-rose-600 dark:text-rose-400 w-full min-w-[150px]">
                                 <span className="text-[11px] font-sans text-rose-500 dark:text-rose-400 font-normal">
                                   Aseo:

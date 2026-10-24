@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import Papa from 'papaparse';
 import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Calendar, CheckCircle2, Clock, Filter, Cloud, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { usePropertyContext } from '@/context/PropertyContext';
+import { AuthContext } from '@/context/auth-context-def';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
 import {
@@ -95,6 +96,14 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
   const { data: existingBookings = [] } = useBookings(activePropertyId);
   const createBatchMutation = useCreateBookingsBatch();
+
+  const auth = useContext(AuthContext);
+  const currentUserName =
+    auth?.profile?.full_name?.trim() ||
+    auth?.user?.user_metadata?.full_name?.trim() ||
+    auth?.user?.user_metadata?.name?.trim() ||
+    auth?.user?.email ||
+    'usuario';
 
   const [importMode, setImportMode] = useState<'completed' | 'pending'>('completed');
   const [parsedRows, setParsedRows] = useState<ParsedBookingRow[]>([]);
@@ -244,7 +253,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
 
           resolve({ fileName: file.name, rows: fileRows });
         },
-        error: (err) => {
+        error: (err: Error) => {
           toast.error(`Error al leer archivo ${file.name}: ${err.message}`);
           resolve({ fileName: file.name, rows: [] });
         },
@@ -472,9 +481,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           payout_status: isPendingPayout ? 'pending' : 'paid',
           payout_date: isPendingPayout ? null : r.check_in,
           source: 'airbnb',
-          notes: r.sourceFile
-            ? `Importado vía CSV Airbnb (${r.sourceFile})`
-            : `Importado vía CSV (${importMode === 'completed' ? 'Ya hechas' : 'Futuras'})`,
+          notes: `Importado vía CSV Airbnb por ${currentUserName}`,
         };
       });
 

@@ -132,6 +132,8 @@ export interface Booking {
   airbnb_service_fee: number;
   taxes_withheld: number;
   net_payout: number;
+  extra_amount?: number; // Cobro extra / late checkout / horas adicionales
+  extra_description?: string | null; // Motivo o concepto del cobro extra
   management_fee?: number; // 20% admin fee
   owner_payout?: number; // 80% net to owner
   status: BookingStatus;

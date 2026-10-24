@@ -72,6 +72,14 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
   const [customNetPayout, setCustomNetPayout] = useState<number | null>(
     bookingToEdit ? bookingToEdit.net_payout : null
   );
+  const [extraAmount, setExtraAmount] = useState<number>(
+    bookingToEdit?.extra_amount !== undefined && bookingToEdit?.extra_amount !== null
+      ? Number(bookingToEdit.extra_amount)
+      : 0
+  );
+  const [extraDescription, setExtraDescription] = useState<string>(
+    bookingToEdit?.extra_description ?? ''
+  );
   const [status, setStatus] = useState<BookingStatus>(bookingToEdit?.status ?? 'confirmed');
   const [payoutStatus, setPayoutStatus] = useState<PayoutStatus>(bookingToEdit?.payout_status ?? 'pending');
   const [notes, setNotes] = useState(bookingToEdit?.notes ?? '');
@@ -94,15 +102,24 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
     : customAirbnbFee !== null
     ? customAirbnbFee
     : Math.round(effectiveNetPayout * 0.03);
-  const grossAmount = bookingToEdit?.gross_amount ?? (effectiveNetPayout + effectiveAirbnbFee);
+  const numericExtraAmount = Number(extraAmount) || 0;
+  const grossAmount = bookingToEdit?.gross_amount ?? (effectiveNetPayout + effectiveAirbnbFee + numericExtraAmount);
 
-  // Deducir el aseo al pago recibido antes de calcular la comisión de administradora (10% directa, 20% Airbnb)
-  const accommodationBase = Math.max(0, effectiveNetPayout - cleaningFee);
-  const effectiveManagementFee = Math.round(accommodationBase * adminCommissionRate);
-  const effectiveOwnerAccommodation = Math.max(0, accommodationBase - effectiveManagementFee);
-  const effectiveOwnerPayout = effectiveOwnerAccommodation; // 90% para directa, 80% para Airbnb
+  // Deducir el aseo al pago recibido antes de calcular la comisión de administradora (10% directa 10%, 20% Airbnb, 25% directa 25%)
+  // Los cobros extras (ej. 50.000 COP por horas extra) se desglosan con la misma tasa comisionable
+  const baseAccommodationBeforeExtra = Math.max(0, effectiveNetPayout - cleaningFee);
+  const baseManagementFee = Math.round(baseAccommodationBeforeExtra * adminCommissionRate);
+  const baseOwnerIncome = Math.max(0, baseAccommodationBeforeExtra - baseManagementFee);
+
+  const extraManagementFee = Math.round(numericExtraAmount * adminCommissionRate);
+  const extraOwnerIncome = Math.max(0, numericExtraAmount - extraManagementFee);
+
+  const effectiveManagementFee = baseManagementFee + extraManagementFee;
+  const effectiveOwnerPayout = baseOwnerIncome + extraOwnerIncome;
   const effectiveNightlyRate =
-    numberOfNights > 0 ? Math.round(effectiveOwnerAccommodation / numberOfNights) : defaultNightlyRate;
+    numberOfNights > 0
+      ? Math.round(baseOwnerIncome / numberOfNights)
+      : defaultNightlyRate;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +149,8 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
         airbnb_service_fee: effectiveAirbnbFee,
         taxes_withheld: 0,
         net_payout: effectiveNetPayout,
+        extra_amount: numericExtraAmount,
+        extra_description: extraDescription.trim() || null,
         management_fee: effectiveManagementFee,
         owner_payout: effectiveOwnerPayout,
         status,
@@ -330,10 +349,10 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label htmlFor="modal-nightly-rate" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Tarifa por Noche ($ COP)
               </label>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
@@ -341,51 +360,65 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
               </span>
             </div>
             <CurrencyInput
+              id="modal-nightly-rate"
               value={effectiveNightlyRate}
               disabled
               placeholder="0"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed opacity-90"
+              rightLabel="Tarifa noche"
+              className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed opacity-90"
             />
           </div>
+
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+            <label htmlFor="modal-cleaning-fee" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Tarifa de Limpieza / Aseo ($ COP)
             </label>
             <CurrencyInput
+              id="modal-cleaning-fee"
               value={cleaningFee}
               onChange={setCleaningFee}
               placeholder="60.000"
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
+              rightLabel="Limpieza"
+              className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
             />
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          {!isDirect ? (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Comisión Airbnb (~3%) ($ COP)
-              </label>
-              <CurrencyInput
-                value={effectiveAirbnbFee}
-                onChange={(val) => setCustomAirbnbFee(val)}
-                placeholder="0"
-                className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Comisión Plataforma ($ COP)
-              </label>
-              <input
-                type="text"
-                disabled
-                value="$ 0 (Directa sin comisión Airbnb)"
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-emerald-600 dark:text-emerald-400 font-bold cursor-not-allowed"
-              />
-            </div>
-          )}
+          <div>
+            {!isDirect ? (
+              <div>
+                <label htmlFor="modal-airbnb-fee" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Comisión Airbnb (~3%) ($ COP)
+                </label>
+                <CurrencyInput
+                  id="modal-airbnb-fee"
+                  value={effectiveAirbnbFee}
+                  onChange={(val) => setCustomAirbnbFee(val)}
+                  placeholder="0"
+                  rightLabel="Comisión Airbnb"
+                  className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
+                />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="modal-platform-fee" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Comisión Plataforma ($ COP)
+                </label>
+                <div className="relative w-full flex items-center">
+                  <input
+                    id="modal-platform-fee"
+                    type="text"
+                    disabled
+                    value="$ 0 (Directa sin comisión Airbnb)"
+                    className="w-full text-left px-3 py-2 pr-32 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-emerald-600 dark:text-emerald-400 font-bold cursor-not-allowed"
+                  />
+                  <span className="absolute right-3.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 pointer-events-none select-none">
+                    Directa ($ 0)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <label htmlFor="modal-net-payout" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               {isDirect ? 'Pago Total Recibido ($ COP) *' : 'Pago Neto Real Recibido ($ COP) *'}
@@ -395,36 +428,135 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
               value={effectiveNetPayout}
               onChange={(val) => setCustomNetPayout(val)}
               placeholder="0"
-              className="w-full px-3 py-2 text-sm rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 font-bold text-emerald-600 dark:text-emerald-400"
+              rightLabel={isDirect ? "Pago total" : "Pago neto"}
+              className="w-full text-left px-3 py-2 text-sm rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 font-bold text-emerald-600 dark:text-emerald-400"
             />
+          </div>
+        </div>
+
+        {/* Cobro Extra / Horas Adicionales */}
+        <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700/80">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Cobro Extra / Horas Adicionales
+            </span>
+            {numericExtraAmount > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300">
+                +{formatCOP(numericExtraAmount)} COP • adm {Math.round(adminCommissionRate * 100)}%: {formatCOP(extraManagementFee)}
+              </span>
+            )}
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="modal-extra-amount" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Valor Extra ($ COP)
+              </label>
+              <CurrencyInput
+                id="modal-extra-amount"
+                value={extraAmount}
+                onChange={(val) => setExtraAmount(val || 0)}
+                placeholder="0"
+                rightLabel="Valor extra"
+                className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label htmlFor="modal-extra-description" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Concepto / Motivo del Extra
+              </label>
+              <div className="relative w-full flex items-center">
+                <input
+                  id="modal-extra-description"
+                  type="text"
+                  value={extraDescription}
+                  onChange={(e) => setExtraDescription(e.target.value)}
+                  placeholder="ej. Late check-out (5 horas extra)"
+                  className="w-full text-left px-3 py-2 pr-28 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+                />
+                <span className="absolute right-3.5 text-xs font-semibold text-slate-400 dark:text-slate-500 pointer-events-none select-none">
+                  Motivo extra
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Financial Breakdown Strip */}
         <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+          {/* 1. Pago base Transferido por Airbnb / Recibido */}
           <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-            <span>{isDirect ? 'Pago Total Recibido (100%):' : 'Pago Transferido por Airbnb (100%):'}</span>
+            <span>{isDirect ? 'Pago base recibido:' : 'Pago base Transferido por Airbnb:'}</span>
             <span className="font-semibold text-slate-900 dark:text-white">{formatCOP(effectiveNetPayout)} COP</span>
           </div>
-          {cleaningFee > 0 && (
+
+          <div className="border-t border-slate-200 dark:border-slate-700/80 my-1" />
+
+          {/* 2. Base Alojamiento, Comisión, Ingresos base y Tarifa por noche */}
+          <div className="space-y-1 text-xs">
             <div className="flex justify-between items-center text-slate-500 text-[11px]">
-              <span>Base Alojamiento (Total - Aseo {formatCOP(cleaningFee)}):</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{formatCOP(accommodationBase)} COP</span>
+              <span>
+                {cleaningFee > 0
+                  ? `Base Alojamiento (Total Recibido - Aseo ${formatCOP(cleaningFee)}):`
+                  : 'Base Alojamiento:'}
+              </span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                {formatCOP(baseAccommodationBeforeExtra)} COP
+              </span>
             </div>
-          )}
-          <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
-            <span>Comisión Administradora ({Math.round(adminCommissionRate * 100)}% sobre alojamiento):</span>
-            <span className="font-semibold">-{formatCOP(effectiveManagementFee)} COP</span>
-          </div>
-          <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-            <span>Ingresos de Alojamiento ({Math.round(ownerPayoutRate * 100)}%):</span>
-            <span>{formatCOP(effectiveOwnerPayout)} COP</span>
-          </div>
-          {numberOfNights > 0 && (
-            <div className="flex justify-between items-center text-[11px] text-slate-400 pt-0.5">
-              <span>Tarifa Real por Noche ({numberOfNights} {numberOfNights === 1 ? 'noche' : 'noches'}):</span>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCOP(effectiveNightlyRate)} / noche</span>
+
+            <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 text-[11px]">
+              <span>Comisión Administradora {Math.round(adminCommissionRate * 100)}%:</span>
+              <span className="font-semibold">-{formatCOP(baseManagementFee)} COP</span>
             </div>
+
+            <div className={`flex justify-between items-center ${numericExtraAmount > 0 ? 'text-slate-700 dark:text-slate-300 text-[11px]' : 'text-emerald-600 dark:text-emerald-400 font-bold'}`}>
+              <span>
+                {numericExtraAmount > 0
+                  ? `Ingresos base de Alojamiento ${Math.round(ownerPayoutRate * 100)}%:`
+                  : `Ingresos de Alojamiento ${Math.round(ownerPayoutRate * 100)}%:`}
+              </span>
+              <span className={numericExtraAmount > 0 ? 'font-semibold' : 'font-bold'}>
+                {formatCOP(baseOwnerIncome)} COP
+              </span>
+            </div>
+
+            {numberOfNights > 0 && (
+              <div className="flex justify-between items-center text-[11px] text-slate-400 pt-0.5">
+                <span>Tarifa Real por Noche ({numberOfNights} {numberOfNights === 1 ? 'noche' : 'noches'}):</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{formatCOP(effectiveNightlyRate)} / noche</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Cobro Extra y 4. Totales (cuando hay cobro extra) */}
+          {numericExtraAmount > 0 && (
+            <>
+              {/* Cobro Extra */}
+              <div className="border-t border-slate-200 dark:border-slate-700/80 my-1" />
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between items-center text-indigo-600 dark:text-indigo-400 font-medium text-[11px]">
+                  <span>Cobro Extra{extraDescription ? ` (${extraDescription})` : ''}:</span>
+                  <span className="font-bold">+{formatCOP(numericExtraAmount)} COP</span>
+                </div>
+                <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 text-[11px]">
+                  <span>Comisión Administradora {Math.round(adminCommissionRate * 100)}%:</span>
+                  <span className="font-semibold">-{formatCOP(extraManagementFee)} COP</span>
+                </div>
+              </div>
+
+              {/* Totales */}
+              <div className="border-t border-slate-200 dark:border-slate-700/80 my-1" />
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between items-center text-amber-700 dark:text-amber-300 font-semibold">
+                  <span>Total Administradora:</span>
+                  <span className="font-bold">-{formatCOP(effectiveManagementFee)} COP</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400 font-bold text-sm pt-0.5">
+                  <span>Total Ingresos de Alojamiento:</span>
+                  <span>{formatCOP(effectiveOwnerPayout)} COP</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

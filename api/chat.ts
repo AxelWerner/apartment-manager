@@ -29,6 +29,8 @@ interface RawBooking {
   gross_amount?: number | null;
   net_payout?: number | null;
   cleaning_fee_collected?: number | null;
+  extra_amount?: number | null;
+  extra_description?: string | null;
   owner_payout?: number | null;
   management_fee?: number | null;
   nightly_rate?: number | null;
@@ -247,11 +249,12 @@ async function fetchMonthlyFinancialData(params: {
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
+    const extra = Number(b.extra_amount) || 0;
     const op =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
               getBookingSourceInfo(b.source).ownerRate
           );
     ownerPayout += op;
@@ -260,7 +263,7 @@ async function fetchMonthlyFinancialData(params: {
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
               getBookingSourceInfo(b.source).commissionRate
           );
     managementFee += mf;
@@ -435,11 +438,12 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
+    const extra = Number(b.extra_amount) || 0;
     const op =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
               getBookingSourceInfo(b.source).ownerRate
           );
     ownerPayout += op;
@@ -448,7 +452,7 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
         : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
               getBookingSourceInfo(b.source).commissionRate
           );
     managementFee += mf;
@@ -472,12 +476,13 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
 
     const mGross = mBookings.reduce((s, b) => s + (Number(b.gross_amount) || 0), 0);
     const mOwnerPayout = mBookings.reduce((s, b) => {
+      const extra = Number(b.extra_amount) || 0;
       return (
         s +
         (b.owner_payout !== undefined && b.owner_payout !== null
           ? Number(b.owner_payout)
           : Math.round(
-              Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
+              (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
                 getBookingSourceInfo(b.source).ownerRate
             ))
       );

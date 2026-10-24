@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BookingModal } from './BookingModal';
 import * as apiService from '@/lib/api-service';
+import type { Booking } from '@/types/database';
 
 vi.mock('@/lib/api-service', () => ({
   createBooking: vi.fn(),
@@ -197,5 +198,98 @@ describe('BookingModal Component', () => {
         })
       );
     });
+  });
+
+  it('calculates 20% administradora commission on extra amount (e.g. 50.000 COP late check-out)', async () => {
+    const mockCreate = vi.fn().mockResolvedValue({ id: 'b-extra' });
+    (apiService.createBooking as unknown as ReturnType<typeof vi.fn>).mockImplementation(mockCreate);
+
+    renderModal();
+
+    // Guest Name
+    const guestInput = screen.getByPlaceholderText(/Ej\. Juan Pérez/i);
+    fireEvent.change(guestInput, { target: { value: 'Mateo Restrepo' } });
+
+    // Dates (2 nights: 2026-10-10 to 2026-10-12)
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-10-10' } });
+    fireEvent.change(checkOutInput, { target: { value: '2026-10-12' } });
+
+    // Base payout: 560.000 COP. Cleaning fee defaults to 60.000 COP.
+    // Base accommodation = 500.000 COP
+    const netPayoutInput = screen.getByLabelText(/Pago Neto Real Recibido/i);
+    fireEvent.change(netPayoutInput, { target: { value: '560.000' } });
+
+    // Extra amount: 50.000 COP for 5 extra hours
+    const extraAmountInput = screen.getByLabelText(/Valor Extra \(\$ COP\)/i);
+    const extraDescInput = screen.getByLabelText(/Concepto \/ Motivo del Extra/i);
+
+    fireEvent.change(extraAmountInput, { target: { value: '50.000' } });
+    fireEvent.change(extraDescInput, { target: { value: 'Late check-out (5 horas extra)' } });
+
+    // Base accommodation before extra: 560.000 - 60.000 = 500.000
+    // Total accommodation base with extra: 500.000 + 50.000 = 550.000
+    // Admin commission (20%): 550.000 * 0.20 = 110.000 (includes 10.000 from the 50.000 extra)
+    // Owner payout (80%): 550.000 * 0.80 = 440.000 (includes 40.000 from the 50.000 extra)
+    expect(screen.getByText(/110\.000/i)).toBeInTheDocument();
+    expect(screen.getByText(/440\.000/i)).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole('button', { name: /^Registrar Reserva Airbnb$/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guest_name: 'Mateo Restrepo',
+          net_payout: 560000,
+          cleaning_fee_collected: 60000,
+          extra_amount: 50000,
+          extra_description: 'Late check-out (5 horas extra)',
+          management_fee: 110000,
+          owner_payout: 440000,
+        })
+      );
+    });
+  });
+
+  it('pre-populates existing extra_amount and extra_description when editing a booking', async () => {
+    const mockUpdate = vi.fn().mockResolvedValue({ id: 'b-existing-extra' });
+    (apiService.updateBooking as unknown as ReturnType<typeof vi.fn>).mockImplementation(mockUpdate);
+
+    const bookingToEdit: Booking = {
+      id: 'b-existing-extra',
+      property_id: 'prop-1',
+      airbnb_confirmation_code: 'HMEXT123',
+      guest_name: 'Ana Sofia',
+      guest_phone: null,
+      number_of_guests: 2,
+      check_in: '2026-10-01',
+      check_out: '2026-10-03',
+      number_of_nights: 2,
+      nightly_rate: 200000,
+      gross_amount: 460000,
+      cleaning_fee_collected: 60000,
+      airbnb_service_fee: 0,
+      taxes_withheld: 0,
+      net_payout: 460000,
+      extra_amount: 50000,
+      extra_description: 'Late check-out 5 horas',
+      management_fee: 90000,
+      owner_payout: 360000,
+      status: 'confirmed',
+      payout_status: 'paid',
+      payout_date: '2026-10-01',
+      source: 'airbnb',
+      notes: null,
+    };
+
+    renderModal({ bookingToEdit });
+
+    const extraAmountInput = screen.getByLabelText(/Valor Extra \(\$ COP\)/i) as HTMLInputElement;
+    const extraDescInput = screen.getByLabelText(/Concepto \/ Motivo del Extra/i) as HTMLInputElement;
+
+    expect(extraAmountInput.value).toContain('50.000');
+    expect(extraDescInput.value).toBe('Late check-out 5 horas');
   });
 });

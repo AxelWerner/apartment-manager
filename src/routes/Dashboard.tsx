@@ -131,14 +131,16 @@ export default function Dashboard() {
   // Aggregate helpers
   const getBookingMgmtFee = (b: Booking) => {
     if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    const extra = Number(b.extra_amount) || 0;
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
     const rate = getBookingSourceInfo(b.source).commissionRate;
     return Math.round(accommodation * rate);
   };
 
   const getBookingOwnerPayout = (b: Booking) => {
     if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+    const extra = Number(b.extra_amount) || 0;
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
     const rate = getBookingSourceInfo(b.source).ownerRate;
     return Math.round(accommodation * rate);
   };
@@ -428,13 +430,7 @@ export default function Dashboard() {
       if (resolveBookingStatus(b) === 'cancelled') return;
       const m = b.check_in.substring(0, 7);
       if (monthsMap[m]) {
-        const ownerAmount =
-          b.owner_payout !== undefined && b.owner_payout !== null
-            ? Number(b.owner_payout)
-            : Math.round(
-                Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-                  getBookingSourceInfo(b.source).ownerRate
-              );
+        const ownerAmount = getBookingOwnerPayout(b);
         monthsMap[m].income += ownerAmount;
         if (isBookingReal(b, colDateStr)) {
           monthsMap[m].realIncome += ownerAmount;

@@ -123,7 +123,8 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
       b.cleaning_fee_collected !== undefined && b.cleaning_fee_collected !== null && !isNaN(rawCleaningFee)
         ? rawCleaningFee
         : 60000;
-    const accommodationBase = Math.max(0, payout - cleaningFee);
+    const extraAmount = Number(b.extra_amount) || 0;
+    const accommodationBase = Math.max(0, payout - cleaningFee) + extraAmount;
 
     const sourceInfo = getBookingSourceInfo(b.source);
     const adminRate = sourceInfo.commissionRate;
@@ -139,14 +140,17 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
         ? Number(b.owner_payout)
         : Math.round(accommodationBase * ownerRate);
 
-    const ownerAccommodation = Math.max(0, accommodationBase - management_fee);
+    const baseAccommodation = Math.max(0, payout - cleaningFee);
+    const ownerAccommodationWithoutExtra = Math.max(0, baseAccommodation - Math.round(baseAccommodation * adminRate));
     const nights = Number(b.number_of_nights) || 0;
     const nightly_rate =
-      nights > 0 ? Math.round(ownerAccommodation / nights) : Number(b.nightly_rate) || 0;
+      nights > 0 ? Math.round(ownerAccommodationWithoutExtra / nights) : Number(b.nightly_rate) || 0;
 
     return {
       ...b,
       cleaning_fee_collected: cleaningFee,
+      extra_amount: extraAmount,
+      extra_description: b.extra_description || null,
       status: resolved !== b.status ? resolved : b.status,
       management_fee,
       owner_payout,
@@ -213,11 +217,13 @@ export async function createBooking(booking: Omit<Booking, 'id' | 'created_at' |
       .insert(booking)
       .select()
       .single();
-    if (!error && data) {
+    if (error) {
+      console.error('Error inserting booking in Supabase:', error);
+    } else if (data) {
       newBooking.id = data.id;
     }
-  } catch {
-    // Ignore remote failure
+  } catch (err) {
+    console.error('Network error creating booking:', err);
   }
 
   const current = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
@@ -735,9 +741,12 @@ export const createBookingsBatch = upsertBookingsBatch;
 
 export async function updateBooking(id: string, updates: Partial<Booking>): Promise<Booking> {
   try {
-    await supabase.from('bookings').update(updates).eq('id', id);
-  } catch {
-    // Fallback
+    const { error } = await supabase.from('bookings').update(updates).eq('id', id);
+    if (error) {
+      console.error('Error updating booking in Supabase:', error);
+    }
+  } catch (err) {
+    console.error('Network error updating booking:', err);
   }
 
   const current = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
