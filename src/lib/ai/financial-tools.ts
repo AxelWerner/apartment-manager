@@ -516,7 +516,15 @@ export function createFinancialTools(defaultPropertyId?: string) {
           .optional()
           .describe('ID de la propiedad a consultar. Si no se especifica, usa la propiedad activa.'),
       }),
-      execute: async ({ year, month, propertyId }) => {
+      execute: async ({
+        year,
+        month,
+        propertyId,
+      }: {
+        year: number;
+        month: number;
+        propertyId?: string;
+      }) => {
         const targetId = propertyId || defaultPropertyId;
         return await fetchMonthlyFinancialData({ year, month, propertyId: targetId });
       },
@@ -532,7 +540,13 @@ export function createFinancialTools(defaultPropertyId?: string) {
           .optional()
           .describe('ID de la propiedad a consultar. Si no se especifica, usa la propiedad activa.'),
       }),
-      execute: async ({ year, propertyId }) => {
+      execute: async ({
+        year,
+        propertyId,
+      }: {
+        year: number;
+        propertyId?: string;
+      }) => {
         const targetId = propertyId || defaultPropertyId;
         return await fetchAnnualFinancialData({ year, propertyId: targetId });
       },
