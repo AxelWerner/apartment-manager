@@ -35,18 +35,66 @@ describe('BookingModal Component', () => {
     );
   };
 
+  it('hides desglose and lower form sections until check-in and check-out dates are entered', () => {
+    renderModal();
+
+    // Initially without dates: breakdown and lower sections are not shown
+    expect(screen.queryByText(/Desglose Financiero \(/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Tarifa por Noche/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Estado de la Estadía/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Notas u Observaciones/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Registrar Reserva/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ingresa las fechas de check-in y check-out/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cancelar/i })).toBeInTheDocument();
+
+    // Fill only check-in: still hidden
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-11-01' } });
+    expect(screen.queryByText(/Desglose Financiero \(/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Tarifa por Noche/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Ingresa la fecha de check-out/i)).toBeInTheDocument();
+
+    // Fill invalid check-out (check-out <= check-in): shows warning and stays hidden
+    fireEvent.change(checkOutInput, { target: { value: '2026-11-01' } });
+    expect(screen.queryByText(/Desglose Financiero \(/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/La fecha de check-out debe ser posterior a la de check-in/i)).toBeInTheDocument();
+
+    // Fill valid check-out: breakdown and lower sections appear
+    fireEvent.change(checkOutInput, { target: { value: '2026-11-04' } });
+    expect(screen.getByText(/Desglose Financiero \(/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Tarifa por Noche/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Estado de la Estadía/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Notas u Observaciones/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Registrar Reserva Airbnb/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Ingresa las fechas de check-in y check-out/i)).not.toBeInTheDocument();
+  });
+
   it('renders Airbnb, Directa 10% and Directa 25% modes with proper commission rates', () => {
     renderModal();
 
     expect(screen.getByText(/Airbnb \(20%\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Directa \(10%\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Directa \(25%\)/i)).toBeInTheDocument();
+
+    // Fill dates to reveal breakdown
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-10-10' } });
+    fireEvent.change(checkOutInput, { target: { value: '2026-10-12' } });
+
     expect(screen.getByText(/Comisión Admin: 20%/i)).toBeInTheDocument();
     expect(screen.getByText(/Comisión Airbnb \(~3%\)/i)).toBeInTheDocument();
   });
 
   it('switches to Direct 10% mode with 10% commission and $0 platform fee', async () => {
     renderModal();
+
+    // Fill dates to reveal breakdown
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-10-10' } });
+    fireEvent.change(checkOutInput, { target: { value: '2026-10-12' } });
 
     const direct10Btn = screen.getByRole('button', { name: /Directa \(10%\)/i });
     fireEvent.click(direct10Btn);
@@ -58,6 +106,12 @@ describe('BookingModal Component', () => {
 
   it('switches to Direct 25% mode with 25% commission and $0 platform fee', async () => {
     renderModal();
+
+    // Fill dates to reveal breakdown
+    const checkInInput = screen.getByLabelText(/Check-in \*/i);
+    const checkOutInput = screen.getByLabelText(/Check-out \*/i);
+    fireEvent.change(checkInInput, { target: { value: '2026-10-15' } });
+    fireEvent.change(checkOutInput, { target: { value: '2026-10-17' } });
 
     const direct25Btn = screen.getByRole('button', { name: /Directa \(25%\)/i });
     fireEvent.click(direct25Btn);
