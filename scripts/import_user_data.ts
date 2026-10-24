@@ -77,7 +77,7 @@ function parseCsv(csvText: string) {
     }
     values.push(current);
 
-    const obj: Record<string, any> = {};
+    const obj: Record<string, string> = {};
     headers.forEach((h, idx) => {
       let val = values[idx] !== undefined ? values[idx].trim() : '';
       if (val.startsWith('"') && val.endsWith('"')) {
