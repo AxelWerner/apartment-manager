@@ -1,0 +1,4 @@
+Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Inserat,Details,Referenzcode,Währung,Betrag,Servicegebühr,Reinigungsgebühr,Bruttoeinkünfte,Von Airbnb abgeführte Steuer,Ertragsjahr
+11/15/2026,Buchung,HMPEND_DUP99,10/10/2026,11/12/2026,11/15/2026,3,Andrés Mauricio Castro (1 Huésped),"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,420000.00,"94.000,00",60000.00,500000.00,0.00,
+11/15/2026,Buchung,HMPEND_DUP99,10/10/2026,11/12/2026,11/15/2026,3,Andrés Mauricio Castro (Modificado: 2 Huéspedes),"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,420000.00,"94.000,00",60000.00,500000.00,0.00,
+11/22/2026,Buchung,HMPEND_REGULAR,10/14/2026,11/20/2026,11/23/2026,3,Camila Andrea Salazar,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,390000.00,"88.000,00",60000.00,465000.00,0.00,

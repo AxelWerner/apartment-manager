@@ -1,0 +1,4 @@
+Tipo,Código de confirmación,Fecha de reserva,Fecha de inicio,Fecha de finalización,Noches,Nombre del huésped,Ganancias,Cobro neto,Tarifa de limpieza,Tarifa de servicio,Ingreso bruto
+Reserva,HMES_001,2026-10-15,2026-11-05,2026-11-08,3,Santiago Morales Cadavid,380000,380000,60000,85000,450000
+Reserva,HMES_002,2026-10-18,2026-11-12,2026-11-15,3,Manuela Betancur Vélez,410000,410000,60000,92000,485000
+Reserva,HMES_003,2026-10-20,2026-11-18,2026-11-22,4,Esteban Osorio Londoño,520000,520000,60000,115000,615000

@@ -375,7 +375,7 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
   const yearPrefix = `${year}-`;
   const supabase = getSupabase();
 
-  let targetPropertyId = propertyId;
+  const targetPropertyId = propertyId;
   let propertyName = 'Apartamento';
   let currency = 'COP';
 

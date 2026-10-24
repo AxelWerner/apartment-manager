@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Calendar } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Calendar, CheckCircle2, Clock, Filter, Cloud, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { usePropertyContext } from '@/context/PropertyContext';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
+import {
+  getLastImportTimestamps,
+  fetchImportTimestamps,
+  setLastImportTimestamp,
+  clearLastImportTimestamp,
+} from '@/lib/api-service';
 import { toast } from 'sonner';
 
 interface CsvImportModalProps {
@@ -90,21 +96,43 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   const { data: existingBookings = [] } = useBookings(activePropertyId);
   const createBatchMutation = useCreateBookingsBatch();
 
+  const [importMode, setImportMode] = useState<'completed' | 'pending'>('completed');
   const [parsedRows, setParsedRows] = useState<ParsedBookingRow[]>([]);
+  const [skippedRows, setSkippedRows] = useState<ParsedBookingRow[]>([]);
+  const [dedupedCount, setDedupedCount] = useState(0);
   const [loadedFiles, setLoadedFiles] = useState<LoadedFileInfo[]>([]);
   const [loadingSample, setLoadingSample] = useState<string | null>(null);
   const [detectedYears, setDetectedYears] = useState<string[]>([]);
   const [rowsToDelete, setRowsToDelete] = useState<Booking[]>([]);
   const [showDeletedRows, setShowDeletedRows] = useState(false);
+  const [timestamps, setTimestamps] = useState(getLastImportTimestamps());
+  const [filterByLastImport, setFilterByLastImport] = useState(true);
 
-  const parseRawCsvFile = (file: File): Promise<{ fileName: string; rows: ParsedBookingRow[] }> => {
+  // Sync latest import timestamps from Supabase whenever modal opens or property changes
+  useEffect(() => {
+    let isMounted = true;
+    if (isOpen) {
+      fetchImportTimestamps(activePropertyId).then((ts) => {
+        if (isMounted) {
+          setTimestamps(ts);
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, activePropertyId]);
+
+  const parseRawCsvFile = async (file: File, mode?: 'completed' | 'pending'): Promise<{ fileName: string; rows: ParsedBookingRow[] }> => {
+    const textContent = await file.text();
     return new Promise((resolve) => {
-      Papa.parse<Record<string, string>>(file, {
+      Papa.parse<Record<string, string>>(textContent, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
           const fileRows: ParsedBookingRow[] = [];
-          const isPending = file.name.toLowerCase().includes('pending');
+          const effectiveMode = mode || importMode;
+          const isPending = effectiveMode === 'pending' || file.name.toLowerCase().includes('pending');
 
           for (const raw of results.data) {
             // Normalize column lookups (case-insensitive & accent-agnostic across German, Spanish, English)
@@ -173,7 +201,6 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             const validNights = nights > 0 ? nights : 1;
             const payout = parseAirbnbAmount(amountStr);
             // If the column Reinigungsgebühr (or alias) is present in the CSV, respect its exact value (even if 0)
-            // Only fallback to 60000 if the column is completely omitted/empty in the file
             const cleanFee = cleanFeeStr !== '' ? parseAirbnbAmount(cleanFeeStr) : 60000;
             let serviceFee = parseAirbnbAmount(serviceFeeStr);
             let gross = parseAirbnbAmount(grossStr);
@@ -225,15 +252,102 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
     });
   };
 
-  const processAndMergeFiles = async (files: File[]) => {
+  const [rawLoadedRows, setRawLoadedRows] = useState<ParsedBookingRow[]>([]);
+
+  const applyFilterAndSort = (
+    rawRows: ParsedBookingRow[],
+    mode: 'completed' | 'pending',
+    shouldFilter: boolean,
+    completedTs: string | null
+  ) => {
+    let keptRows: ParsedBookingRow[] = [];
+    const skipped: ParsedBookingRow[] = [];
+    let duplicatesFound = 0;
+
+    // 1. DEDUPLICATION FOR PENDING RESERVATIONS (handles modifications/duplicate lines with same code)
+    const hasPendingRows = mode === 'pending' || rawRows.some((r) => r.isPendingFile);
+    if (hasPendingRows) {
+      const seenCodes = new Map<string, ParsedBookingRow>();
+      for (const row of rawRows) {
+        if (!row.airbnb_confirmation_code) {
+          keptRows.push(row);
+          continue;
+        }
+        if (seenCodes.has(row.airbnb_confirmation_code)) {
+          duplicatesFound++;
+          // Keep the row with the most complete data / highest gross amount
+          const prev = seenCodes.get(row.airbnb_confirmation_code)!;
+          if ((row.gross_amount || 0) >= (prev.gross_amount || 0)) {
+            seenCodes.set(row.airbnb_confirmation_code, row);
+          }
+        } else {
+          seenCodes.set(row.airbnb_confirmation_code, row);
+        }
+      }
+      keptRows = [...keptRows, ...Array.from(seenCodes.values())];
+    } else {
+      keptRows = [...rawRows];
+    }
+
+    // 2. TIMESTAMP FILTERING FOR COMPLETED RESERVATIONS
+    if (mode === 'completed' && shouldFilter && completedTs) {
+      const cutoffDate = completedTs.slice(0, 10); // YYYY-MM-DD
+      const filtered: ParsedBookingRow[] = [];
+
+      for (const r of keptRows) {
+        const checkDate = r.booking_date || r.check_in;
+        if (checkDate && checkDate < cutoffDate) {
+          skipped.push(r);
+        } else {
+          filtered.push(r);
+        }
+      }
+      keptRows = filtered;
+    }
+
+    setDedupedCount(duplicatesFound);
+    setSkippedRows(skipped);
+
+    // Check years present for informational display
+    const distinctYears = new Set<string>();
+    for (const r of keptRows) {
+      const y = getBookingYear(r.check_in);
+      if (y) distinctYears.add(y);
+    }
+    setDetectedYears(Array.from(distinctYears).sort());
+
+    // Sort chronologically by check-in date
+    keptRows.sort((a, b) => (b.check_in || '').localeCompare(a.check_in || ''));
+
+    const airbnbBookingsToDelete =
+      mode === 'completed' ? existingBookings.filter((b) => isAirbnbBooking(b)) : [];
+
+    const finalRows: ParsedBookingRow[] = keptRows.map((row) => ({
+      ...row,
+      importStatus: 'new' as const,
+    }));
+
+    setParsedRows(finalRows);
+    setRowsToDelete(airbnbBookingsToDelete);
+
+    return { finalRows, skipped, duplicatesFound };
+  };
+
+  const handleToggleFilter = (checked: boolean) => {
+    setFilterByLastImport(checked);
+    if (rawLoadedRows.length > 0) {
+      applyFilterAndSort(rawLoadedRows, importMode, checked, timestamps.completed);
+    }
+  };
+
+  const processAndMergeFiles = async (files: File[], targetMode?: 'completed' | 'pending') => {
     if (!files || files.length === 0) return;
 
     try {
-      const results = await Promise.all(files.map((file) => parseRawCsvFile(file)));
+      const effectiveMode = targetMode || importMode;
+      const results = await Promise.all(files.map((file) => parseRawCsvFile(file, effectiveMode)));
 
-      // Collect all rows from all parsed files without deduplicating by confirmation code or guest name
-      // Every reservation row in the file is preserved and imported
-      const mergedRows: ParsedBookingRow[] = [];
+      const rawRows: ParsedBookingRow[] = [];
       const fileSummaries: LoadedFileInfo[] = [];
 
       for (const res of results) {
@@ -242,44 +356,38 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           name: res.fileName,
           count: res.rows.length,
         });
-        mergedRows.push(...res.rows);
+        rawRows.push(...res.rows);
       }
 
-      if (mergedRows.length === 0) {
+      if (rawRows.length === 0) {
         toast.error('No se encontraron registros de reservaciones válidos en los archivos seleccionados');
         return;
       }
 
-      // Check years present for informational display
-      const distinctYears = new Set<string>();
-      for (const r of mergedRows) {
-        const y = getBookingYear(r.check_in);
-        if (y) distinctYears.add(y);
-      }
-      setDetectedYears(Array.from(distinctYears).sort());
-
-      // Sort chronologically by check-in date
-      mergedRows.sort((a, b) => (b.check_in || '').localeCompare(a.check_in || ''));
-
-      // ALL existing Airbnb bookings in DB will be deleted:
-      // When importing, all existing Airbnb reservations in the database are wiped and replaced.
-      // CRITICAL: Direct bookings must NEVER be deleted!
-      const airbnbBookingsToDelete = existingBookings.filter((b) => isAirbnbBooking(b));
-
-      const finalRows: ParsedBookingRow[] = mergedRows.map((row) => ({
-        ...row,
-        importStatus: 'new' as const,
-      }));
-
       setLoadedFiles(fileSummaries);
-      setParsedRows(finalRows);
-      setRowsToDelete(airbnbBookingsToDelete);
+      setRawLoadedRows(rawRows);
 
-      toast.success(
-        `Se procesaron ${finalRows.length} reservas del archivo${
-          airbnbBookingsToDelete.length > 0 ? ` (${airbnbBookingsToDelete.length} Airbnb existentes en BD se eliminarán)` : ''
-        }`
+      const { finalRows, skipped, duplicatesFound } = applyFilterAndSort(
+        rawRows,
+        effectiveMode,
+        filterByLastImport,
+        timestamps.completed
       );
+
+      if (duplicatesFound > 0) {
+        toast.info(`Se consolidaron ${duplicatesFound} registro(s) repetidos por modificación de reserva`);
+      }
+      if (skipped.length > 0) {
+        if (finalRows.length === 0) {
+          toast.warning(`Se omitieron todas las reservas (${skipped.length}) por tener fecha anterior a la última importación. Pulsa "Desactivar filtro" para verlas.`);
+        } else {
+          toast.info(`Se omitieron ${skipped.length} reserva(s) con fecha anterior al último import`);
+        }
+      }
+
+      if (finalRows.length > 0) {
+        toast.success(`Se procesaron ${finalRows.length} reservas listas para importar`);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Error al procesar archivos: ${message}`);
@@ -318,7 +426,9 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       if (!res.ok) throw new Error('No se pudo encontrar el archivo de prueba');
       const text = await res.text();
       const file = new File([text], sampleName, { type: 'text/csv' });
-      await processAndMergeFiles([file]);
+      const targetMode = sampleName.includes('pending') ? 'pending' : 'completed';
+      setImportMode(targetMode);
+      await processAndMergeFiles([file], targetMode);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Error al cargar muestra: ${message}`);
@@ -336,8 +446,9 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
 
     try {
       const bookingsToInsert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = validRows.map((r) => {
-        const status: BookingStatus = resolveBookingStatus(r);
-        const isPendingPayout = status === 'confirmed' || r.isPendingFile;
+        const isPendingPayout = importMode === 'pending' || r.isPendingFile;
+        const status: BookingStatus = isPendingPayout ? resolveBookingStatus(r) : 'completed';
+
         return {
           property_id: activePropertyId,
           airbnb_confirmation_code: r.airbnb_confirmation_code,
@@ -363,21 +474,29 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           source: 'airbnb',
           notes: r.sourceFile
             ? `Importado vía CSV Airbnb (${r.sourceFile})`
-            : 'Importado vía archivo CSV de Airbnb',
+            : `Importado vía CSV (${importMode === 'completed' ? 'Ya hechas' : 'Futuras'})`,
         };
       });
 
       const res = await createBatchMutation.mutateAsync({
         bookings: bookingsToInsert,
         options: {
-          deleteAllAirbnb: true,
+          importMode,
+          deleteAllAirbnb: importMode === 'completed' || rowsToDelete.length > 0,
         },
       });
 
+      // Save new timestamp to Supabase & local cache
+      await setLastImportTimestamp(importMode, activePropertyId);
+      const updatedTs = await fetchImportTimestamps(activePropertyId);
+      setTimestamps(updatedTs);
+
       if (res.deleted > 0) {
-        toast.success(`Se eliminaron ${res.deleted} reservas de Airbnb anteriores y se importaron ${res.inserted} reservas del archivo`);
+        toast.success(`Se importaron ${res.inserted} reservas y se eliminaron ${res.deleted} reservas anteriores de Airbnb`);
+      } else if (res.updated > 0) {
+        toast.success(`Se importaron ${res.inserted} reservas nuevas y se actualizaron ${res.updated} existentes`);
       } else {
-        toast.success(`Se importaron ${res.inserted} reservas del archivo`);
+        toast.success(`Se importaron ${res.inserted} reservas correctamente`);
       }
 
       handleReset();
@@ -389,27 +508,144 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   };
 
   const handleReset = () => {
+    setRawLoadedRows([]);
     setParsedRows([]);
+    setSkippedRows([]);
+    setDedupedCount(0);
     setLoadedFiles([]);
     setRowsToDelete([]);
     setDetectedYears([]);
     setShowDeletedRows(false);
   };
 
-
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Importador de Reservas CSV (Airbnb)"
-      subtitle="Sube uno o varios archivos CSV de Airbnb. Al importar se borrarán todas las reservas de Airbnb en la base de datos y se añadirán todas las del archivo"
+      subtitle="Importa por separado tus reservas ya hechas (completadas) o tus reservas futuras (pendientes)."
       maxWidth="3xl"
     >
       <div className="space-y-4">
-        {parsedRows.length === 0 ? (
-          <div className="space-y-4">
+        {/* Tabs for switching between Completed and Pending import */}
+        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => {
+              if (importMode !== 'completed') {
+                setImportMode('completed');
+                handleReset();
+              }
+            }}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              importMode === 'completed'
+                ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>Reservas ya hechas</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-mono">
+              Completadas
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (importMode !== 'pending') {
+                setImportMode('pending');
+                handleReset();
+              }
+            }}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              importMode === 'pending'
+                ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-indigo-500" />
+            <span>Reservas futuras</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono">
+              Pendientes
+            </span>
+          </button>
+        </div>
 
-            {/* Drag and drop zone for multiple files */}
+        {/* Timestamp & configuration banner */}
+        {importMode === 'completed' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="text-slate-700 dark:text-slate-300 font-medium">Última importación:</span>
+              {timestamps.completed ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                    {formatDate(timestamps.completed.slice(0, 10))} ({new Date(timestamps.completed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-medium">
+                    <Cloud className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Supabase
+                  </span>
+                </div>
+              ) : (
+                <span className="text-slate-400 italic">Sin importaciones previas</span>
+              )}
+            </div>
+            {timestamps.completed && (
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300 font-medium select-none">
+                  <input
+                    type="checkbox"
+                    checked={filterByLastImport}
+                    onChange={(e) => handleToggleFilter(e.target.checked)}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
+                  />
+                  <span>Solo comprobar reservas desde el último import</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await clearLastImportTimestamp('completed', activePropertyId);
+                    const updatedTs = await fetchImportTimestamps(activePropertyId);
+                    setTimestamps(updatedTs);
+                    if (rawLoadedRows.length > 0) {
+                      applyFilterAndSort(rawLoadedRows, importMode, filterByLastImport, null);
+                    }
+                    toast.info('Marca de tiempo reiniciada en Supabase');
+                  }}
+                  className="text-[11px] text-slate-400 hover:text-rose-600 underline cursor-pointer ml-1"
+                >
+                  Reiniciar
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-indigo-200/60 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 text-xs">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="text-slate-700 dark:text-slate-300 font-medium">Última sincronización pendiente:</span>
+              {timestamps.pending ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                    {formatDate(timestamps.pending.slice(0, 10))} ({new Date(timestamps.pending).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-medium">
+                    <Cloud className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> Supabase
+                  </span>
+                </div>
+              ) : (
+                <span className="text-slate-400 italic">Sin sincronizaciones previas</span>
+              )}
+            </div>
+            <div className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-500" /> Deduplicación automática por código de confirmación
+            </div>
+          </div>
+        )}
+
+        {loadedFiles.length === 0 ? (
+          <div className="space-y-4">
+            {/* Drag and drop zone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
@@ -440,7 +676,9 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   Haz clic para subir o arrastra tus archivos CSV aquí
                 </p>
                 <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-1">
-                  💡 Puedes seleccionar o arrastrar múltiples archivos a la vez (completadas + pendientes)
+                  {importMode === 'completed'
+                    ? '📂 Selecciona el archivo de reservas completadas (ej: airbnb_.csv)'
+                    : '📅 Selecciona el archivo de próximas reservas pendientes (ej: airbnb_pending.csv)'}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-1">
                   Compatible con exportaciones de "Reservaciones" e "Historial de transacciones" de Airbnb
@@ -469,12 +707,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                     <div>
                       <p className="text-xs font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
                         Cargar ambos archivos a la vez (Completadas + Pendientes)
-                        <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 font-semibold">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 font-semibold">
                           DEV
                         </span>
                       </p>
                       <p className="text-[11px] text-rose-700/80 dark:text-rose-400">
-                        Importa simultáneamente airbnb_.csv (6) y airbnb_pending.csv (8) — Total 14 reservas
+                        Importa simultáneamente airbnb_.csv y airbnb_pending.csv
                       </p>
                     </div>
                   </div>
@@ -486,7 +724,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={() => loadSampleCsv('airbnb_.csv')}
+                    onClick={() => {
+                      setImportMode('completed');
+                      loadSampleCsv('airbnb_.csv');
+                    }}
                     disabled={loadingSample !== null}
                     className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group cursor-pointer"
                   >
@@ -497,13 +738,16 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 truncate">
                         airbnb_.csv
                       </p>
-                      <p className="text-[11px] text-slate-400">6 reservas finalizadas / cobros</p>
+                      <p className="text-[11px] text-slate-400">Reservas finalizadas / cobros</p>
                     </div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => loadSampleCsv('airbnb_pending.csv')}
+                    onClick={() => {
+                      setImportMode('pending');
+                      loadSampleCsv('airbnb_pending.csv');
+                    }}
                     disabled={loadingSample !== null}
                     className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 text-left transition-all group cursor-pointer"
                   >
@@ -514,7 +758,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 truncate">
                         airbnb_pending.csv
                       </p>
-                      <p className="text-[11px] text-slate-400">8 reservas pendientes / futuras</p>
+                      <p className="text-[11px] text-slate-400">Reservas pendientes / futuras</p>
                     </div>
                   </button>
                 </div>
@@ -563,7 +807,63 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               </button>
             </div>
 
-            {/* Warning when existing bookings will be deleted */}
+            {/* Notification if rows were skipped due to timestamp */}
+            {skippedRows.length > 0 && parsedRows.length > 0 && (
+              <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-medium">
+                  <Filter className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>
+                    Se omitieron <strong>{skippedRows.length}</strong> reservas anteriores al último import (fecha de reserva anterior a {formatDate(timestamps.completed?.slice(0, 10))}).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleToggleFilter(false)}
+                  className="text-[11px] font-bold text-amber-800 dark:text-amber-300 underline hover:text-amber-950 cursor-pointer"
+                >
+                  Incluir todas ({skippedRows.length})
+                </button>
+              </div>
+            )}
+
+            {/* If all rows were skipped, show a prominent empty state with one-click restore */}
+            {parsedRows.length === 0 && skippedRows.length > 0 && (
+              <div className="p-6 text-center rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30 space-y-3">
+                <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-amber-950 dark:text-amber-100">
+                    Todas las reservas del archivo ({skippedRows.length}) fueron omitidas por el filtro de fecha
+                  </h4>
+                  <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 max-w-md mx-auto">
+                    El filtro por fecha está activo y todas las reservas en este archivo tienen fecha anterior a tu última importación ({formatDate(timestamps.completed?.slice(0, 10))}).
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleFilter(false)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Desactivar filtro e incluir las {skippedRows.length} reservas</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Notification if duplicates were consolidated */}
+            {dedupedCount > 0 && (
+              <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-medium">
+                <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>
+                  Se consolidaron <strong>{dedupedCount}</strong> líneas duplicadas por modificación de reserva con el mismo código de confirmación.
+                </span>
+              </div>
+            )}
+
+            {/* Existing bookings in DB status */}
             {rowsToDelete.length > 0 && (
               <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 text-xs space-y-2">
                 <div className="flex items-center justify-between">
@@ -728,7 +1028,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                 )}
               </div>
               <span className="text-[11px] text-slate-400 font-medium">
-                Reemplazo total reservas Airbnb
+                {importMode === 'completed' ? 'Modo: Reservas ya hechas' : 'Modo: Reservas futuras'}
               </span>
             </div>
           </div>

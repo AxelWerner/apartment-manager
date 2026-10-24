@@ -4,6 +4,9 @@ import {
   updateProperty,
   fetchBookings,
   upsertBookingsBatch,
+  fetchImportTimestamps,
+  setLastImportTimestamp,
+  clearLastImportTimestamp,
 } from './api-service';
 import { supabase, DEFAULT_PROPERTY_ID } from './supabase';
 import type { Property, Booking } from '@/types/database';
@@ -617,6 +620,110 @@ describe('api-service', () => {
       expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-dir-2']));
     });
 
+    it('deletes old Airbnb bookings and preserves direct bookings when options.deleteAllAirbnb is true with importMode="completed"', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      const mockUpsert = vi.fn().mockResolvedValue({ error: null });
+      const mockIn = vi.fn().mockResolvedValue({ error: null });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        insert: mockInsert,
+        upsert: mockUpsert,
+        delete: vi.fn().mockReturnValue({ in: mockIn }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      });
+
+      const initialBookings: Booking[] = [
+        {
+          id: 'b-airbnb-old-1',
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMOLD001',
+          guest_name: 'Old Airbnb Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-08-01',
+          check_out: '2026-08-05',
+          number_of_nights: 4,
+          nightly_rate: 100000,
+          gross_amount: 400000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 40000,
+          taxes_withheld: 0,
+          net_payout: 360000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-08-01',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          id: 'b-direct-stay',
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: null,
+          guest_name: 'Direct Guest Stay',
+          guest_phone: '+57 300 000 0000',
+          number_of_guests: 1,
+          check_in: '2026-08-10',
+          check_out: '2026-08-15',
+          number_of_nights: 5,
+          nightly_rate: 120000,
+          gross_amount: 600000,
+          cleaning_fee_collected: 50000,
+          airbnb_service_fee: 0,
+          taxes_withheld: 0,
+          net_payout: 600000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-08-10',
+          source: 'direct',
+          notes: 'Direct client booking',
+        },
+      ];
+      localStorage.setItem('apt_mgr_bookings_v2', JSON.stringify(initialBookings));
+
+      const incomingCompleted: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMNEW001',
+          guest_name: 'Brand New Completed Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-10-01',
+          check_out: '2026-10-04',
+          number_of_nights: 3,
+          nightly_rate: 150000,
+          gross_amount: 450000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 45000,
+          taxes_withheld: 0,
+          net_payout: 405000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-10-01',
+          source: 'airbnb',
+          notes: 'Completed batch',
+        },
+      ];
+
+      const result = await upsertBookingsBatch(incomingCompleted, {
+        importMode: 'completed',
+        deleteAllAirbnb: true,
+      });
+
+      expect(result.deleted).toBe(1);
+      expect(result.inserted).toBe(1);
+      expect(result.total).toBe(1);
+
+      const stored: Booking[] = JSON.parse(localStorage.getItem('apt_mgr_bookings_v2') || '[]');
+      const storedIds = stored.map((b) => b.id);
+      expect(storedIds).toContain('b-direct-stay'); // Direct preserved
+      expect(storedIds).not.toContain('b-airbnb-old-1'); // Old Airbnb deleted
+
+      const storedCodes = stored.map((b) => b.airbnb_confirmation_code);
+      expect(storedCodes).toContain('HMNEW001');
+
+      expect(mockIn).toHaveBeenCalledWith('id', expect.arrayContaining(['b-airbnb-old-1']));
+      expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-direct-stay']));
+    });
+
 
     it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
       const rawBooking: Booking = {
@@ -745,5 +852,66 @@ describe('api-service', () => {
       expect(synced?.nightly_rate).toBe(375000);
     });
   });
+
+  describe('Import Timestamps (Supabase sync)', () => {
+    it('fetches import timestamps from Supabase properties table', async () => {
+      const mockMaybeSingle = vi.fn().mockResolvedValue({
+        data: {
+          last_airbnb_import_completed: '2026-10-15T10:00:00.000Z',
+          last_airbnb_import_pending: '2026-10-20T12:00:00.000Z',
+        },
+        error: null,
+      });
+      const mockEq = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockEq });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: mockSelect,
+      });
+
+      const result = await fetchImportTimestamps('prop-test-123');
+      expect(result.completed).toBe('2026-10-15T10:00:00.000Z');
+      expect(result.pending).toBe('2026-10-20T12:00:00.000Z');
+    });
+
+    it('persists import timestamp to Supabase properties table', async () => {
+      const mockEq = vi.fn().mockResolvedValue({ data: null, error: null });
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        update: mockUpdate,
+      });
+
+      await setLastImportTimestamp('completed', 'prop-test-123', '2026-10-24T18:00:00.000Z');
+
+      expect(supabase.from).toHaveBeenCalledWith('properties');
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          last_airbnb_import_completed: '2026-10-24T18:00:00.000Z',
+        })
+      );
+      expect(mockEq).toHaveBeenCalledWith('id', 'prop-test-123');
+    });
+
+    it('clears import timestamp in Supabase properties table', async () => {
+      const mockEq = vi.fn().mockResolvedValue({ data: null, error: null });
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockEq });
+
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        update: mockUpdate,
+      });
+
+      await clearLastImportTimestamp('completed', 'prop-test-123');
+
+      expect(supabase.from).toHaveBeenCalledWith('properties');
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          last_airbnb_import_completed: null,
+        })
+      );
+      expect(mockEq).toHaveBeenCalledWith('id', 'prop-test-123');
+    });
+  });
 });
+
 

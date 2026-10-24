@@ -1,0 +1,9 @@
+Datum,Voraussichtliches Datum des Geldeingangs,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Inserat,Details,Referenzcode,Währung,Betrag,Ausgezahlt,Servicegebühr,Gebühr für schnelle Zahlung,Reinigungsgebühr,Bruttoeinkünfte,Von Airbnb abgeführte Steuer,Ertragsjahr
+08/10/2026,08/14/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Kold1,COP,,300000.00,,,,,,
+08/10/2026,,Buchung,HM_VIEJA_AGOSTO,08/01/2026,08/07/2026,08/10/2026,3,Huésped Antiguo Agosto,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,300000.00,,"65.000,00",,60000.00,360000.00,0.00,2026
+09/15/2026,09/19/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Kold2,COP,,320000.00,,,,,,
+09/15/2026,,Buchung,HM_VIEJA_SEPTIEMBRE,09/05/2026,09/12/2026,09/15/2026,3,Huésped Antiguo Septiembre,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,320000.00,,"70.000,00",,60000.00,385000.00,0.00,2026
+10/25/2026,10/29/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Knew1,COP,,450000.00,,,,,,
+10/25/2026,,Buchung,HM_NUEVA_OCTUBRE,10/20/2026,10/22/2026,10/25/2026,3,Huésped Nuevo Octubre 20,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,450000.00,,"102.000,00",,60000.00,535000.00,0.00,2026
+10/28/2026,11/01/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Knew2,COP,,490000.00,,,,,,
+10/28/2026,,Buchung,HM_NUEVA_OCTUBRE2,10/24/2026,10/26/2026,10/28/2026,2,Huésped Nuevo Octubre 24,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,490000.00,,"110.000,00",,60000.00,580000.00,0.00,2026

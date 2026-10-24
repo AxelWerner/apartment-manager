@@ -109,6 +109,8 @@ export interface Property {
   check_out_time: string;
   created_by?: string | null;
   primary_owner_id?: string | null;
+  last_airbnb_import_completed?: string | null;
+  last_airbnb_import_pending?: string | null;
   created_at?: string;
   updated_at?: string;
 }

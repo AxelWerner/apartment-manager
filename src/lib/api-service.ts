@@ -44,10 +44,13 @@ function getLocal<T>(key: string, defaultVal: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) {
-      localStorage.setItem(key, JSON.stringify(defaultVal));
       return defaultVal;
     }
-    return JSON.parse(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw as unknown as T;
+    }
   } catch {
     return defaultVal;
   }
@@ -177,7 +180,11 @@ export async function fetchBookings(propertyId?: string): Promise<Booking[]> {
 
     if (!error && data) {
       const synced = syncBookingsList(data as Booking[]);
-      if (!propertyId || propertyId === DEFAULT_PROPERTY_ID) {
+      if (propertyId) {
+        const allLocal = getLocal<Booking[]>(STORAGE_KEYS.bookings, []);
+        const others = allLocal.filter((b) => b.property_id && b.property_id !== propertyId);
+        setLocal(STORAGE_KEYS.bookings, [...synced, ...others]);
+      } else {
         setLocal(STORAGE_KEYS.bookings, synced);
       }
       return synced;
@@ -223,6 +230,7 @@ export interface UpsertBatchOptions {
   syncYear?: string;
   deleteMissing?: boolean;
   deleteAllAirbnb?: boolean;
+  importMode?: 'completed' | 'pending' | 'legacy';
 }
 
 export interface UpsertBatchResult {
@@ -231,6 +239,144 @@ export interface UpsertBatchResult {
   unchanged: number;
   deleted: number;
   total: number;
+}
+
+export const IMPORT_TIMESTAMPS_KEYS = {
+  completed: 'apt_mgr_last_import_completed',
+  pending: 'apt_mgr_last_import_pending',
+};
+
+/**
+ * Fetch the last Airbnb import timestamps from Supabase for the specified property.
+ * If not yet explicitly set in the properties table, inspects existing bookings in Supabase
+ * to intelligently deduce the latest imported reservation date.
+ */
+export async function fetchImportTimestamps(
+  propertyId?: string
+): Promise<{ completed: string | null; pending: string | null }> {
+  const targetId =
+    propertyId ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null) ||
+    DEFAULT_PROPERTY_ID;
+
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('last_airbnb_import_completed, last_airbnb_import_pending')
+      .eq('id', targetId)
+      .maybeSingle();
+
+    if (!error && data) {
+      let completed = data.last_airbnb_import_completed || null;
+      let pending = data.last_airbnb_import_pending || null;
+
+      // Smart fallback: If completed timestamp is not yet set in the property record,
+      // inspect existing completed Airbnb bookings in Supabase to find the most recent one
+      if (!completed) {
+        const { data: latestBooking } = await supabase
+          .from('bookings')
+          .select('booking_date, check_in, created_at')
+          .eq('property_id', targetId)
+          .eq('source', 'airbnb')
+          .order('booking_date', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestBooking) {
+          completed = latestBooking.booking_date || latestBooking.created_at || null;
+        }
+      }
+
+      if (completed) {
+        setLocal(IMPORT_TIMESTAMPS_KEYS.completed, completed);
+      } else {
+        completed = getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.completed, null);
+      }
+
+      if (pending) {
+        setLocal(IMPORT_TIMESTAMPS_KEYS.pending, pending);
+      } else {
+        pending = getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.pending, null);
+      }
+
+      return { completed, pending };
+    }
+  } catch (err) {
+    console.warn('Could not fetch import timestamps from Supabase, using local fallback:', err);
+  }
+
+  // Fallback to local storage if offline
+  return {
+    completed: getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.completed, null),
+    pending: getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.pending, null),
+  };
+}
+
+export function getLastImportTimestamps(): { completed: string | null; pending: string | null } {
+  try {
+    return {
+      completed: getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.completed, null),
+      pending: getLocal<string | null>(IMPORT_TIMESTAMPS_KEYS.pending, null),
+    };
+  } catch {
+    return { completed: null, pending: null };
+  }
+}
+
+export async function setLastImportTimestamp(
+  type: 'completed' | 'pending',
+  propertyId?: string,
+  timestamp?: string
+): Promise<void> {
+  const targetId =
+    propertyId ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null) ||
+    DEFAULT_PROPERTY_ID;
+  const val = timestamp || new Date().toISOString();
+
+  // 1. Update local cache for fast synchronous access
+  setLocal(IMPORT_TIMESTAMPS_KEYS[type], val);
+
+  // 2. Persist to Supabase in properties table so all devices/PCs share the exact timestamp
+  try {
+    const colName =
+      type === 'completed' ? 'last_airbnb_import_completed' : 'last_airbnb_import_pending';
+    await supabase
+      .from('properties')
+      .update({
+        [colName]: val,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', targetId);
+  } catch (err) {
+    console.warn('Could not persist import timestamp to Supabase:', err);
+  }
+}
+
+export async function clearLastImportTimestamp(
+  type?: 'completed' | 'pending',
+  propertyId?: string
+): Promise<void> {
+  const targetId =
+    propertyId ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('active_property_id') : null) ||
+    DEFAULT_PROPERTY_ID;
+
+  if (type) {
+    setLocal(IMPORT_TIMESTAMPS_KEYS[type], null);
+  } else {
+    setLocal(IMPORT_TIMESTAMPS_KEYS.completed, null);
+    setLocal(IMPORT_TIMESTAMPS_KEYS.pending, null);
+  }
+
+  try {
+    const updates: Record<string, null> = {};
+    if (!type || type === 'completed') updates.last_airbnb_import_completed = null;
+    if (!type || type === 'pending') updates.last_airbnb_import_pending = null;
+    await supabase.from('properties').update(updates).eq('id', targetId);
+  } catch (err) {
+    console.warn('Could not clear import timestamp in Supabase:', err);
+  }
 }
 
 export async function upsertBookingsBatch(
@@ -249,60 +395,313 @@ export async function upsertBookingsBatch(
 
   const current = getLocal<Booking[]>(STORAGE_KEYS.bookings, INITIAL_BOOKINGS);
 
-  // Identify and delete existing Airbnb bookings (Direct bookings are NEVER deleted)
-  // If options?.syncYear is specified and not deleteAllAirbnb, only delete Airbnb bookings of that year.
-  // Otherwise (by default for imports), delete ALL existing Airbnb bookings in the database.
-  const toDelete = current.filter((b) => {
-    if (!isAirbnbBooking(b)) return false;
-    if (options?.syncYear && !options?.deleteAllAirbnb) {
-      return getBookingYear(b.check_in) === options.syncYear;
-    }
-    return true;
-  });
+  const targetPropId = bookings[0]?.property_id;
 
-  const idsToDelete = toDelete.map((b) => b.id);
+  // Determine if deletion of existing Airbnb bookings should execute:
+  // 1. Explicitly requested via deleteAllAirbnb
+  // 2. Completed reservations mode (options?.importMode === 'completed')
+  // 3. Yearly sync requested via syncYear
+  // 4. Legacy mode (!options?.importMode) where batch replaces existing records
+  const shouldDeleteAirbnb = Boolean(
+    options?.deleteAllAirbnb ||
+    options?.importMode === 'completed' ||
+    options?.syncYear ||
+    !options?.importMode
+  );
 
-  // Execute deletion in Supabase if any
-  try {
-    const fromQuery = supabase.from('bookings');
-    if (fromQuery && typeof fromQuery.delete === 'function') {
-      const deleteQuery = fromQuery.delete();
-      if (!options?.syncYear || options?.deleteAllAirbnb) {
+  let idsToDelete: string[] = [];
+  let remaining = current;
+
+  if (shouldDeleteAirbnb) {
+    const toDelete = current.filter((b) => {
+      if (!isAirbnbBooking(b)) return false;
+      if (targetPropId && b.property_id && b.property_id !== targetPropId) return false;
+      if (options?.syncYear && !options?.deleteAllAirbnb) {
+        return getBookingYear(b.check_in) === options.syncYear;
+      }
+      return true;
+    });
+
+    idsToDelete = toDelete.map((b) => b.id);
+
+    // Execute deletion in Supabase if any
+    try {
+      const fromQuery = supabase.from('bookings');
+      if (fromQuery && typeof fromQuery.delete === 'function') {
+        const deleteQuery = fromQuery.delete();
         if (typeof deleteQuery.eq === 'function') {
-          await deleteQuery.eq('source', 'airbnb');
+          let q = deleteQuery.eq('source', 'airbnb');
+          if (targetPropId && typeof q.eq === 'function') {
+            q = q.eq('property_id', targetPropId);
+          }
+          await q;
         } else if (typeof deleteQuery.in === 'function' && idsToDelete.length > 0) {
           await deleteQuery.in('id', idsToDelete);
         }
-      } else if (typeof deleteQuery.in === 'function' && idsToDelete.length > 0) {
-        await deleteQuery.in('id', idsToDelete);
+      }
+    } catch (err) {
+      console.warn('Failed to delete existing Airbnb bookings from Supabase:', err);
+    }
+
+    // Clean up any linked expenses in localStorage
+    if (idsToDelete.length > 0) {
+      try {
+        const rawExp = localStorage.getItem(STORAGE_KEYS.expenses);
+        if (rawExp) {
+          const expenses = JSON.parse(rawExp) as Expense[];
+          const cleanedExp = expenses.map((e) =>
+            e.linked_booking_id && idsToDelete.includes(e.linked_booking_id)
+              ? { ...e, linked_booking_id: null }
+              : e
+          );
+          localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(cleanedExp));
+        }
+      } catch {
+        // Ignore
       }
     }
-  } catch (err) {
-    console.warn('Failed to delete existing Airbnb bookings from Supabase:', err);
+
+    // Remove deleted items from current before inserting incoming bookings
+    remaining = current.filter((b) => {
+      if (!isAirbnbBooking(b)) return true;
+      if (targetPropId && b.property_id && b.property_id !== targetPropId) return true;
+      if (options?.syncYear && !options?.deleteAllAirbnb) {
+        return getBookingYear(b.check_in) !== options.syncYear;
+      }
+      return false;
+    });
   }
 
-  // Clean up any linked expenses in localStorage
-  if (idsToDelete.length > 0) {
+  // 1. SMART IMPORT MODE: 'completed' (Reservas ya hechas / pagos completados)
+  if (options?.importMode === 'completed') {
+    let inserted = 0;
+    let updated = 0;
+    const nowIso = new Date().toISOString();
+
+    const updatedList = [...remaining];
+
+    for (const incoming of bookings) {
+      const existingIdx = incoming.airbnb_confirmation_code
+        ? updatedList.findIndex((b) => b.airbnb_confirmation_code === incoming.airbnb_confirmation_code)
+        : -1;
+
+      if (existingIdx >= 0) {
+        const existing = updatedList[existingIdx];
+        updatedList[existingIdx] = {
+          ...existing,
+          ...incoming,
+          id: existing.id,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: incoming.payout_date || existing.payout_date || incoming.check_in,
+          updated_at: nowIso,
+        };
+        updated++;
+      } else {
+        const newBooking: Booking = {
+          ...incoming,
+          id: `b-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: incoming.payout_date || incoming.check_in,
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+        updatedList.unshift(newBooking);
+        inserted++;
+      }
+    }
+
     try {
-      const rawExp = localStorage.getItem(STORAGE_KEYS.expenses);
-      if (rawExp) {
-        const expenses = JSON.parse(rawExp) as Expense[];
-        const cleanedExp = expenses.map((e) =>
-          e.linked_booking_id && idsToDelete.includes(e.linked_booking_id)
-            ? { ...e, linked_booking_id: null }
-            : e
+      if (shouldDeleteAirbnb) {
+        if (typeof supabase.from === 'function') {
+          const insertQuery = supabase.from('bookings');
+          if (insertQuery && typeof insertQuery.insert === 'function') {
+            const { error: insErr } = await insertQuery.insert(bookings);
+            if (insErr) {
+              console.error('Error inserting completed bookings into Supabase:', insErr);
+            }
+          }
+        }
+      } else {
+        const codes = bookings
+          .map((b) => b.airbnb_confirmation_code)
+          .filter((c): c is string => Boolean(c));
+
+        let existingCodes = new Set<string>();
+        if (codes.length > 0 && targetPropId && typeof supabase.from === 'function') {
+          const selectQuery = supabase.from('bookings').select('airbnb_confirmation_code');
+          if (selectQuery && typeof selectQuery.eq === 'function') {
+            const { data: existingRows } = await selectQuery
+              .eq('property_id', targetPropId)
+              .in('airbnb_confirmation_code', codes);
+            if (existingRows) {
+              existingCodes = new Set(existingRows.map((r) => r.airbnb_confirmation_code));
+            }
+          }
+        }
+
+        const toInsert = bookings.filter(
+          (b) => !b.airbnb_confirmation_code || !existingCodes.has(b.airbnb_confirmation_code)
         );
-        localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(cleanedExp));
+        const toUpdate = bookings.filter(
+          (b) => b.airbnb_confirmation_code && existingCodes.has(b.airbnb_confirmation_code)
+        );
+
+        if (toInsert.length > 0 && typeof supabase.from === 'function') {
+          const insertQuery = supabase.from('bookings');
+          if (insertQuery && typeof insertQuery.insert === 'function') {
+            const { error: insErr } = await insertQuery.insert(toInsert);
+            if (insErr) {
+              console.error('Error inserting new bookings into Supabase:', insErr);
+            }
+          }
+        }
+
+        if (typeof supabase.from === 'function') {
+          for (const b of toUpdate) {
+            if (b.airbnb_confirmation_code && targetPropId) {
+              await supabase
+                .from('bookings')
+                .update(b)
+                .eq('property_id', targetPropId)
+                .eq('airbnb_confirmation_code', b.airbnb_confirmation_code);
+            }
+          }
+        }
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.warn('Completed import Supabase sync warning:', err);
     }
+
+    const synced = syncBookingStatuses(updatedList);
+    setLocal(STORAGE_KEYS.bookings, synced);
+
+    await setLastImportTimestamp('completed', targetPropId);
+
+    return {
+      inserted,
+      updated,
+      unchanged: 0,
+      deleted: idsToDelete.length,
+      total: bookings.length,
+    };
   }
 
-  // Remove deleted items from current before inserting incoming bookings
-  const remaining = current.filter((b) => !idsToDelete.includes(b.id));
+  // 2. SMART IMPORT MODE: 'pending' (Reservas futuras / cobros pendientes)
+  if (options?.importMode === 'pending') {
+    let inserted = 0;
+    let updated = 0;
+    let unchanged = 0;
+    const nowIso = new Date().toISOString();
 
-  // 3. Insert all incoming bookings fresh
+    const updatedList = [...remaining];
+
+    for (const incoming of bookings) {
+      const existingIdx = incoming.airbnb_confirmation_code
+        ? updatedList.findIndex((b) => b.airbnb_confirmation_code === incoming.airbnb_confirmation_code)
+        : -1;
+
+      if (existingIdx >= 0) {
+        const existing = updatedList[existingIdx];
+        // If booking is already recorded as 'paid', preserve paid status
+        if (existing.payout_status === 'paid') {
+          unchanged++;
+          continue;
+        }
+
+        updatedList[existingIdx] = {
+          ...existing,
+          ...incoming,
+          id: existing.id,
+          payout_status: 'pending',
+          updated_at: nowIso,
+        };
+        updated++;
+      } else {
+        const newBooking: Booking = {
+          ...incoming,
+          id: `b-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          payout_status: 'pending',
+          created_at: nowIso,
+          updated_at: nowIso,
+        };
+        updatedList.unshift(newBooking);
+        inserted++;
+      }
+    }
+
+    try {
+      if (shouldDeleteAirbnb) {
+        if (typeof supabase.from === 'function') {
+          const insertQuery = supabase.from('bookings');
+          if (insertQuery && typeof insertQuery.insert === 'function') {
+            await insertQuery.insert(bookings);
+          }
+        }
+      } else {
+        const codes = bookings
+          .map((b) => b.airbnb_confirmation_code)
+          .filter((c): c is string => Boolean(c));
+
+        let existingCodes = new Set<string>();
+        if (codes.length > 0 && targetPropId && typeof supabase.from === 'function') {
+          const selectQuery = supabase.from('bookings').select('airbnb_confirmation_code');
+          if (selectQuery && typeof selectQuery.eq === 'function') {
+            const { data: existingRows } = await selectQuery
+              .eq('property_id', targetPropId)
+              .in('airbnb_confirmation_code', codes);
+            if (existingRows) {
+              existingCodes = new Set(existingRows.map((r) => r.airbnb_confirmation_code));
+            }
+          }
+        }
+
+        const toInsert = bookings.filter(
+          (b) => !b.airbnb_confirmation_code || !existingCodes.has(b.airbnb_confirmation_code)
+        );
+        const toUpdate = bookings.filter(
+          (b) => b.airbnb_confirmation_code && existingCodes.has(b.airbnb_confirmation_code)
+        );
+
+        if (toInsert.length > 0 && typeof supabase.from === 'function') {
+          const insertQuery = supabase.from('bookings');
+          if (insertQuery && typeof insertQuery.insert === 'function') {
+            await insertQuery.insert(toInsert);
+          }
+        }
+
+        if (typeof supabase.from === 'function') {
+          for (const b of toUpdate) {
+            if (b.airbnb_confirmation_code && targetPropId) {
+              await supabase
+                .from('bookings')
+                .update(b)
+                .eq('property_id', targetPropId)
+                .eq('airbnb_confirmation_code', b.airbnb_confirmation_code);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Pending import Supabase sync warning:', err);
+    }
+
+    const synced = syncBookingStatuses(updatedList);
+    setLocal(STORAGE_KEYS.bookings, synced);
+
+    await setLastImportTimestamp('pending', targetPropId);
+
+    return {
+      inserted,
+      updated,
+      unchanged,
+      deleted: idsToDelete.length,
+      total: bookings.length,
+    };
+  }
+
+  // 3. LEGACY MODE (used when !options?.importMode)
   const newBookings: Booking[] = bookings.map((incoming, idx) => ({
     ...incoming,
     id: `b-${Date.now()}-${idx}`,

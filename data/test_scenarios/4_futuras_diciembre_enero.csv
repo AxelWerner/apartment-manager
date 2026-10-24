@@ -1,0 +1,4 @@
+Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Inserat,Details,Referenzcode,Währung,Betrag,Servicegebühr,Reinigungsgebühr,Bruttoeinkünfte,Von Airbnb abgeführte Steuer,Ertragsjahr
+12/28/2026,Buchung,HMDEC2026_XMAS,10/18/2026,12/24/2026,12/28/2026,4,Familie Gomez Navidad,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,1200000.00,"270.000,00",80000.00,1430000.00,0.00,
+01/03/2027,Buchung,HMJAN2027_NYE,10/20/2026,12/29/2026,01/03/2027,5,Alejandro Montoya Año Nuevo,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,1650000.00,"370.000,00",80000.00,1965000.00,0.00,
+01/15/2027,Buchung,HMJAN2027_REYES,10/22/2026,01/10/2027,01/15/2027,5,Valentina Duque Reyes,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,1350000.00,"305.000,00",80000.00,1610000.00,0.00,

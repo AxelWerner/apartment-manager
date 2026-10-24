@@ -1,0 +1,7 @@
+Datum,Voraussichtliches Datum des Geldeingangs,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Inserat,Details,Referenzcode,Währung,Betrag,Ausgezahlt,Servicegebühr,Gebühr für schnelle Zahlung,Reinigungsgebühr,Bruttoeinkünfte,Von Airbnb abgeführte Steuer,Ertragsjahr
+10/05/2026,10/09/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Koct1,COP,,415000.00,,,,,,
+10/05/2026,,Buchung,HMOCT2026A,09/25/2026,10/02/2026,10/05/2026,3,Carlos Eduardo Restrepo,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,415000.00,,"93.500,00",,60000.00,495000.00,0.00,2026
+10/18/2026,10/22/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Koct2,COP,,530000.00,,,,,,
+10/18/2026,,Buchung,HMOCT2026B,10/02/2026,10/14/2026,10/18/2026,4,Mariana Zuluaga Henao,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,530000.00,,"119.800,00",,60000.00,630000.00,0.00,2026
+11/02/2026,11/06/2026,Payout,,,,,,,,"Zahlen an Claudia Andrade, Savings 1253 (COP)",0MS0Knov1,COP,,380000.00,,,,,,
+11/02/2026,,Buchung,HMNOV2026C,10/12/2026,10/29/2026,11/02/2026,4,Daniel Felipe Morales,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,380000.00,,"86.000,00",,60000.00,455000.00,0.00,2026

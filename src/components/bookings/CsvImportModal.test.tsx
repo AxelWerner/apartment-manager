@@ -17,6 +17,7 @@ vi.mock('@/hooks/use-bookings', () => ({
 describe('CsvImportModal Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it('does not render when isOpen is false', () => {
@@ -368,6 +369,123 @@ describe('CsvImportModal Component', () => {
           ]),
         })
       );
+    });
+  });
+
+  it('allows toggling between Reservas ya hechas and Reservas futuras tabs', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const completedTab = screen.getByRole('button', { name: /Reservas ya hechas/i });
+    const pendingTab = screen.getByRole('button', { name: /Reservas futuras/i });
+
+    expect(completedTab).toBeInTheDocument();
+    expect(pendingTab).toBeInTheDocument();
+
+    // Default mode is completed
+    expect(screen.getByText(/Selecciona el archivo de reservas completadas/i)).toBeInTheDocument();
+
+    // Switch to pending
+    await user.click(pendingTab);
+    expect(screen.getByText(/Selecciona el archivo de próximas reservas pendientes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deduplicación automática por código de confirmación/i)).toBeInTheDocument();
+
+    // Switch back to completed
+    await user.click(completedTab);
+    expect(screen.getByText(/Selecciona el archivo de reservas completadas/i)).toBeInTheDocument();
+  });
+
+  it('filters reservations by booking date when a previous completed import timestamp exists', async () => {
+    const user = userEvent.setup();
+    // Simulate previous import on 2026-10-01
+    localStorage.setItem('apt_mgr_last_import_completed', '2026-10-01T12:00:00.000Z');
+
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+09/12/2026,Buchung,HM_OLD,2026-09-15,09/20/2026,09/23/2026,3,Old Booking,300000,60000,360000,60000
+10/05/2026,Buchung,HM_NEW,2026-10-05,10/10/2026,10/13/2026,3,New Booking,350000,60000,410000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      // The old booking (from Sep 15) should be skipped
+      expect(screen.getByText(/New Booking/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Old Booking/i)).not.toBeInTheDocument();
+      expect(screen.getByText(/Se omitieron/i)).toBeInTheDocument();
+      expect(screen.getByText(/anteriores al último import/i)).toBeInTheDocument();
+    });
+
+    // Clicking "Incluir todas" restores the skipped rows
+    const includeAllBtn = screen.getByRole('button', { name: /Incluir todas \(1\)/i });
+    await user.click(includeAllBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Old Booking/i)).toBeInTheDocument();
+      expect(screen.getByText(/New Booking/i)).toBeInTheDocument();
+    });
+  });
+
+  it('deduplicates identical or modified rows in pending reservations mode', async () => {
+    const user = userEvent.setup();
+
+    // 2 rows with the SAME confirmation code (e.g. guest added before stay)
+    const pendingCsvWithDuplicate = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+10/15/2026,Buchung,HM_PENDING_DUP,10/01/2026,10/15/2026,10/18/2026,3,Guest 1,300000,60000,360000,60000
+10/15/2026,Buchung,HM_PENDING_DUP,10/01/2026,10/15/2026,10/18/2026,3,Guest 1 (Modified),300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(pendingCsvWithDuplicate),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    // Switch to pending tab
+    const pendingTab = screen.getByRole('button', { name: /Reservas futuras/i });
+    await user.click(pendingTab);
+
+    const pendingSampleBtn = screen.getByText(/^airbnb_pending\.csv$/i);
+    await user.click(pendingSampleBtn);
+
+    await waitFor(() => {
+      // Only 1 row should be in the table
+      expect(screen.getByText(/Total 1 reservas/i)).toBeInTheDocument();
+      expect(screen.getByText(/Se consolidaron/i)).toBeInTheDocument();
+      expect(screen.getByText(/líneas duplicadas por modificación/i)).toBeInTheDocument();
+    });
+  });
+
+  it('saves the timestamp upon successful import', async () => {
+    const user = userEvent.setup();
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+10/15/2026,Buchung,HM_TS_TEST,10/01/2026,10/15/2026,10/18/2026,3,Timestamp Guest,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Timestamp Guest/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(localStorage.getItem('apt_mgr_last_import_completed')).toBeTruthy();
     });
   });
 });
