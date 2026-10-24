@@ -16,6 +16,8 @@ import {
   ArrowDown,
   ChevronDown,
   ChevronRight,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 import { useExpenses, useDeleteExpense } from '@/hooks/use-expenses';
 import { usePropertyContext } from '@/context/PropertyContext';
@@ -64,8 +66,8 @@ export default function Expenses() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
-  // Receipt viewer modal
-  const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
+  // Document viewer modal (supports invoice and payment receipt)
+  const [activeDocument, setActiveDocument] = useState<{ url: string; title: string } | null>(null);
 
   // Sorting state for the Ledger view
   type SortField = 'date' | 'category' | 'description' | 'expense_type' | 'amount';
@@ -249,7 +251,7 @@ export default function Expenses() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {/* Quick Restock Insumos Button */}
           <button
             type="button"
@@ -258,7 +260,7 @@ export default function Expenses() {
               setDefaultCategory('supplies_restock');
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors cursor-pointer"
           >
             <ShoppingBag className="w-4 h-4 text-amber-500" />
             <span>Registrar Insumos</span>
@@ -272,7 +274,7 @@ export default function Expenses() {
               setDefaultCategory('other');
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Nuevo Gasto</span>
@@ -321,7 +323,11 @@ export default function Expenses() {
 
       {/* View 1: Monthly Bills Checklist */}
       {activeTab === 'checklist' && (
-        <MonthlyChecklistView onViewReceipt={(url) => setActiveReceiptUrl(url)} />
+        <MonthlyChecklistView
+          onViewReceipt={(url, title) =>
+            setActiveDocument({ url, title: title || 'Documento Adjunto' })
+          }
+        />
       )}
 
       {/* View 2: All Expenses Ledger */}
@@ -502,14 +508,34 @@ export default function Expenses() {
                                   </td>
                                   <td className="px-4 py-3.5 text-right">
                                     <div className="flex items-center justify-end gap-1">
+                                      {exp.invoice_url && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setActiveDocument({
+                                              url: exp.invoice_url!,
+                                              title: `Factura: ${exp.description}`,
+                                            })
+                                          }
+                                          className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer transition-colors"
+                                          title="Ver Factura"
+                                        >
+                                          <FileText className="w-4 h-4" />
+                                        </button>
+                                      )}
                                       {exp.receipt_url && (
                                         <button
                                           type="button"
-                                          onClick={() => setActiveReceiptUrl(exp.receipt_url!)}
-                                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                                          title="Ver Recibo"
+                                          onClick={() =>
+                                            setActiveDocument({
+                                              url: exp.receipt_url!,
+                                              title: `Comprobante de Pago: ${exp.description}`,
+                                            })
+                                          }
+                                          className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer transition-colors"
+                                          title="Ver Comprobante de Pago"
                                         >
-                                          <ExternalLink className="w-4 h-4" />
+                                          <Receipt className="w-4 h-4" />
                                         </button>
                                       )}
                                       <button
@@ -549,7 +575,9 @@ export default function Expenses() {
 
       {/* View 3: Annual Insurance */}
       {activeTab === 'insurance' && (
-        <AnnualInsuranceView onViewReceipt={(url) => setActiveReceiptUrl(url)} />
+        <AnnualInsuranceView
+          onViewReceipt={(url) => setActiveDocument({ url, title: 'Póliza de Seguro Anual' })}
+        />
       )}
 
       {/* Modals */}
@@ -563,20 +591,42 @@ export default function Expenses() {
         defaultCategory={defaultCategory}
       />
 
-      {/* Receipt Viewer Modal */}
+      {/* Document Viewer Modal */}
       <Modal
-        isOpen={Boolean(activeReceiptUrl)}
-        onClose={() => setActiveReceiptUrl(null)}
-        title="Comprobante / Recibo Adjunto"
+        isOpen={Boolean(activeDocument)}
+        onClose={() => setActiveDocument(null)}
+        title={activeDocument?.title || 'Documento Adjunto'}
         maxWidth="lg"
       >
         <div className="p-2 text-center">
-          {activeReceiptUrl && (
-            <img
-              src={activeReceiptUrl}
-              alt="Comprobante"
-              className="max-h-[70vh] mx-auto rounded-xl object-contain border border-slate-200 dark:border-slate-700 shadow-md"
-            />
+          {activeDocument?.url && (
+            activeDocument.url.toLowerCase().includes('.pdf') ||
+            activeDocument.url.startsWith('data:application/pdf') ? (
+              <iframe
+                src={activeDocument.url}
+                title={activeDocument.title}
+                className="w-full h-[70vh] rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+              />
+            ) : (
+              <img
+                src={activeDocument.url}
+                alt={activeDocument.title}
+                className="max-h-[70vh] mx-auto rounded-xl object-contain border border-slate-200 dark:border-slate-700 shadow-md"
+              />
+            )
+          )}
+          {activeDocument?.url && (
+            <div className="mt-3 flex justify-end">
+              <a
+                href={activeDocument.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Abrir en pestaña nueva
+              </a>
+            </div>
           )}
         </div>
       </Modal>

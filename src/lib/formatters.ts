@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { ExpenseCategory, ExpenseType, DamageSeverity, ClaimStatus, BookingStatus } from '@/types/database';
+import type { ExpenseCategory, ExpenseType, DamageSeverity, ClaimStatus, BookingStatus, Booking } from '@/types/database';
 
 /**
  * Format a number into Colombian Pesos with 2 decimal places:
@@ -243,6 +243,26 @@ export function isDirectBooking(sourceOrBooking?: string | null | { source?: str
  */
 export function isAirbnbBooking(sourceOrBooking?: string | null | { source?: string | null }): boolean {
   return !isDirectBooking(sourceOrBooking);
+}
+
+/**
+  * Calculate net amount attributable to the owner for a booking (net_payout minus cleaning fee times owner share).
+  */
+export function getOwnerNet(b: Booking): number {
+  if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
+  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+  const rate = getBookingSourceInfo(b.source).ownerRate;
+  return Math.round(accommodation * rate);
+}
+
+/**
+  * Calculate management fee for a booking.
+  */
+export function getManagementFee(b: Booking): number {
+  if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
+  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
+  const rate = getBookingSourceInfo(b.source).commissionRate;
+  return Math.round(accommodation * rate);
 }
 
 /**

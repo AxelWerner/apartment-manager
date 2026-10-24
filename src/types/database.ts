@@ -156,6 +156,7 @@ export interface Expense {
   recurrence_period: RecurrencePeriod | null;
   linked_booking_id: string | null;
   receipt_url: string | null;
+  invoice_url?: string | null;
   notes: string | null;
   created_at?: string;
   updated_at?: string;

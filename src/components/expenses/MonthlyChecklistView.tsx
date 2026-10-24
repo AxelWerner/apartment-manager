@@ -20,17 +20,21 @@ import {
   Edit2,
   Trash2,
   Info,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 import { formatCOP, formatMonthYear, formatDate, getColombiaDateTime, CATEGORY_LABELS } from '@/lib/formatters';
 import type { Expense, ExpenseCategory, ExpenseType } from '@/types/database';
 import { useExpenses, useUpdateExpense, useDeleteExpense } from '@/hooks/use-expenses';
+import { usePropertyContext } from '@/context/PropertyContext';
+import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { calculateApartmentDailyCosts } from '@/lib/daily-costs';
 import { DailyCostCards } from './DailyCostCards';
 import { ExpenseModal } from './ExpenseModal';
 import { toast } from 'sonner';
 
 interface MonthlyChecklistViewProps {
-  onViewReceipt: (url: string) => void;
+  onViewReceipt: (url: string, title?: string) => void;
   initialMonth?: string;
 }
 
@@ -80,8 +84,37 @@ function getCategoryIcon(cat: ExpenseCategory): React.ComponentType<{ className?
   }
 }
 
+interface DocChipProps {
+  label: string;
+  variant: 'invoice' | 'receipt';
+  onOpen: () => void;
+}
+
+/** Compact chip indicating an attached document (Factura / Comprobante). Click to open viewer. */
+function DocChip({ label, variant, onOpen }: DocChipProps) {
+  const isInvoice = variant === 'invoice';
+  const Icon = isInvoice ? FileText : Receipt;
+  const styles = isInvoice
+    ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border-indigo-200/70 dark:border-indigo-800/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+    : 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-200/70 dark:border-emerald-800/70 hover:bg-emerald-100 dark:hover:bg-emerald-900/50';
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={`Ver ${label}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[11px] font-medium cursor-pointer transition-colors ${styles}`}
+    >
+      <Icon className="w-3 h-3" />
+      <span>{label}</span>
+    </button>
+  );
+}
+
 export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChecklistViewProps) {
-  const { data: expenses = [] } = useExpenses();
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
+  const { data: expenses = [] } = useExpenses(activePropertyId);
   const updateExpenseMutation = useUpdateExpense();
   const deleteExpenseMutation = useDeleteExpense();
 
@@ -293,8 +326,9 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
             const config = BILL_CONFIG[catKey];
             const Icon = config.icon;
 
-            // Find if an expense for this category already exists in this billing month
-            const existing = monthExpenses.find((e) => e.category === config.category);
+            // Find if an expense for this category already exists in this billing month (prefer entry with documents)
+            const categoryExpenses = monthExpenses.filter((e) => e.category === config.category);
+            const existing = categoryExpenses.find((e) => e.invoice_url || e.receipt_url) || categoryExpenses[0];
 
             const isPaid = existing?.payment_status === 'paid';
             const isPending = existing && existing.payment_status !== 'paid';
@@ -371,6 +405,28 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
                       </div>
                     )}
                   </div>
+
+                  {/* Soportes adjuntos: chips Factura / Comprobante */}
+                  {existing && (existing.invoice_url || existing.receipt_url) && (
+                    <div
+                      className="flex flex-wrap items-center gap-1.5 mb-3"
+                    >
+                      {existing.invoice_url && (
+                        <DocChip
+                          label="Factura"
+                          variant="invoice"
+                          onOpen={() => onViewReceipt(existing.invoice_url!, `Factura: ${config.label}`)}
+                        />
+                      )}
+                      {existing.receipt_url && (
+                        <DocChip
+                          label="Comprobante"
+                          variant="receipt"
+                          onOpen={() => onViewReceipt(existing.receipt_url!, `Comprobante: ${config.label}`)}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions Bottom Bar */}
@@ -405,17 +461,6 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
-
-                      {existing.receipt_url && (
-                        <button
-                          type="button"
-                          onClick={() => onViewReceipt(existing.receipt_url!)}
-                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600"
-                          title="Ver Comprobante"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                      )}
                     </>
                   ) : (
                     <button
@@ -550,10 +595,10 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Seguro anual cubierto este mes
                 </span>
-                {activeAnnualPolicy.receipt_url && (
+                {(activeAnnualPolicy.invoice_url || activeAnnualPolicy.receipt_url) && (
                   <button
                     type="button"
-                    onClick={() => onViewReceipt(activeAnnualPolicy.receipt_url!)}
+                    onClick={() => onViewReceipt((activeAnnualPolicy.invoice_url || activeAnnualPolicy.receipt_url)!)}
                     className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800"
                     title="Ver Póliza"
                   >
@@ -708,12 +753,36 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
                       </span>
                     )}
 
-                    <div className="my-2.5 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex justify-between items-baseline">
-                      <span className="text-[11px] text-slate-500">Monto:</span>
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">
-                        {formatCOP(exp.amount)}
-                      </span>
+                    <div className="my-2.5 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[11px] text-slate-500">Monto:</span>
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                          {formatCOP(exp.amount)}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Soportes adjuntos: chips Factura / Comprobante */}
+                    {(exp.invoice_url || exp.receipt_url) && (
+                      <div
+                        className="flex flex-wrap items-center gap-1.5 mb-2.5"
+                      >
+                        {exp.invoice_url && (
+                          <DocChip
+                            label="Factura"
+                            variant="invoice"
+                            onOpen={() => onViewReceipt(exp.invoice_url!, `Factura: ${exp.description}`)}
+                          />
+                        )}
+                        {exp.receipt_url && (
+                          <DocChip
+                            label="Comprobante"
+                            variant="receipt"
+                            onOpen={() => onViewReceipt(exp.receipt_url!, `Comprobante: ${exp.description}`)}
+                          />
+                        )}
+                      </div>
+                    )}
 
                     <p className="text-[10px] text-slate-400 mb-2">
                       Fecha: {formatDate(exp.date)}
@@ -731,17 +800,6 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
                     >
                       {isPaid ? 'Cambiar a Pendiente' : 'Marcar Pagado'}
                     </button>
-
-                    {exp.receipt_url && (
-                      <button
-                        type="button"
-                        onClick={() => onViewReceipt(exp.receipt_url!)}
-                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-600"
-                        title="Ver Recibo"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-                    )}
 
                     <button
                       type="button"

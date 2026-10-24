@@ -19,6 +19,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Clock,
+  X,
 } from 'lucide-react';
 import { useBookings, useDeleteBooking } from '@/hooks/use-bookings';
 import { BookingModal } from '@/components/bookings/BookingModal';
@@ -37,6 +38,8 @@ import {
   isSameStay,
   calculateUniqueBookedNights,
   calculateUniqueStays,
+  getOwnerNet,
+  getManagementFee,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
@@ -117,29 +120,17 @@ export default function Bookings() {
     }
   };
 
-  const getOwnerNet = (b: Booking) => {
-    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    const rate = getBookingSourceInfo(b.source).ownerRate;
-    return Math.round(accommodation * rate);
-  };
-
-  const getManagementFee = (b: Booking) => {
-    if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    const rate = getBookingSourceInfo(b.source).commissionRate;
-    return Math.round(accommodation * rate);
-  };
-
   // Filtered list with dynamically resolved status and financial horizon
   const filteredBookings = bookings.map((b) => ({
     ...b,
     status: resolveBookingStatus(b),
   })).filter((b) => {
+    const q = searchQuery.toLowerCase().trim();
     const matchesSearch =
-      b.guest_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (b.airbnb_confirmation_code &&
-        b.airbnb_confirmation_code.toLowerCase().includes(searchQuery.toLowerCase()));
+      !q ||
+      b.guest_name.toLowerCase().includes(q) ||
+      Boolean(b.airbnb_confirmation_code && b.airbnb_confirmation_code.toLowerCase().includes(q));
+
     const matchesStatus = selectedStatus === 'all' || b.status === selectedStatus;
     const matchesChannel =
       selectedChannel === 'all' ||
@@ -151,6 +142,7 @@ export default function Bookings() {
       financialHorizon === 'all' ||
       (financialHorizon === 'real' && isBookingReal(b, colDateStr)) ||
       (financialHorizon === 'future' && isBookingFuture(b, colDateStr));
+
     return matchesSearch && matchesStatus && matchesChannel && matchesHorizon;
   });
 
@@ -331,36 +323,36 @@ export default function Bookings() {
     financialHorizon === 'real'
       ? realStaysCount
       : financialHorizon === 'future'
-      ? futureStaysCount
-      : totalStaysCount;
+        ? futureStaysCount
+        : totalStaysCount;
 
   const displayedNights =
     financialHorizon === 'real'
       ? realNights
       : financialHorizon === 'future'
-      ? futureNights
-      : totalNights;
+        ? futureNights
+        : totalNights;
 
   const displayedManagementFee =
     financialHorizon === 'real'
       ? realManagementFee
       : financialHorizon === 'future'
-      ? futureManagementFee
-      : totalManagementFee;
+        ? futureManagementFee
+        : totalManagementFee;
 
   const displayedOwnerPayout =
     financialHorizon === 'real'
       ? realOwnerPayout
       : financialHorizon === 'future'
-      ? futureOwnerPayout
-      : totalOwnerPayout;
+        ? futureOwnerPayout
+        : totalOwnerPayout;
 
   const activeHorizonBookings =
     financialHorizon === 'real'
       ? realBookingsList
       : financialHorizon === 'future'
-      ? futureBookingsList
-      : activeBookings;
+        ? futureBookingsList
+        : activeBookings;
 
   const managementFeeAirbnb = activeHorizonBookings
     .filter((b) => !b.source || b.source === 'airbnb')
@@ -434,18 +426,16 @@ export default function Bookings() {
     return (
       <th
         onClick={() => handleSort(field)}
-        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${
-          align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
-        }`}
+        className={`px-4 py-3.5 cursor-pointer select-none transition-colors hover:text-slate-900 dark:hover:text-white ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+          }`}
       >
         <div
-          className={`inline-flex items-center gap-1.5 group ${
-            align === 'center'
+          className={`inline-flex items-center gap-1.5 group ${align === 'center'
               ? 'justify-center'
               : align === 'right'
-              ? 'justify-end'
-              : 'justify-start'
-          }`}
+                ? 'justify-end'
+                : 'justify-start'
+            }`}
         >
           <span>{label}</span>
           {isActive ? (
@@ -467,26 +457,26 @@ export default function Bookings() {
     <div className="space-y-6">
       {/* Action Buttons */}
       <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => setIsCsvModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Importar CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setBookingToEdit(null);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nueva Reserva</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsCsvModalOpen(true)}
+          className="flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs transition-colors"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <span>Importar CSV</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBookingToEdit(null);
+            setIsModalOpen(true);
+          }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Nueva Reserva</span>
+        </button>
+      </div>
 
       {/* Summary KPI Pills */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
@@ -514,10 +504,10 @@ export default function Bookings() {
               {financialHorizon === 'real'
                 ? 'Reservas cobradas / activas'
                 : financialHorizon === 'future'
-                ? 'Reservas futuras por cobrar'
-                : totalStaysCount === 1
-                ? 'Reserva registrada'
-                : 'Reservas registradas'}
+                  ? 'Reservas futuras por cobrar'
+                  : totalStaysCount === 1
+                    ? 'Reserva registrada'
+                    : 'Reservas registradas'}
             </span>
             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Reservas con dinero cobrado o huésped en apto">
@@ -633,102 +623,121 @@ export default function Bookings() {
         </div>
       </div>
 
-      {/* Search & Filters */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por huésped o código..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
-          />
+      {/* Search & Filters Panel (2 Rows) */}
+      <div className="flex flex-col gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        {/* Renglón 1: Input de búsqueda + Toggles (Horizonte y Desglose) */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Input de búsqueda */}
+          <div className="relative flex-1 min-w-[260px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por huésped o código..."
+              className="w-full pl-9 pr-9 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500 transition-all text-slate-900 dark:text-white placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md hover:bg-slate-200/50 dark:hover:bg-slate-700 cursor-pointer"
+                title="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Toggles al lado del input de búsqueda */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Financial Horizon Toggle: Todas / Solo Real / Solo Futuro */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('all')}
+                className={`px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  financialHorizon === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                Todas
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('real')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  financialHorizon === 'real'
+                    ? 'bg-emerald-600 text-white shadow-xs font-semibold'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                }`}
+                title="Ver solo reservas con dinero ya cobrado (en curso o completadas)"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Solo Real</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFinancialHorizon('future')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  financialHorizon === 'future'
+                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                    : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                }`}
+                title="Ver solo reservas futuras por cobrar (sujetas a posible cancelación)"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Solo Futuro</span>
+              </button>
+            </div>
+
+            {/* Toggle Vista Neto / Desglose */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBreakdown(false);
+                  setRowBreakdownOverrides({});
+                }}
+                title="Mostrar únicamente el valor neto de alojamiento"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  !showBreakdown
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                <span>Solo Neto</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBreakdown(true);
+                  setRowBreakdownOverrides({});
+                }}
+                title="Mostrar desglose de Bruto, Aseo, Adm y Neto"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+                  showBreakdown
+                    ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                <Calculator className="w-3.5 h-3.5" />
+                <span>Ver Desglose</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-          {/* Financial Horizon Toggle: Todas / Solo Real / Solo Futuro */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
-            <button
-              type="button"
-              onClick={() => setFinancialHorizon('all')}
-              className={`px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                financialHorizon === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              Todas
-            </button>
-            <button
-              type="button"
-              onClick={() => setFinancialHorizon('real')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                financialHorizon === 'real'
-                  ? 'bg-emerald-600 text-white shadow-xs font-semibold'
-                  : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
-              }`}
-              title="Ver solo reservas con dinero ya cobrado (en curso o completadas)"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Solo Real</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFinancialHorizon('future')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                financialHorizon === 'future'
-                  ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                  : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
-              }`}
-              title="Ver solo reservas futuras por cobrar (sujetas a posible cancelación)"
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Solo Futuro</span>
-            </button>
-          </div>
-
-          {/* Toggle Vista Neto / Desglose */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setShowBreakdown(false);
-                setRowBreakdownOverrides({});
-              }}
-              title="Mostrar únicamente el valor neto de alojamiento"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                !showBreakdown
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              <span>Solo Neto</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowBreakdown(true);
-                setRowBreakdownOverrides({});
-              }}
-              title="Mostrar desglose de Bruto, Aseo, Adm y Neto"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition-all ${
-                showBreakdown
-                  ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              <span>Ver Desglose</span>
-            </button>
-          </div>
-
+        {/* Renglón 2: El resto de los controles (Expandir/Colapsar, Orígenes, Estados) */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/60">
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Expandir / Colapsar */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={expandAllMonths}
-                className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                 title="Expandir todos los meses"
               >
                 Expandir
@@ -736,18 +745,24 @@ export default function Bookings() {
               <button
                 type="button"
                 onClick={collapseAllMonths}
-                className="px-2.5 py-2 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
                 title="Colapsar todos los meses"
               >
                 Colapsar
               </button>
             </div>
 
-            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block mx-0.5" />
+
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="hidden md:inline font-medium text-slate-500 dark:text-slate-400">Filtros:</span>
+            </div>
+
             <select
               value={selectedChannel}
               onChange={(e) => setSelectedChannel(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full sm:w-auto px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
             >
               <option value="all">Todos los orígenes</option>
               <option value="airbnb">Airbnb (20%)</option>
@@ -755,10 +770,11 @@ export default function Bookings() {
               <option value="direct_10">Directas (10%)</option>
               <option value="direct_25">Directas (25%)</option>
             </select>
+
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+              className="w-full sm:w-auto px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
             >
               <option value="all">Todos los estados</option>
               <option value="confirmed">Confirmadas</option>
@@ -787,7 +803,7 @@ export default function Bookings() {
               <thead className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400">
                 <tr>
                   {renderSortHeader('guest_name', 'Huésped y Origen', 'left')}
-                  {renderSortHeader('check_in', 'Check-in / Check-out', 'left')}
+                  {renderSortHeader('check_in', 'Salida / Entrada', 'left')}
                   {renderSortHeader('number_of_nights', 'Noches', 'center')}
                   {renderSortHeader('nightly_rate', 'Tarifa Noche', 'right')}
                   {renderSortHeader(
@@ -802,11 +818,10 @@ export default function Bookings() {
                         setRowBreakdownOverrides({});
                       }}
                       title={showBreakdown ? 'Cambiar a vista Solo Neto' : 'Ver desglose de cálculo'}
-                      className={`p-1 rounded-md transition-colors ml-0.5 ${
-                        showBreakdown
+                      className={`p-1 rounded-md transition-colors ml-0.5 ${showBreakdown
                           ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/70'
                           : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700'
-                      }`}
+                        }`}
                     >
                       <Calculator className="w-3.5 h-3.5" />
                     </button>
@@ -851,13 +866,12 @@ export default function Bookings() {
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${
-                                b.source === 'direct_25'
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs shrink-0 ${b.source === 'direct_25'
                                   ? 'bg-violet-100 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300'
                                   : b.source === 'direct' || b.source === 'direct_10'
-                                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
-                                  : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
-                              }`}
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300'
+                                }`}
                             >
                               {b.guest_name.charAt(0).toUpperCase()}
                             </div>
@@ -883,12 +897,12 @@ export default function Bookings() {
                         <td className="px-4 py-3.5 text-xs">
                           <div className="flex flex-col space-y-0.5">
                             <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-                              <span className="text-[10px] font-semibold text-slate-400">Entrada:</span>
-                              <span className="font-medium">{formatDate(b.check_in)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
                               <span className="text-[10px] font-semibold text-slate-400">Salida:</span>
                               <span className="font-medium">{formatDate(b.check_out)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                              <span className="text-[10px] font-semibold text-slate-400">Entrada:</span>
+                              <span className="font-medium">{formatDate(b.check_in)}</span>
                             </div>
                           </div>
                         </td>

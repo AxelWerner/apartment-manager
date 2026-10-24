@@ -3,6 +3,8 @@ import { ShieldCheck, AlertTriangle, FileText, Plus } from 'lucide-react';
 import { formatCOP, formatDate } from '@/lib/formatters';
 import type { Expense } from '@/types/database';
 import { useExpenses } from '@/hooks/use-expenses';
+import { usePropertyContext } from '@/context/PropertyContext';
+import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { ExpenseModal } from './ExpenseModal';
 
 interface AnnualInsuranceViewProps {
@@ -10,7 +12,9 @@ interface AnnualInsuranceViewProps {
 }
 
 export function AnnualInsuranceView({ onViewReceipt }: AnnualInsuranceViewProps) {
-  const { data: expenses = [] } = useExpenses();
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
+  const { data: expenses = [] } = useExpenses(activePropertyId);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Find latest annual insurance expense
@@ -96,10 +100,10 @@ export function AnnualInsuranceView({ onViewReceipt }: AnnualInsuranceViewProps)
                 {diffDays > 0 ? `${diffDays} días restantes` : 'Por renovar'}
               </span>
             </div>
-            {currentPolicy?.receipt_url && (
+            {(currentPolicy?.invoice_url || currentPolicy?.receipt_url) && (
               <button
                 type="button"
-                onClick={() => onViewReceipt(currentPolicy.receipt_url!)}
+                onClick={() => onViewReceipt((currentPolicy.invoice_url || currentPolicy.receipt_url)!)}
                 className="text-[11px] text-rose-400 hover:underline flex items-center gap-1 mt-1.5"
               >
                 <FileText className="w-3.5 h-3.5" />

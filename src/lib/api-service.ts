@@ -375,7 +375,8 @@ export async function fetchExpenses(propertyId?: string): Promise<Expense[]> {
     let query = supabase
       .from('expenses')
       .select('*, booking:bookings(guest_name)')
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (propertyId) {
       query = query.eq('property_id', propertyId);
@@ -389,8 +390,11 @@ export async function fetchExpenses(propertyId?: string): Promise<Expense[]> {
       }
       return data as Expense[];
     }
-  } catch {
-    // Fallback
+    if (error) {
+      console.error('Error fetching expenses from Supabase:', error);
+    }
+  } catch (err) {
+    console.error('fetchExpenses error:', err);
   }
   const raw = getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
   return propertyId ? raw.filter((e) => e.property_id === propertyId) : raw;
@@ -410,11 +414,16 @@ export async function createExpense(expense: Omit<Expense, 'id' | 'created_at' |
       .insert(expense)
       .select()
       .single();
+
     if (!error && data) {
-      newExpense.id = data.id;
+      Object.assign(newExpense, data);
+    } else if (error) {
+      console.error('Error inserting expense into Supabase:', error);
+      throw error;
     }
-  } catch {
-    // Remote ignore
+  } catch (err) {
+    console.error('createExpense error:', err);
+    throw err;
   }
 
   const current = getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
@@ -425,15 +434,26 @@ export async function createExpense(expense: Omit<Expense, 'id' | 'created_at' |
 
 export async function updateExpense(id: string, updates: Partial<Expense>): Promise<Expense> {
   try {
-    await supabase.from('expenses').update(updates).eq('id', id);
-  } catch {
-    // Fallback
-  }
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
 
-  const current = getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
-  const updated = current.map((e) => (e.id === id ? { ...e, ...updates, updated_at: new Date().toISOString() } : e));
-  setLocal(STORAGE_KEYS.expenses, updated);
-  return updated.find((e) => e.id === id)!;
+    if (error) {
+      console.error('Error updating expense in Supabase:', error);
+      throw error;
+    }
+
+    const current = getLocal<Expense[]>(STORAGE_KEYS.expenses, INITIAL_EXPENSES);
+    const updated = current.map((e) => (e.id === id ? { ...e, ...(data || updates), updated_at: new Date().toISOString() } : e));
+    setLocal(STORAGE_KEYS.expenses, updated);
+    return (data as Expense) || updated.find((e) => e.id === id)!;
+  } catch (err) {
+    console.error('updateExpense error:', err);
+    throw err;
+  }
 }
 
 export async function deleteExpense(id: string): Promise<void> {

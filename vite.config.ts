@@ -40,6 +40,42 @@ function aiChatDevPlugin(): Plugin {
           }
         });
       });
+
+      server.middlewares.use("/api/scan-receipt", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        let bodyData = "";
+        req.on("data", (chunk) => {
+          bodyData += chunk;
+        });
+
+        req.on("end", async () => {
+          try {
+            const parsedBody = bodyData ? JSON.parse(bodyData) : {};
+            const scanModule = await server.ssrLoadModule("./api/scan-receipt.ts");
+            const result = await scanModule.processReceiptExtraction(parsedBody);
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify(result));
+          } catch (err: unknown) {
+            console.error("AI Scan Receipt Dev Error:", err);
+            const errorMessage =
+              err instanceof Error ? err.message : "Error al procesar el comprobante";
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(
+              JSON.stringify({
+                error: errorMessage,
+                hint: "Verifica CUSTOM_LLM_BASE_URL en tu .env.local y que el modelo soporte visión.",
+              })
+            );
+          }
+        });
+      });
     },
   };
 }

@@ -387,6 +387,26 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(screen.getAllByText(/4\s*noches/).length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('Search and Filter Controls in Bookings', () => {
+    it('filters bookings by guest name and clears input with the clear button', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<Bookings />);
+
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+
+      const searchInput = screen.getByPlaceholderText('Buscar por huésped o código...');
+      await user.type(searchInput, 'Inexistente');
+
+      expect(screen.queryByText('Juan Perez')).not.toBeInTheDocument();
+      expect(screen.getByText('No se encontraron reservas con los filtros aplicados.')).toBeInTheDocument();
+
+      const clearButton = screen.getByTitle('Limpiar búsqueda');
+      await user.click(clearButton);
+
+      expect(screen.getByText('Juan Perez')).toBeInTheDocument();
+    });
+  });
 });
 
 
