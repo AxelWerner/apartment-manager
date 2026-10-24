@@ -463,4 +463,16 @@ export async function POST(req: Request) {
   }
 }
 
-export default POST;
+export async function GET() {
+  return new Response(
+    JSON.stringify({
+      status: 'ok',
+      endpoint: '/api/scan-receipt',
+      visionModel: process.env.CUSTOM_LLM_VISION_MODEL || 'glm-5.3-flash:cloud',
+    }),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+}
