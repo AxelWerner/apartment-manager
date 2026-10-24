@@ -328,6 +328,11 @@ CUSTOM_LLM_MODEL=qwen2.5`}
                         </code>{' '}
                         en tu archivo <code className="font-mono">.env.local</code> esté apuntando a la dirección correcta.
                       </p>
+                      {error?.message && (
+                        <div className="rounded-lg bg-rose-100/80 dark:bg-rose-900/40 p-2 font-mono text-[10px] text-rose-800 dark:text-rose-200 break-all">
+                          {error.message}
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => regenerate()}

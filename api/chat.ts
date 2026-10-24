@@ -18,6 +18,17 @@ export async function handleChatStream(body: ChatRequestBody) {
   const apiKey = process.env.CUSTOM_LLM_API_KEY || '';
   const modelName = process.env.CUSTOM_LLM_MODEL || 'galahad.qwen3.6-35b';
 
+  console.log('[API/CHAT] Invocation config:', {
+    hasCustomBaseUrl: Boolean(process.env.CUSTOM_LLM_BASE_URL),
+    baseURL,
+    hasCustomModel: Boolean(process.env.CUSTOM_LLM_MODEL),
+    modelName,
+    hasApiKey: Boolean(process.env.CUSTOM_LLM_API_KEY),
+    apiKeyPrefix: apiKey ? `${apiKey.slice(0, 6)}...` : '(empty)',
+    hasSupabaseUrl: Boolean(process.env.VITE_SUPABASE_URL),
+    hasSupabaseKey: Boolean(process.env.VITE_SUPABASE_ANON_KEY),
+  });
+
   const provider = createOpenAICompatible({
     name: 'custom-llm',
     baseURL,
@@ -80,6 +91,29 @@ REGLAS CRÍTICAS DE PRECISIÓN Y DATOS:
   });
 }
 
+// Diagnostic GET endpoint to verify environment variables in production via browser
+export async function GET() {
+  const envStatus = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    env: {
+      CUSTOM_LLM_BASE_URL: process.env.CUSTOM_LLM_BASE_URL || '(NOT SET - using default fallback)',
+      CUSTOM_LLM_MODEL: process.env.CUSTOM_LLM_MODEL || '(NOT SET - using default fallback)',
+      CUSTOM_LLM_API_KEY_CONFIGURED: Boolean(process.env.CUSTOM_LLM_API_KEY),
+      VITE_SUPABASE_URL_CONFIGURED: Boolean(process.env.VITE_SUPABASE_URL),
+      VITE_SUPABASE_ANON_KEY_CONFIGURED: Boolean(process.env.VITE_SUPABASE_ANON_KEY),
+    },
+  };
+
+  return new Response(JSON.stringify(envStatus, null, 2), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 // Standard Web Handler for Vercel Serverless Functions
 export async function POST(req: Request) {
   try {
@@ -87,12 +121,17 @@ export async function POST(req: Request) {
     const result = await handleChatStream(body);
     return result.toUIMessageStreamResponse();
   } catch (error: unknown) {
-    console.error('Chat endpoint error:', error);
+    console.error('[API/CHAT] Endpoint error:', error);
     const message = error instanceof Error ? error.message : 'Error al conectar con el servidor LLM.';
     return new Response(
       JSON.stringify({
         error: message,
-        hint: 'Verifica que CUSTOM_LLM_BASE_URL en tu .env.local sea accesible y esté respondiendo.',
+        env: {
+          hasBaseUrl: Boolean(process.env.CUSTOM_LLM_BASE_URL),
+          hasModel: Boolean(process.env.CUSTOM_LLM_MODEL),
+          hasApiKey: Boolean(process.env.CUSTOM_LLM_API_KEY),
+        },
+        hint: 'Verifica que CUSTOM_LLM_BASE_URL y CUSTOM_LLM_MODEL en Vercel sean accesibles y respondan.',
       }),
       {
         status: 500,

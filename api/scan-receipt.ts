@@ -284,6 +284,14 @@ export async function processReceiptExtraction(
     apiKey,
   });
 
+  console.log('[API/SCAN-RECEIPT] Invocation config:', {
+    hasCustomBaseUrl: Boolean(process.env.CUSTOM_LLM_BASE_URL),
+    baseURL,
+    hasCustomVisionModel: Boolean(process.env.CUSTOM_LLM_VISION_MODEL),
+    modelName,
+    hasApiKey: Boolean(process.env.CUSTOM_LLM_API_KEY),
+  });
+
   const model = provider(modelName);
 
   const systemPrompt = `Eres un asistente contable de alta precisión para propiedades turísticas y apartamentos en Colombia.
