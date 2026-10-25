@@ -36,6 +36,16 @@ vi.mock('@/hooks/use-team', () => ({
   useCancelInvitation: vi.fn(() => ({ mutateAsync: vi.fn() })),
 }));
 
+vi.mock('@/hooks/use-ttlock', () => ({
+  usePropertyLock: vi.fn(() => ({ data: null, isLoading: false })),
+  useAccountLocks: vi.fn(() => ({ data: [], isLoading: false })),
+  useExchangeTtlockCode: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useConnectTtlockAccount: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useAssignPropertyLock: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useUnlinkPropertyLock: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  getTtlockOAuthUrl: vi.fn(() => Promise.resolve('https://euopen.ttlock.com/oauth2/auth')),
+}));
+
 import { useActiveProperty } from '@/context/PropertyContext';
 import { usePropertyMembers, usePropertyInvitations } from '@/hooks/use-team';
 
@@ -167,4 +177,15 @@ describe('Settings Route - Tabs & Team Management', () => {
       expect(screen.getByPlaceholderText('ejemplo@correo.com')).toBeInTheDocument();
     });
   });
+
+  it('switches to Cerraduras Inteligentes tab and renders TTLock settings component', () => {
+    renderWithProviders(<Settings />, { route: '/settings' });
+
+    const locksTabButton = screen.getByRole('button', { name: /Cerraduras Inteligentes/i });
+    fireEvent.click(locksTabButton);
+
+    expect(screen.getByText(/Cerraduras Inteligentes TTLock/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Conectar con TTLock/i })).toBeInTheDocument();
+  });
 });
+

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   generateRandomPin,
   fetchPropertyLock,
+  fetchAllPropertyLocks,
   savePropertyLock,
   fetchBookingPins,
   generateBookingPin,
@@ -83,4 +84,18 @@ describe('ttlock-service', () => {
       expect(pinObj.pin).toBe('123456');
     });
   });
+
+  describe('fetchAllPropertyLocks and unlinking', () => {
+    it('fetches all configured property locks', async () => {
+      await savePropertyLock({
+        property_id: 'prop-200',
+        lock_id: 112233,
+        lock_name: 'Apto 200',
+      });
+
+      const allLocks = await fetchAllPropertyLocks();
+      expect(allLocks.some((l) => l.property_id === 'prop-200')).toBe(true);
+    });
+  });
 });
+

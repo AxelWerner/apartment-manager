@@ -23,7 +23,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { useBookings, useDeleteBooking } from '@/hooks/use-bookings';
-import { useBookingPins } from '@/hooks/use-ttlock';
+import { useBookingPins, useAllPropertyLocks } from '@/hooks/use-ttlock';
 import { BookingModal } from '@/components/bookings/BookingModal';
 import { CsvImportModal } from '@/components/bookings/CsvImportModal';
 import { TtlockPinModal } from '@/components/bookings/TtlockPinModal';
@@ -51,7 +51,16 @@ import { toast } from 'sonner';
 export default function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
   const { data: bookingPins = [] } = useBookingPins();
+  const { data: allPropertyLocks = [] } = useAllPropertyLocks();
   const deleteBookingMutation = useDeleteBooking();
+
+  const activeLockPropertyIds = useMemo(() => {
+    return new Set(
+      allPropertyLocks
+        .filter((l) => l.is_active && (l.lock_id || l.access_token))
+        .map((l) => l.property_id)
+    );
+  }, [allPropertyLocks]);
 
   useSEO({
     title: 'Gestión de Reservas',
@@ -1200,18 +1209,20 @@ export default function Bookings() {
               {showBreakdown ? 'Cambiar todas a Solo Neto' : 'Cambiar todas a Desglose'}
             </span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPinModalBooking(contextMenu.booking);
-              setIsPinModalOpen(true);
-              setContextMenu(null);
-            }}
-            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-            <span>Cerradura TTLock (PIN)</span>
-          </button>
+          {activeLockPropertyIds.has(contextMenu.booking.property_id) && (
+            <button
+              type="button"
+              onClick={() => {
+                setPinModalBooking(contextMenu.booking);
+                setIsPinModalOpen(true);
+                setContextMenu(null);
+              }}
+              className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+              <span>Cerradura TTLock (PIN)</span>
+            </button>
+          )}
           <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
           <button
             type="button"

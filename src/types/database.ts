@@ -295,9 +295,15 @@ export interface GuestGuideData {
 export interface PropertyLock {
   id: string;
   property_id: string;
-  lock_id: number;
+  lock_id?: number | null;
   lock_name?: string | null;
+  lock_alias?: string | null;
   gateway_id?: number | null;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  token_expires_at?: string | null;
+  ttlock_openid?: number | null;
+  account_email?: string | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

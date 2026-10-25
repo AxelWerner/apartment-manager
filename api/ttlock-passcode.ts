@@ -1,4 +1,5 @@
 import process from 'node:process';
+import crypto from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const corsHeaders = {
@@ -6,34 +7,73 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function getAccessToken(
+interface PropertyLockRow {
+  id: string;
+  property_id: string;
+  lock_id?: number | null;
+  lock_name?: string | null;
+  lock_alias?: string | null;
+  access_token?: string | null;
+  refresh_token?: string | null;
+  token_expires_at?: string | null;
+  ttlock_openid?: number | null;
+  account_email?: string | null;
+  is_active: boolean;
+}
+
+async function getValidAccessToken(
+  supabase: ReturnType<typeof createClient>,
+  propertyLock: PropertyLockRow,
   apiUrl: string,
   clientId: string,
-  clientSecret: string,
-  username: string,
-  password: string
+  clientSecret: string
 ): Promise<string> {
-  const params = new URLSearchParams();
-  params.append('clientId', clientId);
-  params.append('clientSecret', clientSecret);
-  params.append('username', username);
-  params.append('password', password);
-  params.append('grant_type', 'password');
+  const now = Date.now();
+  const tokenExpiresAt = propertyLock.token_expires_at
+    ? new Date(propertyLock.token_expires_at).getTime()
+    : 0;
 
-  const res = await fetch(`${apiUrl}/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
+  // If token is still valid (with 5 minute safety buffer), use it
+  if (propertyLock.access_token && tokenExpiresAt > now + 5 * 60 * 1000) {
+    return propertyLock.access_token;
+  }
 
-  const data = await res.json();
-  if (data.errcode && data.errcode !== 0) {
-    throw new Error(data.errmsg || 'Error al autenticar con TTLock');
+  // If we have a refresh_token, refresh it
+  if (propertyLock.refresh_token) {
+    const params = new URLSearchParams();
+    params.append('clientId', clientId);
+    params.append('clientSecret', clientSecret);
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', propertyLock.refresh_token);
+
+    const res = await fetch(`${apiUrl}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    });
+
+    const data = await res.json();
+    if (data.access_token) {
+      const newExpiresAt = new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString();
+      await supabase
+        .from('property_locks')
+        .update({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || propertyLock.refresh_token,
+          token_expires_at: newExpiresAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', propertyLock.id);
+
+      return data.access_token;
+    }
   }
-  if (!data.access_token) {
-    throw new Error(data.error_description || data.error || 'No se recibió access_token de TTLock');
+
+  if (propertyLock.access_token) {
+    return propertyLock.access_token;
   }
-  return data.access_token;
+
+  throw new Error('Token de acceso de TTLock expirado y no se pudo renovar.');
 }
 
 export async function POST(req: Request) {
@@ -53,6 +93,7 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const {
+      action,
       bookingId,
       propertyId,
       checkIn,
@@ -60,39 +101,366 @@ export async function POST(req: Request) {
       guestName,
       customPin,
       lockId: reqLockId,
-      action,
+      lockName: reqLockName,
+      lockAlias: reqLockAlias,
       keyboardPwdId: reqKeyboardPwdId,
       generatedBy,
+      code,
+      redirectUri,
+      unlinkType,
     } = body;
 
     const clientId = process.env.TTLOCK_CLIENT_ID;
     const clientSecret = process.env.TTLOCK_CLIENT_SECRET;
-    const username = process.env.TTLOCK_USERNAME;
-    const password = process.env.TTLOCK_PASSWORD || process.env.TTLOCK_PASSWORD_MD5;
     const apiUrl = process.env.TTLOCK_API_URL || 'https://euapi.ttlock.com';
+    const authUrl = apiUrl.includes('euapi')
+      ? 'https://euopen.ttlock.com'
+      : 'https://open.ttlock.com';
 
-    const envLockId = process.env.TTLOCK_LOCK_ID ? Number(process.env.TTLOCK_LOCK_ID) : undefined;
-    let targetLockId = reqLockId && reqLockId !== 10001 ? reqLockId : undefined;
-    if (!targetLockId && supabaseUrl && supabaseKey && propertyId) {
+    // -------------------------------------------------------------
+    // ACTION: connect-account (Direct TTLock Password Grant)
+    // -------------------------------------------------------------
+    if (action === 'connect-account') {
+      const { username, password } = body;
+      if (!username || !password || !propertyId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Usuario, contraseña y propertyId son requeridos' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!clientId || !clientSecret) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Credenciales TTLOCK_CLIENT_ID / SECRET no configuradas en el servidor' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Format password as 32-character lowercase MD5 hash
+      const passwordMd5 = /^[a-f0-9]{32}$/i.test(password)
+        ? password.toLowerCase()
+        : crypto.createHash('md5').update(password).digest('hex').toLowerCase();
+
+      const tokenParams = new URLSearchParams();
+      tokenParams.append('clientId', clientId);
+      tokenParams.append('clientSecret', clientSecret);
+      tokenParams.append('grant_type', 'password');
+      tokenParams.append('username', username.trim());
+      tokenParams.append('password', passwordMd5);
+
+      const tokenRes = await fetch(`${apiUrl}/oauth2/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenParams.toString(),
+      });
+
+      const tokenData = await tokenRes.json();
+      if (tokenData.errcode && tokenData.errcode !== 0) {
+        throw new Error(tokenData.errmsg || 'Error al autenticar con TTLock. Verifica tu usuario y contraseña.');
+      }
+      if (!tokenData.access_token) {
+        throw new Error(tokenData.error_description || tokenData.error || 'No se recibió access_token de TTLock');
+      }
+
+      const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600 * 24 * 30) * 1000).toISOString();
+
+      // Query locks for this account immediately
+      let locksList: Array<{ lockId: number; lockName: string; lockAlias?: string }> = [];
       try {
-        const { data: lockRow } = await supabase
+        const locksRes = await fetch(
+          `${apiUrl}/v3/lock/list?clientId=${clientId}&accessToken=${tokenData.access_token}&pageNo=1&pageSize=50&date=${Date.now()}`
+        );
+        const locksData = await locksRes.json();
+        if (Array.isArray(locksData.list)) {
+          locksList = locksData.list.map((l: { lockId: number; lockName: string; lockAlias?: string }) => ({
+            lockId: l.lockId,
+            lockName: l.lockName,
+            lockAlias: l.lockAlias,
+          }));
+        }
+      } catch (err) {
+        console.warn('Error fetching initial locks list:', err);
+      }
+
+      // Upsert into property_locks
+      const upsertPayload = {
+        property_id: propertyId,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token || null,
+        token_expires_at: expiresAt,
+        ttlock_openid: tokenData.uid ? Number(tokenData.uid) : null,
+        account_email: username.trim(),
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      };
+
+      await supabase
+        .from('property_locks')
+        .upsert(upsertPayload, { onConflict: 'property_id' });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          account_email: username.trim(),
+          locks: locksList,
+          message: 'Cuenta TTLock conectada con éxito. Selecciona la cerradura correspondiente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: get-oauth-url
+    // -------------------------------------------------------------
+    if (action === 'get-oauth-url') {
+      if (!clientId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'TTLOCK_CLIENT_ID no configurado en el servidor' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const pId = propertyId || '';
+      const rUri = redirectUri || '';
+      const url = `${authUrl}/oauth2/auth?clientId=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+        rUri
+      )}&state=${encodeURIComponent(pId)}`;
+
+      return new Response(JSON.stringify({ success: true, url, clientId }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: exchange-code (OAuth code callback)
+    // -------------------------------------------------------------
+    if (action === 'exchange-code') {
+      if (!code || !propertyId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'code y propertyId son requeridos' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!clientId || !clientSecret) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Credenciales TTLOCK_CLIENT_ID/SECRET no configuradas' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const tokenParams = new URLSearchParams();
+      tokenParams.append('clientId', clientId);
+      tokenParams.append('clientSecret', clientSecret);
+      tokenParams.append('grant_type', 'authorization_code');
+      tokenParams.append('code', code);
+      tokenParams.append('redirect_uri', redirectUri || '');
+
+      const tokenRes = await fetch(`${apiUrl}/oauth2/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenParams.toString(),
+      });
+
+      const tokenData = await tokenRes.json();
+      if (tokenData.errcode && tokenData.errcode !== 0) {
+        throw new Error(tokenData.errmsg || 'Error al canjear código de autorización TTLock');
+      }
+      if (!tokenData.access_token) {
+        throw new Error(tokenData.error_description || 'No se recibió access_token de TTLock');
+      }
+
+      const expiresAt = new Date(Date.now() + (tokenData.expires_in || 3600) * 1000).toISOString();
+
+      // Query locks for this account immediately
+      let locksList: Array<{ lockId: number; lockName: string; lockAlias?: string }> = [];
+      try {
+        const locksRes = await fetch(
+          `${apiUrl}/v3/lock/list?clientId=${clientId}&accessToken=${tokenData.access_token}&pageNo=1&pageSize=50&date=${Date.now()}`
+        );
+        const locksData = await locksRes.json();
+        if (Array.isArray(locksData.list)) {
+          locksList = locksData.list.map((l: { lockId: number; lockName: string; lockAlias?: string }) => ({
+            lockId: l.lockId,
+            lockName: l.lockName,
+            lockAlias: l.lockAlias,
+          }));
+        }
+      } catch (err) {
+        console.warn('Error fetching initial locks list:', err);
+      }
+
+      // Upsert into property_locks
+      const upsertPayload = {
+        property_id: propertyId,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: expiresAt,
+        ttlock_openid: tokenData.openid ? Number(tokenData.openid) : null,
+        is_active: false, // Inactive until user selects a lock
+        updated_at: new Date().toISOString(),
+      };
+
+      await supabase
+        .from('property_locks')
+        .upsert(upsertPayload, { onConflict: 'property_id' });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          openid: tokenData.openid,
+          locks: locksList,
+          message: 'Cuenta TTLock conectada con éxito. Selecciona la cerradura correspondiente.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: list-locks
+    // -------------------------------------------------------------
+    if (action === 'list-locks') {
+      if (!propertyId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'propertyId es requerido' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: lockRow } = await supabase
+        .from('property_locks')
+        .select('*')
+        .eq('property_id', propertyId)
+        .maybeSingle();
+
+      if (!lockRow?.access_token || !clientId || !clientSecret) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'La propiedad no tiene cuenta TTLock vinculada', list: [] }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const token = await getValidAccessToken(supabase, lockRow, apiUrl, clientId, clientSecret);
+      const listRes = await fetch(
+        `${apiUrl}/v3/lock/list?clientId=${clientId}&accessToken=${token}&pageNo=1&pageSize=50&date=${Date.now()}`
+      );
+      const listData = await listRes.json();
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          list: listData.list || [],
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: save-lock (Assign a lock from account to property)
+    // -------------------------------------------------------------
+    if (action === 'save-lock') {
+      if (!propertyId || !reqLockId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'propertyId y lockId son requeridos' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      await supabase
+        .from('property_locks')
+        .update({
+          lock_id: Number(reqLockId),
+          lock_name: reqLockName || null,
+          lock_alias: reqLockAlias || null,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('property_id', propertyId);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Cerradura asignada y activada exitosamente' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // ACTION: unlink (Unassign lock or disconnect entire account)
+    // -------------------------------------------------------------
+    if (action === 'unlink') {
+      if (!propertyId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'propertyId es requerido' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (unlinkType === 'full_account') {
+        // Disconnect entire TTLock account
+        await supabase
           .from('property_locks')
-          .select('lock_id')
+          .update({
+            is_active: false,
+            lock_id: null,
+            lock_name: null,
+            lock_alias: null,
+            access_token: null,
+            refresh_token: null,
+            token_expires_at: null,
+            account_email: null,
+            ttlock_openid: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('property_id', propertyId);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Cuenta de TTLock desconectada completamente' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Default: unbind lock only, keeping account connected for selection
+      await supabase
+        .from('property_locks')
+        .update({
+          is_active: false,
+          lock_id: null,
+          lock_name: null,
+          lock_alias: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('property_id', propertyId);
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Cerradura desvinculada del apartamento' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // -------------------------------------------------------------
+    // FETCH PROPERTY LOCK (for passcodes)
+    // -------------------------------------------------------------
+    let propertyLock: PropertyLockRow | null = null;
+    if (propertyId) {
+      try {
+        const { data } = await supabase
+          .from('property_locks')
+          .select('*')
           .eq('property_id', propertyId)
           .maybeSingle();
 
-        if (lockRow?.lock_id) {
-          targetLockId = Number(lockRow.lock_id);
+        if (data) {
+          propertyLock = data as PropertyLockRow;
         }
-      } catch {
-        // Ignore DB lookup error
+      } catch (err) {
+        console.warn('DB error fetching property lock:', err);
       }
     }
-    if (!targetLockId) {
-      targetLockId = envLockId;
-    }
 
-    // Handle delete passcode action
+    const targetLockId = reqLockId && reqLockId !== 10001
+      ? Number(reqLockId)
+      : propertyLock?.lock_id || undefined;
+
+    // -------------------------------------------------------------
+    // ACTION: delete passcode
+    // -------------------------------------------------------------
     if (action === 'delete') {
       const delPwdId = reqKeyboardPwdId;
       if (!delPwdId || !targetLockId) {
@@ -102,8 +470,8 @@ export async function POST(req: Request) {
         );
       }
 
-      if (clientId && clientSecret && username && password) {
-        const token = await getAccessToken(apiUrl, clientId, clientSecret, username, password);
+      if (clientId && clientSecret && propertyLock?.access_token) {
+        const token = await getValidAccessToken(supabase, propertyLock, apiUrl, clientId, clientSecret);
         const delParams = new URLSearchParams();
         delParams.append('clientId', clientId);
         delParams.append('accessToken', token);
@@ -129,6 +497,9 @@ export async function POST(req: Request) {
       );
     }
 
+    // -------------------------------------------------------------
+    // ACTION: Generate Passcode (Default POST)
+    // -------------------------------------------------------------
     if (!bookingId || !propertyId) {
       return new Response(
         JSON.stringify({ success: false, error: 'bookingId y propertyId son requeridos' }),
@@ -142,15 +513,15 @@ export async function POST(req: Request) {
     let errorMessage: string | null = null;
 
     const now = Date.now();
-    // One-time passcodes in TTLock are valid for 6 hours from creation
     let startDate = now;
     let endDate = now + 6 * 60 * 60 * 1000;
 
-    if (clientId && clientSecret && username && password && targetLockId) {
-      const token = await getAccessToken(apiUrl, clientId, clientSecret, username, password);
+    // Check if we have active lock and OAuth token
+    if (clientId && clientSecret && propertyLock?.access_token && targetLockId && propertyLock.is_active) {
+      const token = await getValidAccessToken(supabase, propertyLock, apiUrl, clientId, clientSecret);
 
       if (!customPin) {
-        // Official TTLock One-time passcode (valid for 6 hours, 1 unlock, does NOT count towards 5 custom passcodes/month)
+        // One-time passcode (valid 6 hours, algorítmico, no consume cuota custom)
         const getParams = new URLSearchParams();
         getParams.append('clientId', clientId);
         getParams.append('accessToken', token);
@@ -181,7 +552,7 @@ export async function POST(req: Request) {
           keyboardPwdId = getData.keyboardPwdId;
         }
       } else {
-        // Custom passcode via Gateway (addType = 2) - counts against custom quota
+        // Custom passcode via Gateway
         pin = customPin;
         startDate = Math.floor((now - 5 * 60 * 1000) / 60000) * 60000;
         if (checkIn) {
@@ -210,7 +581,7 @@ export async function POST(req: Request) {
         );
         addParams.append('startDate', startDate.toString());
         addParams.append('endDate', endDate.toString());
-        addParams.append('addType', '2'); // 2 = Send to lock via Gateway
+        addParams.append('addType', '2'); // 2 = via Gateway
         addParams.append('date', now.toString());
 
         const addRes = await fetch(`${apiUrl}/v3/keyboardPwd/add`, {
@@ -227,11 +598,21 @@ export async function POST(req: Request) {
           keyboardPwdId = addData.keyboardPwdId;
         }
       }
-    } else {
+    } else if (!clientId) {
+      // Test environment simulation (when TTLOCK_CLIENT_ID is unset in unit tests)
       isMock = true;
       pin = customPin || Math.floor(10000000 + Math.random() * 90000000).toString();
-      errorMessage =
-        'PIN de simulación (complete las variables TTLOCK_* en .env.local para enlace con cerradura física)';
+      errorMessage = 'Modo de simulación (TTLOCK_CLIENT_ID no configurado)';
+    } else {
+      // Real environment with no linked lock
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            'Esta propiedad no tiene una cerradura TTLock activa. Conéctala y asígnala desde Configuración > Cerraduras Inteligentes.',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const pinPayload = {
@@ -253,7 +634,6 @@ export async function POST(req: Request) {
 
     if (supabaseUrl && supabaseKey) {
       try {
-        // Mark any prior active/mock pin for this booking as revoked so it stays in the history
         await supabase
           .from('booking_ttlock_pins')
           .update({ status: 'revoked' })
@@ -274,13 +654,10 @@ export async function POST(req: Request) {
               isMock,
               message: isMock
                 ? 'PIN generado en modo desarrollo'
-                : 'PIN programado exitosamente en la cerradura TTLock física',
+                : 'PIN programado exitosamente en la cerradura física',
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
-        }
-        if (insertError) {
-          console.warn('Supabase insertError:', insertError);
         }
       } catch (insertErr) {
         console.warn('Could not insert to supabase, returning direct payload:', insertErr);
@@ -294,7 +671,7 @@ export async function POST(req: Request) {
         isMock,
         message: isMock
           ? 'PIN generado en modo desarrollo'
-          : 'PIN programado exitosamente en la cerradura TTLock física',
+          : 'PIN programado exitosamente en la cerradura física',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -310,21 +687,73 @@ export async function POST(req: Request) {
 export async function GET(req?: Request) {
   const url = new URL(req?.url || 'http://localhost/api/ttlock-passcode');
   const action = url.searchParams.get('action');
+  const propertyId = url.searchParams.get('propertyId');
+  const rawLockId = url.searchParams.get('lockId');
 
   const clientId = process.env.TTLOCK_CLIENT_ID;
   const clientSecret = process.env.TTLOCK_CLIENT_SECRET;
-  const username = process.env.TTLOCK_USERNAME;
-  const password = process.env.TTLOCK_PASSWORD || process.env.TTLOCK_PASSWORD_MD5;
   const apiUrl = process.env.TTLOCK_API_URL || 'https://euapi.ttlock.com';
-  const rawLockId = url.searchParams.get('lockId');
-  const lockId =
-    rawLockId && rawLockId !== '10001' && rawLockId !== 'undefined' && rawLockId !== 'null'
-      ? rawLockId
-      : process.env.TTLOCK_LOCK_ID;
 
-  if (action === 'passcodes' && clientId && clientSecret && username && password && lockId) {
+  const supabaseUrl =
+    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    '';
+
+  const supabase = createClient(
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseKey || 'placeholder'
+  );
+
+  let propertyLock: PropertyLockRow | null = null;
+  if (propertyId) {
     try {
-      const token = await getAccessToken(apiUrl, clientId, clientSecret, username, password);
+      const { data } = await supabase
+        .from('property_locks')
+        .select('*')
+        .eq('property_id', propertyId)
+        .maybeSingle();
+
+      if (data) {
+        propertyLock = data as PropertyLockRow;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!propertyLock && rawLockId && rawLockId !== '10001' && rawLockId !== 'undefined' && rawLockId !== 'null') {
+    try {
+      const { data } = await supabase
+        .from('property_locks')
+        .select('*')
+        .eq('lock_id', Number(rawLockId))
+        .maybeSingle();
+
+      if (data) {
+        propertyLock = data as PropertyLockRow;
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  const lockId = rawLockId && rawLockId !== '10001' && rawLockId !== 'undefined' && rawLockId !== 'null'
+    ? rawLockId
+    : propertyLock?.lock_id?.toString();
+
+  if ((action === 'passcodes' || action === 'records') && (!propertyLock?.access_token || !lockId)) {
+    return new Response(
+      JSON.stringify({ error: 'No se encontró cerradura vinculada o token de acceso activo', list: [] }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (action === 'passcodes' && clientId && clientSecret && propertyLock?.access_token && lockId) {
+    try {
+      const token = await getValidAccessToken(supabase, propertyLock, apiUrl, clientId, clientSecret);
       const res = await fetch(
         `${apiUrl}/v3/lock/listKeyboardPwd?clientId=${clientId}&accessToken=${token}&lockId=${lockId}&pageNo=1&pageSize=50&date=${Date.now()}`
       );
@@ -348,9 +777,9 @@ export async function GET(req?: Request) {
     }
   }
 
-  if (action === 'records' && clientId && clientSecret && username && password && lockId) {
+  if (action === 'records' && clientId && clientSecret && propertyLock?.access_token && lockId) {
     try {
-      const token = await getAccessToken(apiUrl, clientId, clientSecret, username, password);
+      const token = await getValidAccessToken(supabase, propertyLock, apiUrl, clientId, clientSecret);
       const res = await fetch(
         `${apiUrl}/v3/lockRecord/list?clientId=${clientId}&accessToken=${token}&lockId=${lockId}&pageNo=1&pageSize=30&date=${Date.now()}`
       );
@@ -378,7 +807,8 @@ export async function GET(req?: Request) {
     JSON.stringify({
       status: 'ok',
       endpoint: '/api/ttlock-passcode',
-      ttlockConfigured: Boolean(clientId && username && password),
+      ttlockConfigured: Boolean(clientId && clientSecret),
+      hasConnectedAccount: Boolean(propertyLock?.access_token),
       lockId: lockId || null,
     }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

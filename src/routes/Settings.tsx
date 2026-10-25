@@ -5,6 +5,7 @@ import {
   Save,
   Download,
   Users,
+  KeyRound,
 } from 'lucide-react';
 import { useActiveProperty } from '@/context/PropertyContext';
 import { useBookings } from '@/hooks/use-bookings';
@@ -13,6 +14,7 @@ import { useDamages } from '@/hooks/use-damages';
 import { usePropertyMembers } from '@/hooks/use-team';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { TeamManagementTab } from '@/components/team/TeamManagementTab';
+import { TtlockSettingsTab } from '@/components/settings/TtlockSettingsTab';
 import type { Property, Booking, Expense, Damage, UserRole } from '@/types/database';
 import { toast } from 'sonner';
 import { useSEO } from '@/hooks/use-seo';
@@ -31,10 +33,15 @@ export default function Settings() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab');
-  const activeTab = rawTab === 'team' || rawTab === 'members' || rawTab === 'usuarios' ? 'team' : 'property';
+  const activeTab: 'property' | 'team' | 'locks' =
+    rawTab === 'team' || rawTab === 'members' || rawTab === 'usuarios'
+      ? 'team'
+      : rawTab === 'locks' || rawTab === 'cerraduras'
+      ? 'locks'
+      : 'property';
 
-  const handleTabChange = (tab: 'property' | 'team') => {
-    setSearchParams(tab === 'team' ? { tab: 'team' } : {});
+  const handleTabChange = (tab: 'property' | 'team' | 'locks') => {
+    setSearchParams(tab === 'property' ? {} : { tab });
   };
 
   return (
@@ -77,6 +84,19 @@ export default function Settings() {
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={() => handleTabChange('locks')}
+          className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'locks'
+              ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <KeyRound className="w-4 h-4" />
+          <span>Cerraduras Inteligentes</span>
+        </button>
       </div>
 
       {/* Tab 1: Property Profile & Backup */}
@@ -100,6 +120,16 @@ export default function Settings() {
           currentUserRole={role as UserRole}
           isCurrentUserOwner={isOwner}
           isCurrentUserPrimaryOwner={isPrimaryOwner}
+        />
+      )}
+
+      {/* Tab 3: TTLock Smart Lock Integration */}
+      {activeTab === 'locks' && (
+        <TtlockSettingsTab
+          key={`locks-${activePropertyId}`}
+          propertyId={activePropertyId}
+          propertyName={activeProperty?.name || 'Apartamento'}
+          isOwner={isOwner || isPrimaryOwner}
         />
       )}
     </div>

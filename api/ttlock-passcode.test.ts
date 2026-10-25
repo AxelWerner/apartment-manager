@@ -53,4 +53,44 @@ describe('api/ttlock-passcode endpoint', () => {
       }
     }
   });
+
+  it('returns OAuth authorization URL when action is get-oauth-url', async () => {
+    process.env.TTLOCK_CLIENT_ID = 'test-client-123';
+    const req = new Request('http://localhost:3000/api/ttlock-passcode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'get-oauth-url',
+        propertyId: 'prop-abc',
+        redirectUri: 'http://localhost:3000/settings',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.url).toContain('https://euopen.ttlock.com/oauth2/auth');
+    expect(data.url).toContain('clientId=test-client-123');
+    expect(data.url).toContain('state=prop-abc');
+  });
+
+  it('handles unlinking action cleanly', async () => {
+    const req = new Request('http://localhost:3000/api/ttlock-passcode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'unlink',
+        propertyId: 'prop-abc',
+        unlinkType: 'lock_only',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.message).toContain('desvinculada');
+  });
 });
+

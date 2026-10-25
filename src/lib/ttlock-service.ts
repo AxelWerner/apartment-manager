@@ -55,6 +55,28 @@ export async function fetchPropertyLock(propertyId: string): Promise<PropertyLoc
 }
 
 /**
+ * Fetches all physical TTLock locks configured across properties.
+ */
+export async function fetchAllPropertyLocks(): Promise<PropertyLock[]> {
+  const localLocks = getLocal<PropertyLock[]>(STORAGE_KEYS.locks, []);
+  try {
+    const { data, error } = await supabase
+      .from('property_locks')
+      .select('*');
+
+    if (!error && data) {
+      const dbPropIds = new Set(data.map((d: PropertyLock) => d.property_id));
+      const missingLocal = localLocks.filter((ll) => !dbPropIds.has(ll.property_id));
+      return [...data, ...missingLocal] as PropertyLock[];
+    }
+  } catch (err) {
+    console.warn('Supabase fetchAllPropertyLocks error, checking local storage:', err);
+  }
+
+  return localLocks;
+}
+
+/**
  * Saves or updates a physical lock for a property.
  */
 export async function savePropertyLock(
@@ -346,12 +368,16 @@ export async function syncLockRecordsAndPasscodes(lockId?: number): Promise<{
  */
 export async function verifyPinOnLock(
   pinCode: string,
-  lockId?: number
+  lockId?: number,
+  propertyId?: string
 ): Promise<{ verified: boolean; keyboardPwdId?: number; passcodeItem?: TtlockPasscodeItem }> {
   try {
     const validLockId = lockId && lockId !== 10001 ? lockId : undefined;
-    const lockParam = validLockId ? `&lockId=${validLockId}` : '';
-    const res = await fetch(getApiUrl(`/api/ttlock-passcode?action=passcodes${lockParam}`));
+    const params = new URLSearchParams({ action: 'passcodes' });
+    if (validLockId) params.set('lockId', validLockId.toString());
+    if (propertyId) params.set('propertyId', propertyId);
+
+    const res = await fetch(getApiUrl(`/api/ttlock-passcode?${params.toString()}`));
     if (!res.ok) return { verified: false };
     const data = await res.json();
     const list: TtlockPasscodeItem[] = data.list || [];
@@ -359,6 +385,25 @@ export async function verifyPinOnLock(
     if (found) {
       return { verified: true, keyboardPwdId: found.keyboardPwdId, passcodeItem: found };
     }
+
+    // If active passcodes list was successfully retrieved and PIN is missing, revoke it in DB & cache
+    if (Array.isArray(data.list)) {
+      try {
+        await supabase
+          .from('booking_ttlock_pins')
+          .update({ status: 'revoked' })
+          .eq('pin', pinCode);
+
+        const current = getLocal<BookingTtlockPin[]>(STORAGE_KEYS.pins, []);
+        const updatedCache = current.map((p) =>
+          p.pin === pinCode ? { ...p, status: 'revoked' as const, is_mock: false } : p
+        );
+        setLocal(STORAGE_KEYS.pins, updatedCache);
+      } catch {
+        // Ignore DB/cache error
+      }
+    }
+
     return { verified: false };
   } catch (err) {
     console.warn('Error verifying PIN on lock:', err);
@@ -372,14 +417,27 @@ export async function verifyPinOnLock(
  */
 export async function updatePinsFromLockRecords(
   pins: BookingTtlockPin[],
-  lockId?: number
+  lockId?: number,
+  propertyId?: string
 ): Promise<BookingTtlockPin[]> {
   try {
     const validLockId = lockId && lockId !== 10001 ? lockId : undefined;
-    const lockParam = validLockId ? `&lockId=${validLockId}` : '';
+    const effectivePropId = propertyId || pins.find((p) => p.property_id)?.property_id;
+
+    const recParams = new URLSearchParams({ action: 'records' });
+    const passParams = new URLSearchParams({ action: 'passcodes' });
+    if (validLockId) {
+      recParams.set('lockId', validLockId.toString());
+      passParams.set('lockId', validLockId.toString());
+    }
+    if (effectivePropId) {
+      recParams.set('propertyId', effectivePropId);
+      passParams.set('propertyId', effectivePropId);
+    }
+
     const [recRes, passRes] = await Promise.all([
-      fetch(getApiUrl(`/api/ttlock-passcode?action=records${lockParam}`)),
-      fetch(getApiUrl(`/api/ttlock-passcode?action=passcodes${lockParam}`)),
+      fetch(getApiUrl(`/api/ttlock-passcode?${recParams.toString()}`)),
+      fetch(getApiUrl(`/api/ttlock-passcode?${passParams.toString()}`)),
     ]);
 
     const recordsData = recRes.ok ? await recRes.json() : { list: [] };
@@ -458,3 +516,149 @@ export async function updatePinsFromLockRecords(
     return pins;
   }
 }
+
+/**
+ * Gets the TTLock OAuth authorization URL to connect an account.
+ */
+export async function getTtlockOAuthUrl(propertyId: string, redirectUri: string): Promise<string> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'get-oauth-url',
+      propertyId,
+      redirectUri,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success || !data.url) {
+    throw new Error(data.error || 'No se pudo obtener la URL de autorización de TTLock');
+  }
+  return data.url;
+}
+
+/**
+ * Connects a TTLock account via direct credentials (password grant) and stores access tokens.
+ */
+export async function connectTtlockAccount(params: {
+  propertyId: string;
+  username: string;
+  password: string;
+}): Promise<{ success: boolean; account_email?: string; message?: string; locks?: Array<{ lockId: number; lockName: string; lockAlias?: string }> }> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'connect-account',
+      propertyId: params.propertyId,
+      username: params.username,
+      password: params.password,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Error al conectar la cuenta de TTLock');
+  }
+  return data;
+}
+
+/**
+ * Exchanges the OAuth authorization code for TTLock tokens and saves to property_locks.
+ */
+export async function exchangeTtlockCode(
+  code: string,
+  propertyId: string,
+  redirectUri: string
+): Promise<{ success: boolean; message?: string; openid?: number; locks?: Array<{ lockId: number; lockName: string; lockAlias?: string }> }> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'exchange-code',
+      code,
+      propertyId,
+      redirectUri,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Error al conectar la cuenta de TTLock');
+  }
+  return data;
+}
+
+/**
+ * Fetches locks from the connected TTLock account for a property.
+ */
+export async function fetchAccountLocks(
+  propertyId: string
+): Promise<Array<{ lockId: number; lockName: string; lockAlias?: string }>> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'list-locks',
+      propertyId,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Error al listar las cerraduras de la cuenta');
+  }
+  return data.list || [];
+}
+
+/**
+ * Assigns a specific lock to a property.
+ */
+export async function assignPropertyLock(
+  propertyId: string,
+  lockId: number,
+  lockName?: string,
+  lockAlias?: string
+): Promise<void> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'save-lock',
+      propertyId,
+      lockId,
+      lockName,
+      lockAlias,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Error al asignar la cerradura al apartamento');
+  }
+}
+
+/**
+ * Unlinks a lock or completely disconnects a TTLock account from a property.
+ */
+export async function unlinkPropertyLock(
+  propertyId: string,
+  unlinkType: 'lock_only' | 'full_account' = 'lock_only'
+): Promise<void> {
+  const url = getApiUrl('/api/ttlock-passcode');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'unlink',
+      propertyId,
+      unlinkType,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Error al desvincular la cerradura');
+  }
+}
+

@@ -79,9 +79,14 @@ export function TtlockPinModal({
   const bookingHistory = bookingId
     ? existingPins.filter((p) => p.booking_id === bookingId)
     : [];
+  const validGeneratedPin =
+    newlyGeneratedPin && !existingPins.some((p) => p.id === newlyGeneratedPin.id && p.status !== 'active')
+      ? newlyGeneratedPin
+      : null;
+
   const rawBookingPins =
-    newlyGeneratedPin && !bookingHistory.some((p) => p.id === newlyGeneratedPin.id)
-      ? [newlyGeneratedPin, ...bookingHistory]
+    validGeneratedPin && !bookingHistory.some((p) => p.id === validGeneratedPin.id)
+      ? [validGeneratedPin, ...bookingHistory]
       : bookingHistory;
   const allBookingPins = [...rawBookingPins].sort(
     (a, b) =>
@@ -107,6 +112,7 @@ export function TtlockPinModal({
     syncPinsMutation.mutate({
       pins: allBookingPins,
       lockId: lockIdToSync,
+      propertyId: booking.property_id,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, bookingId]);
@@ -173,11 +179,16 @@ export function TtlockPinModal({
     if (!activePin) return;
     setIsVerifying(true);
     try {
-      const verifyRes = await verifyPinOnLock(activePin.pin, activePin.lock_id ?? undefined);
+      const verifyRes = await verifyPinOnLock(
+        activePin.pin,
+        activePin.lock_id ?? undefined,
+        booking.property_id
+      );
 
       await syncPinsMutation.mutateAsync({
         pins: allBookingPins,
         lockId: activePin.lock_id ?? undefined,
+        propertyId: booking.property_id,
       });
 
       if (verifyRes.verified) {
