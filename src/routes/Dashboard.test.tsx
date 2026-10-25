@@ -266,12 +266,12 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('7 de 31 noches reservadas')).toBeInTheDocument();
   });
 
-  it('renders financial horizon buttons (Todo, Solo Real, Solo Futuro) and switches view', () => {
+  it('renders financial horizon buttons (Todo, Cobrado, Por cobrar) and switches view', () => {
     renderWithProviders(<Dashboard />);
 
     const todoBtn = screen.getByRole('button', { name: /Todo \(Proyectado\)/i });
-    const realBtn = screen.getByRole('button', { name: /Solo Real \(En Caja\)/i });
-    const futureBtn = screen.getByRole('button', { name: /Solo Futuro \(Por Cobrar\)/i });
+    const realBtn = screen.getByRole('button', { name: /^Cobrado$/i });
+    const futureBtn = screen.getByRole('button', { name: /^Por cobrar$/i });
 
     expect(todoBtn).toBeInTheDocument();
     expect(realBtn).toBeInTheDocument();
@@ -287,6 +287,40 @@ describe('Dashboard Component', () => {
     // Switch to 'future'
     fireEvent.click(futureBtn);
     expect(futureBtn).toHaveClass('bg-blue-600');
+  });
+
+  it('locks financial horizon to "Cobrado" and disables "Todo" and "Por cobrar" in past months', () => {
+    renderWithProviders(<Dashboard />);
+
+    const lastMonthBtn = screen.getByRole('button', { name: /Mes Pasado/i });
+    const thisMonthBtn = screen.getByRole('button', { name: /Este Mes/i });
+
+    // Switch to 'Mes Pasado'
+    fireEvent.click(lastMonthBtn);
+
+    const todoBtn = screen.getByRole('button', { name: /Todo \(Proyectado\)/i });
+    const realBtn = screen.getByRole('button', { name: /^Cobrado$/i });
+    const futureBtn = screen.getByRole('button', { name: /^Por cobrar$/i });
+
+    // Horizon should be fixed to 'Cobrado'
+    expect(realBtn).toHaveClass('bg-emerald-600');
+    expect(screen.getByText(/Fijo en Cobrado para meses pasados/i)).toBeInTheDocument();
+
+    // 'Todo' and 'Por cobrar' should be disabled
+    expect(todoBtn).toBeDisabled();
+    expect(futureBtn).toBeDisabled();
+
+    // Attempting to click disabled buttons shouldn't switch away from Cobrado
+    fireEvent.click(todoBtn);
+    expect(realBtn).toHaveClass('bg-emerald-600');
+
+    fireEvent.click(futureBtn);
+    expect(realBtn).toHaveClass('bg-emerald-600');
+
+    // Switching back to 'Este Mes' re-enables the buttons
+    fireEvent.click(thisMonthBtn);
+    expect(todoBtn).not.toBeDisabled();
+    expect(futureBtn).not.toBeDisabled();
   });
 
   it('deduplicates nights in "Noches en el Período" when duplicate rows exist for the same stay', () => {

@@ -324,18 +324,18 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(screen.getByText('Huésped Futuro')).toBeInTheDocument();
 
       // Check badges exist
-      expect(screen.getByText('Cobrado (Real)')).toBeInTheDocument();
-      expect(screen.getByText('Por cobrar (Futuro)')).toBeInTheDocument();
+      expect(screen.getAllByText('Cobrado').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Por cobrar').length).toBeGreaterThan(0);
 
-      // Click "Solo Real"
-      const realButton = screen.getByRole('button', { name: 'Solo Real' });
+      // Click "Cobrado"
+      const realButton = screen.getByRole('button', { name: 'Cobrado' });
       await user.click(realButton);
 
       expect(screen.getByText('Huésped Real')).toBeInTheDocument();
       expect(screen.queryByText('Huésped Futuro')).not.toBeInTheDocument();
 
-      // Click "Solo Futuro"
-      const futureButton = screen.getByRole('button', { name: 'Solo Futuro' });
+      // Click "Por cobrar"
+      const futureButton = screen.getByRole('button', { name: 'Por cobrar' });
       await user.click(futureButton);
 
       expect(screen.queryByText('Huésped Real')).not.toBeInTheDocument();
@@ -357,11 +357,11 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
 
       renderWithProviders(<Bookings />);
 
-      // Should display real and future sublabels in the KPI cards
-      expect(screen.getAllByText(/reales/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/futuras/i).length).toBeGreaterThan(0);
-      expect(screen.getByText(/Real en caja:/i)).toBeInTheDocument();
-      expect(screen.getAllByText(/Futuro:/i).length).toBeGreaterThan(0);
+      // Should display cobradas and por cobrar sublabels in the KPI cards
+      expect(screen.getAllByText(/cobradas/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/por cobrar/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Cobrado:/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Por cobrar:/i).length).toBeGreaterThan(0);
     });
 
     it('deduplicates stays in KPI cards and month headers when duplicate booking rows exist on the same day', () => {

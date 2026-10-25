@@ -528,10 +528,10 @@ export default function Bookings() {
             </span>
             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Reservas con dinero cobrado o huésped en apto">
-                ✓ {realStaysCount} reales
+                ✓ {realStaysCount} cobradas
               </span>
               <span className="text-blue-600 dark:text-blue-400 font-semibold" title="Reservas con fecha de check-in en el futuro">
-                ⏳ {futureStaysCount} futuras
+                ⏳ {futureStaysCount} por cobrar
               </span>
             </div>
           </div>
@@ -562,10 +562,10 @@ export default function Bookings() {
             </span>
             <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                ✓ {realNights} noches reales
+                ✓ {realNights} noches cobradas
               </span>
               <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                ⏳ {futureNights} noches futuras
+                ⏳ {futureNights} noches por cobrar
               </span>
             </div>
           </div>
@@ -596,10 +596,10 @@ export default function Bookings() {
             </span>
             <div className="mt-2 pt-2 border-t border-amber-100 dark:border-amber-900/40 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                ✓ Real: -{formatCOP(realManagementFee)}
+                ✓ Cobrado: -{formatCOP(realManagementFee)}
               </span>
               <span className="text-amber-600 dark:text-amber-400 font-semibold">
-                ⏳ Futuro: -{formatCOP(futureManagementFee)}
+                ⏳ Por cobrar: -{formatCOP(futureManagementFee)}
               </span>
             </div>
           </div>
@@ -630,10 +630,10 @@ export default function Bookings() {
             </span>
             <div className="mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between text-[11px]">
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold" title="Dinero ya recibido en cuenta de reservas en curso o completadas">
-                ✓ Real en caja: {formatCOP(realOwnerPayout)}
+                ✓ Cobrado: {formatCOP(realOwnerPayout)}
               </span>
               <span className="text-blue-600 dark:text-blue-400 font-semibold" title="Dinero proyectado de reservas futuras sujetas a posible cancelación">
-                ⏳ Futuro: {formatCOP(futureOwnerPayout)}
+                ⏳ Por cobrar: {formatCOP(futureOwnerPayout)}
               </span>
             </div>
           </div>
@@ -668,7 +668,7 @@ export default function Bookings() {
 
           {/* Toggles al lado del input de búsqueda */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Financial Horizon Toggle: Todas / Solo Real / Solo Futuro */}
+            {/* Financial Horizon Toggle: Todas / Cobrado / Por cobrar */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-xs">
               <button
                 type="button"
@@ -692,7 +692,7 @@ export default function Bookings() {
                 title="Ver solo reservas con dinero ya cobrado (en curso o completadas)"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Solo Real</span>
+                <span>Cobrado</span>
               </button>
               <button
                 type="button"
@@ -705,7 +705,7 @@ export default function Bookings() {
                 title="Ver solo reservas futuras por cobrar (sujetas a posible cancelación)"
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>Solo Futuro</span>
+                <span>Por cobrar</span>
               </button>
             </div>
 
@@ -1014,12 +1014,12 @@ export default function Bookings() {
                                 ) : isBookingReal(b, colDateStr) ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                                     <CheckCircle2 className="w-3 h-3" />
-                                    <span>Cobrado (Real)</span>
+                                    <span>Cobrado</span>
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400" title="Reserva futura. Aún no cobrada porque puede cancelarse">
                                     <Clock className="w-3 h-3" />
-                                    <span>Por cobrar (Futuro)</span>
+                                    <span>Por cobrar</span>
                                   </span>
                                 )}
                               </div>
@@ -1034,12 +1034,12 @@ export default function Bookings() {
                               ) : isBookingReal(b, colDateStr) ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
                                   <CheckCircle2 className="w-3 h-3" />
-                                  <span>Cobrado (Real)</span>
+                                  <span>Cobrado</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400" title="Reserva futura. Aún no cobrada porque puede cancelarse">
                                   <Clock className="w-3 h-3" />
-                                  <span>Por cobrar (Futuro)</span>
+                                  <span>Por cobrar</span>
                                 </span>
                               )}
                             </div>
@@ -1147,7 +1147,7 @@ export default function Bookings() {
                                     title="Ingresos cobrados de reservas pasadas o en curso"
                                   >
                                     <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                    <span>Real: {formatCOP(group.realOwnerNet)}</span>
+                                    <span>Cobrado: {formatCOP(group.realOwnerNet)}</span>
                                   </span>
                                 )}
                                 {group.futureOwnerNet > 0 && (
@@ -1156,7 +1156,7 @@ export default function Bookings() {
                                     title="Ingresos proyectados de reservas futuras que aún no han hecho check-in"
                                   >
                                     <Clock className="w-3 h-3 text-blue-600" />
-                                    <span>Futuro: {formatCOP(group.futureOwnerNet)}</span>
+                                    <span>Por cobrar: {formatCOP(group.futureOwnerNet)}</span>
                                   </span>
                                 )}
                                 <div className="flex items-center gap-1 pl-1">
