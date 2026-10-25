@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { GET, POST } from './ttlock-passcode';
+import { GET, POST, formatKeyboardPwdName } from './ttlock-passcode';
+
+describe('formatKeyboardPwdName', () => {
+  it('formats passcode name as "Reserva <nombre del huesped>"', () => {
+    expect(formatKeyboardPwdName('Lucia Restrepo')).toBe('Reserva Lucia Restrepo');
+    expect(formatKeyboardPwdName('Carlos Sanchez')).toBe('Reserva Carlos Sanchez');
+    expect(formatKeyboardPwdName('Maria del Carmen Gonzalez Perez')).toBe(
+      'Reserva Maria del Carmen Gonzalez Perez'
+    );
+  });
+
+  it('trims extra whitespace from guest name', () => {
+    expect(formatKeyboardPwdName('   Juan Perez   ')).toBe('Reserva Juan Perez');
+  });
+
+  it('falls back to "Reserva" when guest name is missing or empty', () => {
+    expect(formatKeyboardPwdName(undefined)).toBe('Reserva');
+    expect(formatKeyboardPwdName('')).toBe('Reserva');
+    expect(formatKeyboardPwdName('   ')).toBe('Reserva');
+  });
+});
 
 describe('api/ttlock-passcode endpoint', () => {
   it('responds with 200 and health check on GET', async () => {

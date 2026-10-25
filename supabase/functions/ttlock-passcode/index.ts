@@ -100,6 +100,10 @@ serve(async (req) => {
       try {
         const token = await getAccessToken(apiUrl, clientId, clientSecret, username, password);
 
+        const keyboardPwdName = guestName?.trim()
+          ? `Reserva ${guestName.trim()}`
+          : 'Reserva';
+
         if (!customPin) {
           // Official One-Time Passcode (6 hours validity, 1 unlock, no custom quota consumed)
           const getParams = new URLSearchParams();
@@ -108,10 +112,7 @@ serve(async (req) => {
           getParams.append('lockId', targetLockId.toString());
           getParams.append('keyboardPwdVersion', '4');
           getParams.append('keyboardPwdType', '1'); // 1 = One-time (6 horas)
-          getParams.append(
-            'keyboardPwdName',
-            `Reserva ${guestName || ''}`.trim().slice(0, 20) || 'Huesped'
-          );
+          getParams.append('keyboardPwdName', keyboardPwdName);
           getParams.append('startDate', now.toString());
           getParams.append('date', now.toString());
 
@@ -140,7 +141,7 @@ serve(async (req) => {
           addParams.append('accessToken', token);
           addParams.append('lockId', targetLockId.toString());
           addParams.append('keyboardPwd', pin);
-          addParams.append('keyboardPwdName', `Reserva ${guestName || ''}`.slice(0, 20));
+          addParams.append('keyboardPwdName', keyboardPwdName);
           addParams.append('startDate', startDate.toString());
           addParams.append('endDate', endDate.toString());
           addParams.append('addType', '2'); // 2 = Send to lock via gateway

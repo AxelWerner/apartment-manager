@@ -21,6 +21,11 @@ interface PropertyLockRow {
   is_active: boolean;
 }
 
+export function formatKeyboardPwdName(guestName?: string): string {
+  const trimmed = guestName?.trim();
+  return trimmed ? `Reserva ${trimmed}` : 'Reserva';
+}
+
 async function getValidAccessToken(
   supabase: ReturnType<typeof createClient>,
   propertyLock: PropertyLockRow,
@@ -516,6 +521,8 @@ export async function POST(req: Request) {
     let startDate = now;
     let endDate = now + 6 * 60 * 60 * 1000;
 
+    const keyboardPwdName = formatKeyboardPwdName(guestName);
+
     // Check if we have active lock and OAuth token
     if (clientId && clientSecret && propertyLock?.access_token && targetLockId && propertyLock.is_active) {
       const token = await getValidAccessToken(supabase, propertyLock, apiUrl, clientId, clientSecret);
@@ -528,10 +535,7 @@ export async function POST(req: Request) {
         getParams.append('lockId', targetLockId.toString());
         getParams.append('keyboardPwdVersion', '4');
         getParams.append('keyboardPwdType', '1'); // 1 = One-time (6 horas)
-        getParams.append(
-          'keyboardPwdName',
-          `Reserva ${guestName || ''}`.trim().slice(0, 20) || 'Huesped'
-        );
+        getParams.append('keyboardPwdName', keyboardPwdName);
         getParams.append('startDate', now.toString());
         getParams.append('date', now.toString());
 
@@ -575,10 +579,7 @@ export async function POST(req: Request) {
         addParams.append('accessToken', token);
         addParams.append('lockId', targetLockId.toString());
         addParams.append('keyboardPwd', pin);
-        addParams.append(
-          'keyboardPwdName',
-          `Reserva ${guestName || ''}`.trim().slice(0, 20) || 'Huesped'
-        );
+        addParams.append('keyboardPwdName', keyboardPwdName);
         addParams.append('startDate', startDate.toString());
         addParams.append('endDate', endDate.toString());
         addParams.append('addType', '2'); // 2 = via Gateway
