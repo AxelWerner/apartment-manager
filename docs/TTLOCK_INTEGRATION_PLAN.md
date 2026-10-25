@@ -30,23 +30,24 @@ En la investigación del historial del repositorio se encontró trabajo prelimin
 
 Para que una reserva pueda recibir un One-Time PIN, debe satisfacer **todas** las siguientes condiciones:
 
-### 3.1. Estado de la Reserva
+### 3.1. Estado de la Reserva y Exclusión de Reservas Viejas
 * La reserva debe estar confirmada (`confirmed`) o con check-in en curso (`checked_in`).
-* Las reservas canceladas (`cancelled`) quedan excluidas.
+* **Reservas Viejas Excluidas:** No se puede generar PIN para reservas que ya finalizaron ($\text{check\_out} < T_{\text{hoy}}$) ni reservas canceladas (`cancelled`) o completadas (`completed`).
 
-### 3.2. Ventana Temporal (Activa o Próximos 7 Días)
-Considerando la fecha actual ($T_{\text{hoy}}$):
-* **Reserva Activa:** $\text{check\_in} \le T_{\text{hoy}} \le \text{check\_out}$
-* **Reserva Próxima:** $\text{check\_in} > T_{\text{hoy}}$ y $(\text{check\_in} - T_{\text{hoy}}) \le 7\text{ días}$.
+### 3.2. Regla de Generación: SOLO Máximo 2 Reservas Habilitadas
+Por cada propiedad, el sistema permite generar PINs únicamente para un máximo de **2 reservas** a la vez:
 
-### 3.3. Regla de Prioridad y Unicidad ("La Más Cercana")
-> **Regla Clave:** *Siempre la más cerca al día actual va a ser la que se le pueda generar el PinCode.*
+1. **Caso 1 - Reserva Actual (Estancia Activa):**
+   * $\text{check\_in} \le T_{\text{hoy}} \le \text{check\_out}$
+   * Si hay una reserva activa en este momento, **debe poder generar PIN**.
 
-Si en una propiedad existen múltiples reservas dentro del rango de los próximos 7 días (o una activa hoy y otra que entra en 4 días):
-1. Se evalúan todas las reservas elegibles de la propiedad ordenadas cronológicamente por fecha de inicio.
-2. Si hay una **estancia activa hoy**, esa es la única habilitada para generar PIN.
-3. Si no hay ninguna activa hoy pero hay reservas en los próximos 7 días, **únicamente la primera (la de check-in más próximo a hoy)** tiene habilitada la acción de generar el PIN.
-4. Para las reservas posteriores dentro de la ventana de 7 días, el botón se mostrará inactivo/bloqueado con un mensaje informativo: *"Se habilitará una vez finalice la reserva previa o sea la más próxima al día actual"*. Esto previene confusiones, duplicidad y accesos no autorizados anticipados.
+2. **Caso 2 - Primera Reserva Próxima en Ventana de 7 Días:**
+   * $\text{check\_in} > T_{\text{hoy}}$ y $(\text{check\_in} - T_{\text{hoy}}) \le 7\text{ días}$.
+   * Si en la ventana de los próximos 7 días existen reservas, **únicamente la primera reserva (la de check-in más próximo a hoy)** tiene habilitada la generación de PIN.
+
+3. **Reservas Posteriores (En Espera):**
+   * Si existen reservas adicionales dentro de la misma ventana de 7 días (ej. entra una en 2 días y otra en 5 días), la segunda reserva permanece bloqueada con estado *"En espera: Solo se habilita para la primera reserva próxima"*.
+   * Reservas que inicien a más de 7 días no muestran acción de generación.
 
 ### 3.4. Ciclo de Vida del One-Time PIN
 * **Tipo:** One-time passcode (Tipo `1` en TTLock).
@@ -237,10 +238,10 @@ export function checkBookingPinEligibility(
 
 Cuando estemos listos para continuar, ejecutaremos el siguiente plan paso a paso:
 
-- [ ] **Paso 1:** Crear la migración SQL `supabase/migrations/009_create_ttlock_tables.sql` con las tablas `booking_ttlock_pins` y `property_locks`, políticas RLS e índices.
-- [ ] **Paso 2:** Actualizar los tipos TypeScript en [src/types/database.ts](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/types/database.ts).
-- [ ] **Paso 3:** Implementar el módulo de lógica y elegibilidad `src/lib/ttlock-eligibility.ts` acompañado de su suite de tests unitarios exhaustivos con Vitest (`src/lib/ttlock-eligibility.test.ts`).
-- [ ] **Paso 4:** Implementar el servicio `src/lib/ttlock-service.ts` (con soporte para llamada a Edge Function y fallback local mock).
-- [ ] **Paso 5:** Crear la Edge Function `supabase/functions/ttlock-passcode/index.ts` o endpoint API correspondiente con soporte para TTLock v3 API.
-- [ ] **Paso 6:** Integrar los controles visuales, badges y modal en [src/routes/Bookings.tsx](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/routes/Bookings.tsx).
-- [ ] **Paso 7:** Validar con pruebas unitarias (`pnpm test`) y pruebas de interfaz.
+- [x] **Paso 1:** Crear la migración SQL `supabase/migrations/011_create_ttlock_tables.sql` con las tablas `booking_ttlock_pins` y `property_locks`, políticas RLS e índices.
+- [x] **Paso 2:** Actualizar los tipos TypeScript en [src/types/database.ts](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/types/database.ts).
+- [x] **Paso 3:** Implementar el módulo de lógica y elegibilidad `src/lib/ttlock-eligibility.ts` acompañado de su suite de tests unitarios exhaustivos con Vitest (`src/lib/ttlock-eligibility.test.ts`).
+- [x] **Paso 4:** Implementar el servicio `src/lib/ttlock-service.ts` (con soporte para llamada a Edge Function y fallback local mock).
+- [x] **Paso 5:** Crear la Edge Function `supabase/functions/ttlock-passcode/index.ts` y endpoint `api/ttlock-passcode.ts` con soporte para TTLock v3 API.
+- [x] **Paso 6:** Integrar los controles visuales, badges y modal en [src/routes/Bookings.tsx](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/routes/Bookings.tsx).
+- [x] **Paso 7:** Validar con pruebas unitarias (`pnpm test`), lint (`pnpm lint`) y build (`pnpm build`).

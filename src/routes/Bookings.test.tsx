@@ -445,5 +445,38 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       ).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('TTLock Smart Lock PIN Modal', () => {
+    it('allows opening the PIN modal from the action button and context menu', async () => {
+      const user = userEvent.setup();
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const activeBooking: Booking = {
+        ...mockBookings[0],
+        id: 'b-active-today',
+        guest_name: 'Laura Acuña',
+        check_in: todayDate,
+        check_out: '2026-10-30',
+      };
+
+      vi.mocked(useBookings).mockReturnValue({
+        data: [activeBooking],
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      // Cerradura action button in row
+      const lockBtn = screen.getByTitle('Cerradura TTLock (PIN)');
+      expect(lockBtn).toBeInTheDocument();
+
+      await user.click(lockBtn);
+
+      // Verify Modal opens
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toBeInTheDocument();
+      expect(within(dialog).getByText('Laura Acuña')).toBeInTheDocument();
+      expect(within(dialog).getByText(/Confirmar y Generar One-Time PIN/i)).toBeInTheDocument();
+    });
+  });
 });
 

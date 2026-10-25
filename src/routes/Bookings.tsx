@@ -20,10 +20,13 @@ import {
   CheckCircle2,
   Clock,
   X,
+  KeyRound,
 } from 'lucide-react';
 import { useBookings, useDeleteBooking } from '@/hooks/use-bookings';
+import { useBookingPins } from '@/hooks/use-ttlock';
 import { BookingModal } from '@/components/bookings/BookingModal';
 import { CsvImportModal } from '@/components/bookings/CsvImportModal';
+import { TtlockPinModal } from '@/components/bookings/TtlockPinModal';
 import { useSEO } from '@/hooks/use-seo';
 import {
   formatCOP,
@@ -47,6 +50,7 @@ import { toast } from 'sonner';
 
 export default function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
+  const { data: bookingPins = [] } = useBookingPins();
   const deleteBookingMutation = useDeleteBooking();
 
   useSEO({
@@ -62,6 +66,10 @@ export default function Bookings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [bookingToEdit, setBookingToEdit] = useState<Booking | null>(null);
+
+  // TTLock Modal state
+  const [pinModalBooking, setPinModalBooking] = useState<Booking | null>(null);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Revenue calculation display mode: compact ('solo neto') vs breakdown ('desglose')
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -1042,6 +1050,17 @@ export default function Bookings() {
                             <button
                               type="button"
                               onClick={() => {
+                                setPinModalBooking(b);
+                                setIsPinModalOpen(true);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                              title="Cerradura TTLock (PIN)"
+                            >
+                              <KeyRound className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
                                 setBookingToEdit(b);
                                 setIsModalOpen(true);
                               }}
@@ -1181,6 +1200,18 @@ export default function Bookings() {
               {showBreakdown ? 'Cambiar todas a Solo Neto' : 'Cambiar todas a Desglose'}
             </span>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPinModalBooking(contextMenu.booking);
+              setIsPinModalOpen(true);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+            <span>Cerradura TTLock (PIN)</span>
+          </button>
           <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
           <button
             type="button"
@@ -1221,6 +1252,18 @@ export default function Bookings() {
       <CsvImportModal
         isOpen={isCsvModalOpen}
         onClose={() => setIsCsvModalOpen(false)}
+      />
+
+      <TtlockPinModal
+        isOpen={isPinModalOpen}
+        onClose={() => {
+          setIsPinModalOpen(false);
+          setPinModalBooking(null);
+        }}
+        booking={pinModalBooking}
+        allBookings={bookings}
+        existingPins={bookingPins}
+        todayStr={colDateStr}
       />
     </div>
   );

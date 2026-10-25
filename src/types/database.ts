@@ -292,4 +292,33 @@ export interface GuestGuideData {
   updated_at?: string;
 }
 
+export interface PropertyLock {
+  id: string;
+  property_id: string;
+  lock_id: number;
+  lock_name?: string | null;
+  gateway_id?: number | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 
+export type TtlockPinStatus = 'active' | 'used' | 'expired' | 'revoked' | 'mock';
+
+export interface BookingTtlockPin {
+  id: string;
+  booking_id: string;
+  property_id: string;
+  lock_id?: number | null;
+  keyboard_pwd_id?: number | null;
+  pin: string;
+  pin_type: 'one_time' | string;
+  status: TtlockPinStatus;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  is_mock?: boolean;
+  error_message?: string | null;
+  generated_by?: string | null;
+  created_at?: string;
+  used_at?: string | null;
+}

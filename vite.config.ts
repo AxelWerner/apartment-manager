@@ -80,6 +80,77 @@ function aiChatDevPlugin(): Plugin {
           }
         });
       });
+
+      server.middlewares.use("/api/ttlock-passcode", async (req, res) => {
+        const currentEnv = loadEnv(server.config.mode, process.cwd(), "");
+        Object.assign(process.env, currentEnv);
+        const ttlockModule = await server.ssrLoadModule("./api/ttlock-passcode.ts");
+
+        if (req.method === "POST") {
+          let bodyData = "";
+          req.on("data", (chunk) => {
+            bodyData += chunk;
+          });
+          req.on("end", async () => {
+            try {
+              const fullUrl = `http://${req.headers.host || "localhost"}${req.url}`;
+              const webReq = new Request(fullUrl, {
+                method: "POST",
+                headers: req.headers as unknown as Record<string, string>,
+                body: bodyData,
+              });
+              const response = await ttlockModule.POST(webReq);
+              res.statusCode = response.status;
+              response.headers.forEach((value: string, key: string) => {
+                res.setHeader(key, value);
+              });
+              const text = await response.text();
+              res.end(text);
+            } catch (err: unknown) {
+              console.error("TTLock Dev Server Error:", err);
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json");
+              res.end(
+                JSON.stringify({
+                  success: false,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+              );
+            }
+          });
+          return;
+        }
+
+        if (req.method === "GET") {
+          try {
+            const fullUrl = `http://${req.headers.host || "localhost"}${req.url}`;
+            const webReq = new Request(fullUrl, {
+              method: "GET",
+              headers: req.headers as unknown as Record<string, string>,
+            });
+            const response = await ttlockModule.GET(webReq);
+            res.statusCode = response.status;
+            response.headers.forEach((value: string, key: string) => {
+              res.setHeader(key, value);
+            });
+            const text = await response.text();
+            res.end(text);
+          } catch (err: unknown) {
+            console.error("TTLock Dev Server Error:", err);
+            res.statusCode = 500;
+            res.setHeader("Content-Type", "application/json");
+            res.end(
+              JSON.stringify({
+                error: err instanceof Error ? err.message : String(err),
+              })
+            );
+          }
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end("Method Not Allowed");
+      });
     },
   };
 }
