@@ -161,7 +161,7 @@ Allí encontrarás:
             href="/guide/poster"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold shadow-xs hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 text-xs font-bold shadow-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
           >
             <Printer className="w-3.5 h-3.5" />
             <span>Imprimir Lámina QR</span>
@@ -194,8 +194,8 @@ Allí encontrarás:
           onClick={() => setActiveTab('editor')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'editor'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <FileText className="w-4 h-4" />
@@ -207,8 +207,8 @@ Allí encontrarás:
           onClick={() => setActiveTab('poster')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'poster'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <LayoutTemplate className="w-4 h-4 text-rose-500" />
@@ -220,8 +220,8 @@ Allí encontrarás:
           onClick={() => setActiveTab('share')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'share'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <QrCode className="w-4 h-4" />
@@ -233,8 +233,8 @@ Allí encontrarás:
           onClick={() => setActiveTab('preview')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
             activeTab === 'preview'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <Smartphone className="w-4 h-4" />
@@ -519,7 +519,7 @@ Allí encontrarás:
               <button
                 type="button"
                 onClick={handleAddDistance}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer self-start sm:self-auto"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Agregar Destino</span>
@@ -725,14 +725,14 @@ Allí encontrarás:
                     onClick={() => setPosterOptions({ ...posterOptions, variant: v.id })}
                     className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
                       isSelected
-                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm'
+                        ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white border-slate-900 dark:border-slate-700 shadow-sm'
                         : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800'
                     }`}
                   >
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
                         isSelected
-                          ? 'bg-white/20 text-white dark:bg-slate-900/15 dark:text-slate-900'
+                          ? 'bg-white/20 text-white dark:bg-white/10 dark:text-white'
                           : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600'
                       }`}
                     >
@@ -743,7 +743,7 @@ Allí encontrarás:
                       <p
                         className={`text-[10px] mt-0.5 leading-snug ${
                           isSelected
-                            ? 'text-slate-300 dark:text-slate-600'
+                            ? 'text-slate-300 dark:text-slate-300'
                             : 'text-slate-500 dark:text-slate-400'
                         }`}
                       >
@@ -779,8 +779,8 @@ Allí encontrarás:
                       onClick={() => setPosterOptions({ ...posterOptions, theme: t.id })}
                       className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold text-xs border transition-colors cursor-pointer ${
                         (posterOptions.theme || 'sage') === t.id
-                          ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent'
-                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                          ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white border-slate-900 dark:border-slate-700 shadow-xs'
+                          : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${t.dot}`} />
@@ -890,7 +890,7 @@ Allí encontrarás:
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 text-xs font-bold shadow-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Imprimir Lámina</span>
@@ -940,7 +940,7 @@ Allí encontrarás:
                   href="/guide"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold shadow-xs hover:opacity-90 transition-opacity cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 text-xs font-bold shadow-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>Ver Portal</span>

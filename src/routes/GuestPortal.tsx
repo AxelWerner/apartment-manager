@@ -167,7 +167,7 @@ export default function GuestPortal() {
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-md'
+                  ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white dark:border dark:border-slate-700 shadow-md'
                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >

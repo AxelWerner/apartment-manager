@@ -143,14 +143,14 @@ export default function GuestGuidePosterPage() {
                   onClick={() => setOptions({ ...options, variant: v.id })}
                   className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
                     isSelected
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-sm'
+                      ? 'bg-slate-900 text-white dark:bg-slate-800 dark:text-white border-slate-900 dark:border-slate-700 shadow-sm'
                       : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <div
                     className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                       isSelected
-                        ? 'bg-white/20 text-white dark:bg-slate-900/15 dark:text-slate-900'
+                        ? 'bg-white/20 text-white dark:bg-white/10 dark:text-white'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                     }`}
                   >
@@ -161,7 +161,7 @@ export default function GuestGuidePosterPage() {
                     <p
                       className={`text-[10px] line-clamp-1 mt-0.5 ${
                         isSelected
-                          ? 'text-slate-300 dark:text-slate-600'
+                          ? 'text-slate-300 dark:text-slate-300'
                           : 'text-slate-500 dark:text-slate-400'
                       }`}
                     >
