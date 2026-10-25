@@ -43,6 +43,7 @@ vi.mock('@/hooks/use-ttlock', () => ({
   useConnectTtlockAccount: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useAssignPropertyLock: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useUnlinkPropertyLock: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useSavePropertyLock: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   getTtlockOAuthUrl: vi.fn(() => Promise.resolve('https://euopen.ttlock.com/oauth2/auth')),
 }));
 

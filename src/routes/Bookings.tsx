@@ -1056,17 +1056,32 @@ export default function Bookings() {
                         {/* Actions */}
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPinModalBooking(b);
-                                setIsPinModalOpen(true);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                              title="Cerradura TTLock (PIN)"
-                            >
-                              <KeyRound className="w-4 h-4" />
-                            </button>
+                            {(() => {
+                              const isLockActiveForBooking = activeLockPropertyIds.has(b.property_id);
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={!isLockActiveForBooking}
+                                  onClick={() => {
+                                    if (!isLockActiveForBooking) return;
+                                    setPinModalBooking(b);
+                                    setIsPinModalOpen(true);
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    isLockActiveForBooking
+                                      ? 'text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer'
+                                      : 'opacity-30 cursor-not-allowed text-slate-300 dark:text-slate-600'
+                                  }`}
+                                  title={
+                                    !isLockActiveForBooking
+                                      ? 'Cerradura no configurada o inactiva'
+                                      : 'Cerradura TTLock (PIN)'
+                                  }
+                                >
+                                  <KeyRound className="w-4 h-4" />
+                                </button>
+                              );
+                            })()}
                             <button
                               type="button"
                               onClick={() => {
@@ -1209,20 +1224,39 @@ export default function Bookings() {
               {showBreakdown ? 'Cambiar todas a Solo Neto' : 'Cambiar todas a Desglose'}
             </span>
           </button>
-          {activeLockPropertyIds.has(contextMenu.booking.property_id) && (
-            <button
-              type="button"
-              onClick={() => {
-                setPinModalBooking(contextMenu.booking);
-                setIsPinModalOpen(true);
-                setContextMenu(null);
-              }}
-              className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-              <span>Cerradura TTLock (PIN)</span>
-            </button>
-          )}
+          {(() => {
+            const isLockActiveForContextMenu =
+              activeLockPropertyIds.has(contextMenu.booking.property_id);
+            return (
+              <button
+                type="button"
+                disabled={!isLockActiveForContextMenu}
+                onClick={() => {
+                  if (!isLockActiveForContextMenu) return;
+                  setPinModalBooking(contextMenu.booking);
+                  setIsPinModalOpen(true);
+                  setContextMenu(null);
+                }}
+                className={`w-full px-3 py-2 text-left flex items-center gap-2 transition-colors ${
+                  isLockActiveForContextMenu
+                    ? 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer'
+                    : 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-500'
+                }`}
+                title={
+                  !isLockActiveForContextMenu
+                    ? 'Cerradura no configurada o inactiva'
+                    : 'Cerradura TTLock (PIN)'
+                }
+              >
+                <KeyRound
+                  className={`w-3.5 h-3.5 ${
+                    isLockActiveForContextMenu ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                />
+                <span>Cerradura TTLock (PIN)</span>
+              </button>
+            );
+          })()}
           <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
           <button
             type="button"

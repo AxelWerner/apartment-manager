@@ -11,12 +11,14 @@ vi.mock('@/hooks/use-ttlock', () => ({
   useConnectTtlockAccount: vi.fn(),
   useAssignPropertyLock: vi.fn(),
   useUnlinkPropertyLock: vi.fn(),
+  useSavePropertyLock: vi.fn(),
 }));
 
 describe('TtlockSettingsTab', () => {
   const mockConnectMutate = vi.fn().mockResolvedValue({ success: true, message: 'Conectado' });
   const mockAssignMutate = vi.fn().mockResolvedValue({});
   const mockUnlinkMutate = vi.fn().mockResolvedValue({});
+  const mockSaveLockMutate = vi.fn().mockResolvedValue({});
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,6 +37,11 @@ describe('TtlockSettingsTab', () => {
       mutateAsync: mockUnlinkMutate,
       isPending: false,
     } as unknown as ReturnType<typeof ttlockHooks.useUnlinkPropertyLock>);
+
+    vi.mocked(ttlockHooks.useSavePropertyLock).mockReturnValue({
+      mutateAsync: mockSaveLockMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof ttlockHooks.useSavePropertyLock>);
   });
 
   it('renders Connect button and opens in-app connection modal', async () => {
@@ -207,5 +214,81 @@ describe('TtlockSettingsTab', () => {
       propertyId: 'prop-1',
       unlinkType: 'full_account',
     });
+  });
+
+  it('toggles lock active/inactive state when switch is clicked', async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(ttlockHooks.usePropertyLock).mockReturnValue({
+      data: {
+        id: 'lock-1',
+        property_id: 'prop-1',
+        lock_id: 31266290,
+        lock_name: 'Cerradura Entrada',
+        access_token: 'valid-token',
+        is_active: true,
+        account_email: 'pepito@gmail.com',
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof ttlockHooks.usePropertyLock>);
+
+    vi.mocked(ttlockHooks.useAccountLocks).mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof ttlockHooks.useAccountLocks>);
+
+    renderWithProviders(
+      <TtlockSettingsTab propertyId="prop-1" propertyName="Apto 1017" isOwner={true} isPrimaryOwner={true} />
+    );
+
+    const toggleSwitch = screen.getByRole('switch');
+    expect(toggleSwitch).toBeInTheDocument();
+    expect(toggleSwitch).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Función Activa')).toBeInTheDocument();
+
+    await user.click(toggleSwitch);
+
+    expect(mockSaveLockMutate).toHaveBeenCalledWith({
+      id: 'lock-1',
+      property_id: 'prop-1',
+      lock_id: 31266290,
+      lock_name: 'Cerradura Entrada',
+      access_token: 'valid-token',
+      is_active: false,
+      account_email: 'pepito@gmail.com',
+    });
+  });
+
+  it('disables lock toggle switch and shows warning for non-primary owners', async () => {
+    vi.mocked(ttlockHooks.usePropertyLock).mockReturnValue({
+      data: {
+        id: 'lock-1',
+        property_id: 'prop-1',
+        lock_id: 31266290,
+        lock_name: 'Cerradura Entrada',
+        access_token: 'valid-token',
+        is_active: true,
+        account_email: 'pepito@gmail.com',
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof ttlockHooks.usePropertyLock>);
+
+    vi.mocked(ttlockHooks.useAccountLocks).mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof ttlockHooks.useAccountLocks>);
+
+    renderWithProviders(
+      <TtlockSettingsTab propertyId="prop-1" propertyName="Apto 1017" isOwner={true} isPrimaryOwner={false} />
+    );
+
+    const toggleSwitch = screen.getByRole('switch');
+    expect(toggleSwitch).toBeInTheDocument();
+    expect(toggleSwitch).toBeDisabled();
+    expect(
+      screen.getByText(/Solo el Propietario Principal \(Super Dueño\) tiene permisos para activar o desactivar la función de cerradura/i)
+    ).toBeInTheDocument();
   });
 });

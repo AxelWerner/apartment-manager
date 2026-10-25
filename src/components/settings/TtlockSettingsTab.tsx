@@ -20,6 +20,7 @@ import {
   useConnectTtlockAccount,
   useAssignPropertyLock,
   useUnlinkPropertyLock,
+  useSavePropertyLock,
 } from '@/hooks/use-ttlock';
 import { toast } from 'sonner';
 
@@ -27,9 +28,15 @@ interface TtlockSettingsTabProps {
   propertyId: string;
   propertyName: string;
   isOwner: boolean;
+  isPrimaryOwner?: boolean;
 }
 
-export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockSettingsTabProps) {
+export function TtlockSettingsTab({
+  propertyId,
+  propertyName,
+  isOwner,
+  isPrimaryOwner = false,
+}: TtlockSettingsTabProps) {
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +49,7 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
 
   const { data: propertyLock, isLoading: isLockLoading } = usePropertyLock(propertyId);
   const hasAccount = Boolean(propertyLock?.access_token);
-  const isLockActive = Boolean(propertyLock?.is_active && propertyLock.lock_id);
+  const hasAssignedLock = Boolean(propertyLock?.lock_id);
 
   const {
     data: accountLocks = [],
@@ -53,6 +60,32 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
   const connectMutation = useConnectTtlockAccount();
   const assignMutation = useAssignPropertyLock();
   const unlinkMutation = useUnlinkPropertyLock();
+  const saveLockMutation = useSavePropertyLock();
+
+  // Handle toggle active/inactive status (SOLO Super Dueño)
+  const handleToggleLockActive = async () => {
+    if (!isPrimaryOwner) {
+      toast.error('Solo el Propietario Principal (Super Dueño) puede activar o desactivar la cerradura');
+      return;
+    }
+    if (!propertyLock || !propertyLock.lock_id) return;
+    const nextState = !propertyLock.is_active;
+    try {
+      await saveLockMutation.mutateAsync({
+        ...propertyLock,
+        property_id: propertyId,
+        lock_id: propertyLock.lock_id,
+        is_active: nextState,
+      });
+      toast.success(
+        nextState
+          ? 'Función de PIN y cerradura activada'
+          : 'Función de PIN y cerradura desactivada'
+      );
+    } catch {
+      toast.error('Error al actualizar el estado de la cerradura');
+    }
+  };
 
   // Handle in-app connection form submit
   const handleConnectSubmit = async (e: React.FormEvent) => {
@@ -193,7 +226,7 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
       )}
 
       {/* Case 2: Account connected but no lock assigned OR user is changing lock */}
-      {hasAccount && (!isLockActive || isChangingLock) && (
+      {hasAccount && (!hasAssignedLock || isChangingLock) && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 gap-3">
             <div className="flex items-center gap-2.5">
@@ -322,12 +355,18 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
         </div>
       )}
 
-      {/* Case 3: Lock Active & Assigned */}
-      {hasAccount && isLockActive && !isChangingLock && (
+      {/* Case 3: Lock Assigned */}
+      {hasAccount && hasAssignedLock && !isChangingLock && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 rounded-xl">
+              <div
+                className={`p-2.5 rounded-xl ${
+                  propertyLock?.is_active
+                    ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                }`}
+              >
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <div>
@@ -335,8 +374,14 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white">
                     {propertyLock?.lock_name || `Cerradura ${propertyName}`}
                   </h4>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                    Activa
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      propertyLock?.is_active
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {propertyLock?.is_active ? 'Activa' : 'Desactivada'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500">
@@ -346,7 +391,39 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Toggle switch for Smart Lock PIN feature */}
+              <div className="flex items-center gap-2 pr-3 border-r border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {propertyLock?.is_active ? 'Función Activa' : 'Función Desactivada'}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(propertyLock?.is_active)}
+                  onClick={handleToggleLockActive}
+                  disabled={!isPrimaryOwner || saveLockMutation.isPending}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    !isPrimaryOwner ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                  } disabled:opacity-40 ${
+                    propertyLock?.is_active ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                  title={
+                    !isPrimaryOwner
+                      ? 'Solo el Propietario Principal (Super Dueño) puede activar o desactivar la cerradura'
+                      : propertyLock?.is_active
+                      ? 'Desactivar función de PIN de cerradura'
+                      : 'Activar función de PIN de cerradura'
+                  }
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      propertyLock?.is_active ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setIsChangingLock(true)}
@@ -365,6 +442,12 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
             </div>
           </div>
 
+          {!isPrimaryOwner && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              * Solo el Propietario Principal (Super Dueño) tiene permisos para activar o desactivar la función de cerradura.
+            </p>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1">
               <span className="text-slate-400">Tipo de PIN</span>
@@ -374,9 +457,24 @@ export function TtlockSettingsTab({ propertyId, propertyName, isOwner }: TtlockS
             </div>
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1">
               <span className="text-slate-400">Integración en Reservas</span>
-              <p className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Habilitada en menú contextual
+              <p
+                className={`font-bold flex items-center gap-1.5 ${
+                  propertyLock?.is_active
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                {propertyLock?.is_active ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Habilitada en reservas
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    Desactivada temporalmente
+                  </>
+                )}
               </p>
             </div>
             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1">

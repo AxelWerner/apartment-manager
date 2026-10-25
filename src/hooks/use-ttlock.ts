@@ -117,6 +117,7 @@ export function useSavePropertyLock() {
       savePropertyLock(lockData),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ['property-lock', vars.property_id] });
+      queryClient.invalidateQueries({ queryKey: ['property-locks'] });
     },
   });
 }

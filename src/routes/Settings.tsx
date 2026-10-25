@@ -130,6 +130,7 @@ export default function Settings() {
           propertyId={activePropertyId}
           propertyName={activeProperty?.name || 'Apartamento'}
           isOwner={isOwner || isPrimaryOwner}
+          isPrimaryOwner={isPrimaryOwner}
         />
       )}
     </div>

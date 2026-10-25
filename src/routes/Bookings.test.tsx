@@ -33,6 +33,24 @@ vi.mock('@/hooks/use-property', () => ({
   })),
 }));
 
+vi.mock('@/hooks/use-ttlock', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/use-ttlock')>();
+  return {
+    ...actual,
+    useBookingPins: vi.fn(() => ({ data: [], isLoading: false })),
+    useAllPropertyLocks: vi.fn(() => ({
+      data: [
+        {
+          property_id: 'prop-1',
+          lock_id: 31266290,
+          is_active: true,
+        },
+      ],
+      isLoading: false,
+    })),
+  };
+});
+
 import { useBookings } from '@/hooks/use-bookings';
 
 const mockBookings: Booking[] = [
@@ -468,6 +486,7 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       // Cerradura action button in row
       const lockBtn = screen.getByTitle('Cerradura TTLock (PIN)');
       expect(lockBtn).toBeInTheDocument();
+      expect(lockBtn).not.toBeDisabled();
 
       await user.click(lockBtn);
 
@@ -476,6 +495,48 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
       expect(dialog).toBeInTheDocument();
       expect(within(dialog).getByText('Laura Acuña')).toBeInTheDocument();
       expect(within(dialog).getByText(/Confirmar y Generar One-Time PIN/i)).toBeInTheDocument();
+    });
+
+    it('disables key button and context menu item when property lock is inactive or not configured', async () => {
+      const user = userEvent.setup();
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const activeBooking: Booking = {
+        ...mockBookings[0],
+        id: 'b-active-today',
+        guest_name: 'Laura Acuña',
+        property_id: 'prop-inactive-lock',
+        check_in: todayDate,
+        check_out: '2026-10-30',
+      };
+
+      vi.mocked(useBookings).mockReturnValue({
+        data: [activeBooking],
+        isLoading: false,
+      } as unknown as ReturnType<typeof useBookings>);
+
+      renderWithProviders(<Bookings />);
+
+      // Verify toggle button does NOT exist in toolbar (removed as only Super Dueño manages it in Settings)
+      expect(screen.queryByRole('switch', { name: /PIN Cerradura/i })).not.toBeInTheDocument();
+
+      // Key button in row is disabled
+      const disabledLockBtn = screen.getByTitle('Cerradura no configurada o inactiva');
+      expect(disabledLockBtn).toBeInTheDocument();
+      expect(disabledLockBtn).toBeDisabled();
+
+      // Right-click row to open context menu
+      const row = screen.getByText('Laura Acuña').closest('tr');
+      fireEvent.contextMenu(row!);
+
+      // Context menu item is disabled without DESACTIVADO text
+      const contextMenuItem = screen.getByRole('button', { name: /Cerradura TTLock/i });
+      expect(contextMenuItem).toBeInTheDocument();
+      expect(contextMenuItem).toBeDisabled();
+      expect(screen.queryByText('Desactivado')).not.toBeInTheDocument();
+
+      // Clicking disabled context menu item does not open modal
+      await user.click(contextMenuItem);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 });
