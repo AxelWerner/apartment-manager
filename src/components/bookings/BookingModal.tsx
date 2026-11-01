@@ -3,7 +3,7 @@ import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { Calendar } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import { formatCOP, getBookingSourceInfo } from '@/lib/formatters';
+import { formatCOP, getBookingSourceInfo, roundToTwoDecimals } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { usePropertyContext } from '@/context/PropertyContext';
 import type { Booking, BookingStatus, PayoutStatus } from '@/types/database';
@@ -105,24 +105,24 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
     ? 0
     : customAirbnbFee !== null
     ? customAirbnbFee
-    : Math.round(effectiveNetPayout * 0.03);
+    : roundToTwoDecimals(effectiveNetPayout * 0.03);
   const numericExtraAmount = Number(extraAmount) || 0;
-  const grossAmount = bookingToEdit?.gross_amount ?? (effectiveNetPayout + effectiveAirbnbFee + numericExtraAmount);
+  const grossAmount = bookingToEdit?.gross_amount ?? roundToTwoDecimals(effectiveNetPayout + effectiveAirbnbFee + numericExtraAmount);
 
   // Deducir el aseo al pago recibido antes de calcular la comisión de administradora (10% directa 10%, 20% Airbnb, 25% directa 25%)
   // Los cobros extras (ej. 50.000 COP por horas extra) se desglosan con la misma tasa comisionable
   const baseAccommodationBeforeExtra = Math.max(0, effectiveNetPayout - cleaningFee);
-  const baseManagementFee = Math.round(baseAccommodationBeforeExtra * adminCommissionRate);
-  const baseOwnerIncome = Math.max(0, baseAccommodationBeforeExtra - baseManagementFee);
+  const baseManagementFee = roundToTwoDecimals(baseAccommodationBeforeExtra * adminCommissionRate);
+  const baseOwnerIncome = roundToTwoDecimals(Math.max(0, baseAccommodationBeforeExtra - baseManagementFee));
 
-  const extraManagementFee = Math.round(numericExtraAmount * adminCommissionRate);
-  const extraOwnerIncome = Math.max(0, numericExtraAmount - extraManagementFee);
+  const extraManagementFee = roundToTwoDecimals(numericExtraAmount * adminCommissionRate);
+  const extraOwnerIncome = roundToTwoDecimals(Math.max(0, numericExtraAmount - extraManagementFee));
 
-  const effectiveManagementFee = baseManagementFee + extraManagementFee;
-  const effectiveOwnerPayout = baseOwnerIncome + extraOwnerIncome;
+  const effectiveManagementFee = roundToTwoDecimals(baseManagementFee + extraManagementFee);
+  const effectiveOwnerPayout = roundToTwoDecimals(baseOwnerIncome + extraOwnerIncome);
   const effectiveNightlyRate =
     numberOfNights > 0
-      ? Math.round(baseOwnerIncome / numberOfNights)
+      ? roundToTwoDecimals(baseOwnerIncome / numberOfNights)
       : defaultNightlyRate;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -390,6 +390,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                   id="modal-nightly-rate"
                   value={effectiveNightlyRate}
                   disabled
+                  allowDecimals
                   placeholder="0"
                   rightLabel="Tarifa noche"
                   className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-bold cursor-not-allowed opacity-90"
@@ -404,6 +405,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                   id="modal-cleaning-fee"
                   value={cleaningFee}
                   onChange={setCleaningFee}
+                  allowDecimals
                   placeholder="60.000"
                   rightLabel="Limpieza"
                   className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
@@ -420,6 +422,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                       id="modal-airbnb-fee"
                       value={effectiveAirbnbFee}
                       onChange={(val) => setCustomAirbnbFee(val)}
+                      allowDecimals
                       placeholder="0"
                       rightLabel="Comisión Airbnb"
                       className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
@@ -454,6 +457,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                   id="modal-net-payout"
                   value={effectiveNetPayout}
                   onChange={(val) => setCustomNetPayout(val)}
+                  allowDecimals
                   placeholder="0"
                   rightLabel={isDirect ? "Pago total" : "Pago neto"}
                   className="w-full text-left px-3 py-2 text-sm rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 font-bold text-emerald-600 dark:text-emerald-400"
@@ -482,6 +486,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                     id="modal-extra-amount"
                     value={extraAmount}
                     onChange={(val) => setExtraAmount(val || 0)}
+                    allowDecimals
                     placeholder="0"
                     rightLabel="Valor extra"
                     className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"

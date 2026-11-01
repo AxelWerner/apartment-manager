@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import Papa from 'papaparse';
 import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Calendar, CheckCircle2, Clock, Filter, Cloud, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking } from '@/lib/formatters';
+import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking, roundToTwoDecimals } from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { usePropertyContext } from '@/context/PropertyContext';
 import { AuthContext } from '@/context/auth-context-def';
@@ -47,16 +47,24 @@ interface LoadedFileInfo {
   count: number;
 }
 
-// Helper to parse European or standard formatted Airbnb currencies
+// Helper to parse European or standard formatted Airbnb currencies with 2 decimals
 const parseAirbnbAmount = (val: string | number | undefined | null): number => {
-  if (typeof val === 'number') return Math.round(val);
+  if (typeof val === 'number') return roundToTwoDecimals(val);
   if (!val) return 0;
   let str = String(val).trim().replace(/[^\d.,-]/g, '');
   if (!str) return 0;
 
-  // Case 1: European format with dot as thousand and comma as decimal (e.g. "71.992,68")
+  // Handle both European (71.992,68) and US formats (71,992.68)
   if (str.includes('.') && str.includes(',')) {
-    str = str.replace(/\./g, '').replace(',', '.');
+    const lastDot = str.lastIndexOf('.');
+    const lastComma = str.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // European: 71.992,68
+      str = str.slice(0, lastComma).replace(/\./g, '') + '.' + str.slice(lastComma + 1);
+    } else {
+      // US: 71,992.68
+      str = str.slice(0, lastDot).replace(/,/g, '') + '.' + str.slice(lastDot + 1);
+    }
   } else if (str.includes(',')) {
     const parts = str.split(',');
     if (parts.length === 2 && parts[1].length <= 2) {
@@ -67,7 +75,7 @@ const parseAirbnbAmount = (val: string | number | undefined | null): number => {
   }
 
   const num = parseFloat(str);
-  return isNaN(num) ? 0 : Math.round(num);
+  return isNaN(num) ? 0 : roundToTwoDecimals(num);
 };
 
 // Helper to parse dates into ISO YYYY-MM-DD
@@ -222,10 +230,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             }
 
             const accommodationBase = Math.max(0, payout - cleanFee);
-            const managementFee = Math.round(accommodationBase * 0.20);
-            const ownerAccommodation = Math.max(0, accommodationBase - managementFee);
+            const managementFee = roundToTwoDecimals(accommodationBase * 0.20);
+            const ownerAccommodation = roundToTwoDecimals(Math.max(0, accommodationBase - managementFee));
             const ownerPayout = ownerAccommodation;
-            const rate = Math.round(ownerAccommodation / validNights);
+            const rate = roundToTwoDecimals(ownerAccommodation / validNights);
 
             const normalizedIn = parseDate(checkIn);
             const normalizedOut = parseDate(checkOut);

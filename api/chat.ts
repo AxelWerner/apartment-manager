@@ -107,6 +107,26 @@ function getBookingSourceInfo(source?: string | null): { ownerRate: number; comm
   return { ownerRate: 0.8, commissionRate: 0.2 };
 }
 
+function roundToTwoDecimals(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+function getOwnerNet(b: RawBooking): number {
+  if (b.owner_payout !== undefined && b.owner_payout !== null) return roundToTwoDecimals(Number(b.owner_payout));
+  const extra = Number(b.extra_amount) || 0;
+  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
+  const rate = getBookingSourceInfo(b.source).ownerRate;
+  return roundToTwoDecimals(accommodation * rate);
+}
+
+function getManagementFee(b: RawBooking): number {
+  if (b.management_fee !== undefined && b.management_fee !== null) return roundToTwoDecimals(Number(b.management_fee));
+  const extra = Number(b.extra_amount) || 0;
+  const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
+  const rate = getBookingSourceInfo(b.source).commissionRate;
+  return roundToTwoDecimals(accommodation * rate);
+}
+
 function calculateMonthAnalytics(bookings: RawBooking[], monthKey: string) {
   const [yStr, mStr] = monthKey.split('-');
   const year = parseInt(yStr, 10);
@@ -248,28 +268,16 @@ async function fetchMonthlyFinancialData(params: {
     grossTotal += Number(b.gross_amount) || 0;
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
-
-    const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
-    ownerPayout += op;
-
-    const mf =
-      b.management_fee !== undefined && b.management_fee !== null
-        ? Number(b.management_fee)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
-    managementFee += mf;
+    ownerPayout += getOwnerNet(b);
+    managementFee += getManagementFee(b);
   }
 
-  const accommodationRevenue = ownerPayout + managementFee;
+  grossTotal = roundToTwoDecimals(grossTotal);
+  platformNetPayout = roundToTwoDecimals(platformNetPayout);
+  cleaningFeeCollected = roundToTwoDecimals(cleaningFeeCollected);
+  ownerPayout = roundToTwoDecimals(ownerPayout);
+  managementFee = roundToTwoDecimals(managementFee);
+  const accommodationRevenue = roundToTwoDecimals(ownerPayout + managementFee);
 
   // 2. Fetch Expenses
   let allExpenses: RawExpense[] = [];
@@ -437,33 +445,22 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
     grossTotal += Number(b.gross_amount) || 0;
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
-
-    const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
-    ownerPayout += op;
-
-    const mf =
-      b.management_fee !== undefined && b.management_fee !== null
-        ? Number(b.management_fee)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
-    managementFee += mf;
+    ownerPayout += getOwnerNet(b);
+    managementFee += getManagementFee(b);
   }
+
+  grossTotal = roundToTwoDecimals(grossTotal);
+  platformNetPayout = roundToTwoDecimals(platformNetPayout);
+  cleaningFeeCollected = roundToTwoDecimals(cleaningFeeCollected);
+  ownerPayout = roundToTwoDecimals(ownerPayout);
+  managementFee = roundToTwoDecimals(managementFee);
 
   const yearExpenses = allExpenses.filter((e) =>
     e.billing_month ? e.billing_month.startsWith(yearPrefix) : Boolean(e.date && e.date.startsWith(yearPrefix))
   );
 
-  const totalExpenses = yearExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  const netProfit = ownerPayout - totalExpenses;
+  const totalExpenses = roundToTwoDecimals(yearExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0));
+  const netProfit = roundToTwoDecimals(ownerPayout - totalExpenses);
 
   const monthlyBreakdown = [];
   for (let m = 1; m <= 12; m++) {
@@ -474,19 +471,8 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
       e.billing_month ? e.billing_month === monthKey : Boolean(e.date && e.date.startsWith(monthKey))
     );
 
-    const mGross = mBookings.reduce((s, b) => s + (Number(b.gross_amount) || 0), 0);
-    const mOwnerPayout = mBookings.reduce((s, b) => {
-      const extra = Number(b.extra_amount) || 0;
-      return (
-        s +
-        (b.owner_payout !== undefined && b.owner_payout !== null
-          ? Number(b.owner_payout)
-          : Math.round(
-              (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-                getBookingSourceInfo(b.source).ownerRate
-            ))
-      );
-    }, 0);
+    const mGross = roundToTwoDecimals(mBookings.reduce((s, b) => s + (Number(b.gross_amount) || 0), 0));
+    const mOwnerPayout = roundToTwoDecimals(mBookings.reduce((s, b) => s + getOwnerNet(b), 0));
     const mExp = mExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const mAnalytics = calculateMonthAnalytics(yearBookings, monthKey);
 

@@ -7,7 +7,7 @@ import {
   INITIAL_DAMAGES,
   INITIAL_TEMPLATES,
 } from './mock-data';
-import { resolveBookingStatus, getBookingSourceInfo, getBookingYear, isAirbnbBooking } from './formatters';
+import { resolveBookingStatus, getBookingSourceInfo, getBookingYear, isAirbnbBooking, roundToTwoDecimals } from './formatters';
 
 const STORAGE_KEYS = {
   property: 'apt_mgr_property',
@@ -132,19 +132,19 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
 
     const management_fee =
       b.management_fee !== undefined && b.management_fee !== null
-        ? Number(b.management_fee)
-        : Math.round(accommodationBase * adminRate);
+        ? roundToTwoDecimals(Number(b.management_fee))
+        : roundToTwoDecimals(accommodationBase * adminRate);
 
     const owner_payout =
       b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(accommodationBase * ownerRate);
+        ? roundToTwoDecimals(Number(b.owner_payout))
+        : roundToTwoDecimals(accommodationBase * ownerRate);
 
     const baseAccommodation = Math.max(0, payout - cleaningFee);
-    const ownerAccommodationWithoutExtra = Math.max(0, baseAccommodation - Math.round(baseAccommodation * adminRate));
+    const ownerAccommodationWithoutExtra = roundToTwoDecimals(Math.max(0, baseAccommodation - (baseAccommodation * adminRate)));
     const nights = Number(b.number_of_nights) || 0;
     const nightly_rate =
-      nights > 0 ? Math.round(ownerAccommodationWithoutExtra / nights) : Number(b.nightly_rate) || 0;
+      nights > 0 ? roundToTwoDecimals(ownerAccommodationWithoutExtra / nights) : Number(b.nightly_rate) || 0;
 
     return {
       ...b,

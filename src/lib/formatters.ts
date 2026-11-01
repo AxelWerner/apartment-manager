@@ -21,27 +21,67 @@ export function formatCOP(amount: number | null | undefined, includeCurrencySuff
 }
 
 /**
+ * Round a numeric amount to 2 decimal places to prevent floating-point precision issues:
+ * e.g., 123.456 -> 123.46, 123.454 -> 123.45
+ */
+export function roundToTwoDecimals(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+/**
  * Parse a formatted COP string back into raw number:
  * e.g., "$ 1.500.000,00" -> 1500000
+ * e.g., "$ 1.500.000,50" -> 1500000.5
  * e.g., "$ 1.500.000" -> 1500000
  */
 export function parseCOP(value: string | number): number {
-  if (typeof value === 'number') return value;
+  if (typeof value === 'number') return roundToTwoDecimals(value);
   const trimmed = value.trim();
   if (!trimmed) return 0;
+
+  // Handle both European (1.500.000,50) and US (1,500,000.50)
+  if (trimmed.includes('.') && trimmed.includes(',')) {
+    const lastDot = trimmed.lastIndexOf('.');
+    const lastComma = trimmed.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      // European: dots thousand, comma decimal
+      const cleanInt = trimmed.slice(0, lastComma).replace(/\D/g, '') || '0';
+      const cleanDec = trimmed.slice(lastComma + 1).replace(/\D/g, '').slice(0, 2);
+      const num = parseFloat(`${cleanInt}.${cleanDec}`);
+      return isNaN(num) ? 0 : roundToTwoDecimals(num);
+    } else {
+      // US: commas thousand, dot decimal
+      const cleanInt = trimmed.slice(0, lastDot).replace(/\D/g, '') || '0';
+      const cleanDec = trimmed.slice(lastDot + 1).replace(/\D/g, '').slice(0, 2);
+      const num = parseFloat(`${cleanInt}.${cleanDec}`);
+      return isNaN(num) ? 0 : roundToTwoDecimals(num);
+    }
+  }
 
   // Handle decimal comma if present, e.g. "1.500.000,50" -> 1500000.5
   if (trimmed.includes(',')) {
     const [intPart, decPart] = trimmed.split(',');
     const cleanInt = intPart.replace(/\D/g, '') || '0';
-    const cleanDec = decPart.replace(/\D/g, '');
+    const cleanDec = decPart.replace(/\D/g, '').slice(0, 2);
     const num = parseFloat(`${cleanInt}.${cleanDec}`);
-    return isNaN(num) ? 0 : num;
+    return isNaN(num) ? 0 : roundToTwoDecimals(num);
+  }
+
+  // Handle decimal dot if 1-2 decimals, e.g. "1500.50"
+  if (trimmed.includes('.')) {
+    const parts = trimmed.split('.');
+    if (parts.length === 2 && parts[1].replace(/\D/g, '').length <= 2) {
+      const cleanInt = parts[0].replace(/\D/g, '') || '0';
+      const cleanDec = parts[1].replace(/\D/g, '').slice(0, 2);
+      const num = parseFloat(`${cleanInt}.${cleanDec}`);
+      return isNaN(num) ? 0 : roundToTwoDecimals(num);
+    }
   }
 
   const digits = trimmed.replace(/\D/g, '');
   return digits ? parseInt(digits, 10) : 0;
 }
+
 
 /**
  * Format ISO date string into readable Spanish date:
@@ -249,23 +289,24 @@ export function isAirbnbBooking(sourceOrBooking?: string | null | { source?: str
   * Calculate net amount attributable to the owner for a booking (net_payout minus cleaning fee plus extra_amount times owner share).
   */
 export function getOwnerNet(b: Booking): number {
-  if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
+  if (b.owner_payout !== undefined && b.owner_payout !== null) return roundToTwoDecimals(Number(b.owner_payout));
   const extra = Number(b.extra_amount) || 0;
   const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
   const rate = getBookingSourceInfo(b.source).ownerRate;
-  return Math.round(accommodation * rate);
+  return roundToTwoDecimals(accommodation * rate);
 }
 
 /**
   * Calculate management fee for a booking.
   */
 export function getManagementFee(b: Booking): number {
-  if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
+  if (b.management_fee !== undefined && b.management_fee !== null) return roundToTwoDecimals(Number(b.management_fee));
   const extra = Number(b.extra_amount) || 0;
   const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
   const rate = getBookingSourceInfo(b.source).commissionRate;
-  return Math.round(accommodation * rate);
+  return roundToTwoDecimals(accommodation * rate);
 }
+
 
 /**
  * Get current date and time components in Colombia timezone (America/Bogota, UTC-5).

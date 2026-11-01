@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   formatCOP,
   parseCOP,
+  roundToTwoDecimals,
+  getOwnerNet,
+  getManagementFee,
   formatDate,
   formatMonthYear,
   resolveBookingStatus,
@@ -19,11 +22,25 @@ import {
 } from './formatters';
 
 describe('formatters', () => {
+  describe('roundToTwoDecimals', () => {
+    it('rounds floats correctly to 2 decimal places without binary precision artifacts', () => {
+      expect(roundToTwoDecimals(123.456)).toBe(123.46);
+      expect(roundToTwoDecimals(123.454)).toBe(123.45);
+      expect(roundToTwoDecimals(0.1 + 0.2)).toBe(0.3);
+      expect(roundToTwoDecimals(71992.684)).toBe(71992.68);
+    });
+  });
+
   describe('formatCOP', () => {
     it('formats numbers into Colombian Pesos with 2 decimal places', () => {
       const result = formatCOP(1500000);
       // In es-CO, formatting is $ 1.500.000,00 or includes non-breaking space
       expect(result).toMatch(/\$?\s?1\.500\.000,00/);
+    });
+
+    it('formats exact decimals into Colombian Pesos', () => {
+      const result = formatCOP(1500000.75);
+      expect(result).toMatch(/\$?\s?1\.500\.000,75/);
     });
 
     it('appends COP suffix when includeCurrencySuffix is true', () => {
@@ -52,8 +69,15 @@ describe('formatters', () => {
       expect(parseCOP('2.800.000 COP')).toBe(2800000);
     });
 
+    it('extracts decimals correctly from European and US formatted currency strings', () => {
+      expect(parseCOP('1.250.000,75')).toBe(1250000.75);
+      expect(parseCOP('1,250,000.75')).toBe(1250000.75);
+      expect(parseCOP('71.992,68')).toBe(71992.68);
+    });
+
     it('returns the number unchanged if already a number', () => {
       expect(parseCOP(50000)).toBe(50000);
+      expect(parseCOP(50000.25)).toBe(50000.25);
     });
 
     it('returns 0 for empty or non-numeric strings', () => {
@@ -61,6 +85,35 @@ describe('formatters', () => {
       expect(parseCOP('abc')).toBe(0);
     });
   });
+
+  describe('getOwnerNet & getManagementFee', () => {
+    it('preserves exact decimals if owner_payout and management_fee are stored', () => {
+      const b: any = {
+        net_payout: 1000000.75,
+        cleaning_fee_collected: 80000,
+        owner_payout: 736000.6,
+        management_fee: 184000.15,
+        source: 'airbnb',
+      };
+      expect(getOwnerNet(b)).toBe(736000.6);
+      expect(getManagementFee(b)).toBe(184000.15);
+    });
+
+    it('calculates 2-decimal owner share and management fee when not stored', () => {
+      // Accommodation = 1000000.75 - 80000 = 920000.75
+      // Airbnb rate = 80% owner, 20% admin
+      // 920000.75 * 0.8 = 736000.6
+      // 920000.75 * 0.2 = 184000.15
+      const b: any = {
+        net_payout: 1000000.75,
+        cleaning_fee_collected: 80000,
+        source: 'airbnb',
+      };
+      expect(getOwnerNet(b)).toBe(736000.6);
+      expect(getManagementFee(b)).toBe(184000.15);
+    });
+  });
+
 
   describe('formatDate', () => {
     it('formats ISO date string into readable Spanish format', () => {

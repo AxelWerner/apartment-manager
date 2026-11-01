@@ -43,6 +43,7 @@ import {
   calculateUniqueStays,
   getOwnerNet,
   getManagementFee,
+  roundToTwoDecimals,
 } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
@@ -176,7 +177,7 @@ export default function Bookings() {
       const getRate = (item: Booking) => {
         if (Number(item.number_of_nights) <= 0) return Number(item.nightly_rate) || 0;
         const ownerNet = getOwnerNet(item);
-        return Math.round(ownerNet / Number(item.number_of_nights));
+        return roundToTwoDecimals(ownerNet / Number(item.number_of_nights));
       };
       cmp = getRate(a) - getRate(b);
     } else if (sortField === 'net_payout') {
@@ -246,12 +247,12 @@ export default function Bookings() {
       }
       group.bookings.push(b);
       const ownerNet = getOwnerNet(b);
-      group.totalOwnerNet += ownerNet;
+      group.totalOwnerNet = roundToTwoDecimals(group.totalOwnerNet + ownerNet);
       if (b.status !== 'cancelled') {
         if (isBookingReal(b, colDateStr)) {
-          group.realOwnerNet += ownerNet;
+          group.realOwnerNet = roundToTwoDecimals(group.realOwnerNet + ownerNet);
         } else if (isBookingFuture(b, colDateStr)) {
-          group.futureOwnerNet += ownerNet;
+          group.futureOwnerNet = roundToTwoDecimals(group.futureOwnerNet + ownerNet);
         }
       }
     });
@@ -297,24 +298,24 @@ export default function Bookings() {
   );
 
   const realOwnerPayout = useMemo(
-    () => realBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0),
+    () => roundToTwoDecimals(realBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0)),
     [realBookingsList]
   );
   const futureOwnerPayout = useMemo(
-    () => futureBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0),
+    () => roundToTwoDecimals(futureBookingsList.reduce((sum, b) => sum + getOwnerNet(b), 0)),
     [futureBookingsList]
   );
-  const totalOwnerPayout = realOwnerPayout + futureOwnerPayout;
+  const totalOwnerPayout = roundToTwoDecimals(realOwnerPayout + futureOwnerPayout);
 
   const realManagementFee = useMemo(
-    () => realBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0),
+    () => roundToTwoDecimals(realBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0)),
     [realBookingsList]
   );
   const futureManagementFee = useMemo(
-    () => futureBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0),
+    () => roundToTwoDecimals(futureBookingsList.reduce((sum, b) => sum + getManagementFee(b), 0)),
     [futureBookingsList]
   );
-  const totalManagementFee = realManagementFee + futureManagementFee;
+  const totalManagementFee = roundToTwoDecimals(realManagementFee + futureManagementFee);
 
   const realNights = useMemo(
     () => calculateUniqueBookedNights(realBookingsList),
@@ -858,7 +859,7 @@ export default function Bookings() {
                     const sourceInfo = getBookingSourceInfo(b.source);
                     const ownerNet = getOwnerNet(b);
                     const realNightlyRate =
-                      b.number_of_nights > 0 ? Math.round(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
+                      b.number_of_nights > 0 ? roundToTwoDecimals(ownerNet / Number(b.number_of_nights)) : b.nightly_rate;
                     const isBreakdown = isRowInBreakdownMode(b.id);
                     const bruto = Number(b.net_payout) || 0;
                     const aseo = Number(b.cleaning_fee_collected) || 0;

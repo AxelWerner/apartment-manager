@@ -2,7 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { supabase } from '../supabase';
 import { calculateMonthAnalytics } from '../analytics-utils';
-import { getBookingSourceInfo, formatMonthYear, resolveBookingStatus } from '../formatters';
+import { formatMonthYear, resolveBookingStatus, getOwnerNet, getManagementFee, roundToTwoDecimals } from '../formatters';
 import type { Booking, Expense, Property } from '../../types/database';
 
 export interface FinancialStatsResult {
@@ -167,32 +167,21 @@ export async function fetchMonthlyFinancialData(params: {
     grossTotal += Number(b.gross_amount) || 0;
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
-
-    const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-          getBookingSourceInfo(b.source).ownerRate
-        );
-    ownerPayout += op;
-
-    const mf =
-      b.management_fee !== undefined && b.management_fee !== null
-        ? Number(b.management_fee)
-        : Math.round(
-          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-          getBookingSourceInfo(b.source).commissionRate
-        );
-    managementFee += mf;
+    ownerPayout += getOwnerNet(b);
+    managementFee += getManagementFee(b);
   }
+
+  grossTotal = roundToTwoDecimals(grossTotal);
+  platformNetPayout = roundToTwoDecimals(platformNetPayout);
+  cleaningFeeCollected = roundToTwoDecimals(cleaningFeeCollected);
+  ownerPayout = roundToTwoDecimals(ownerPayout);
+  managementFee = roundToTwoDecimals(managementFee);
 
   // Accommodation revenue: prefer exact bookings sum; fallback to daily calculated rate
   const accommodationRevenue =
     ownerPayout + managementFee > 0
-      ? ownerPayout + managementFee
-      : analytics.totalAccommodationRevenue || 0;
+      ? roundToTwoDecimals(ownerPayout + managementFee)
+      : roundToTwoDecimals(analytics.totalAccommodationRevenue || 0);
 
   // 3. Fetch Expenses for the property
   let allExpenses: Expense[] = [];
@@ -406,35 +395,23 @@ export async function fetchAnnualFinancialData(params: {
     grossTotal += Number(b.gross_amount) || 0;
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
-
-    const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-          getBookingSourceInfo(b.source).ownerRate
-        );
-    ownerPayout += op;
-
-    const mf =
-      b.management_fee !== undefined && b.management_fee !== null
-        ? Number(b.management_fee)
-        : Math.round(
-          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-          getBookingSourceInfo(b.source).commissionRate
-        );
-    managementFee += mf;
+    ownerPayout += getOwnerNet(b);
+    managementFee += getManagementFee(b);
   }
 
-  const accommodationRevenue = ownerPayout + managementFee;
+  grossTotal = roundToTwoDecimals(grossTotal);
+  platformNetPayout = roundToTwoDecimals(platformNetPayout);
+  cleaningFeeCollected = roundToTwoDecimals(cleaningFeeCollected);
+  ownerPayout = roundToTwoDecimals(ownerPayout);
+  managementFee = roundToTwoDecimals(managementFee);
+  const accommodationRevenue = roundToTwoDecimals(ownerPayout + managementFee);
 
   const yearExpenses = allExpenses.filter((e) => {
     return e.billing_month ? e.billing_month.startsWith(yearPrefix) : Boolean(e.date && e.date.startsWith(yearPrefix));
   });
 
-  const totalExpenses = yearExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  const ownerNetProfit = ownerPayout - totalExpenses;
+  const totalExpenses = roundToTwoDecimals(yearExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0));
+  const ownerNetProfit = roundToTwoDecimals(ownerPayout - totalExpenses);
   const netProfit = ownerNetProfit;
 
   // Monthly breakdown for all 12 months
@@ -449,18 +426,8 @@ export async function fetchAnnualFinancialData(params: {
       e.billing_month ? e.billing_month === monthKey : Boolean(e.date && e.date.startsWith(monthKey))
     );
 
-    const mGross = mBookings.reduce((s, b) => s + (Number(b.gross_amount) || 0), 0);
-    const mOwner = mBookings.reduce((s, b) => {
-      return (
-        s +
-        (b.owner_payout !== undefined && b.owner_payout !== null
-          ? Number(b.owner_payout)
-          : Math.round(
-            Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) *
-            getBookingSourceInfo(b.source).ownerRate
-          ))
-      );
-    }, 0);
+    const mGross = roundToTwoDecimals(mBookings.reduce((s, b) => s + (Number(b.gross_amount) || 0), 0));
+    const mOwner = roundToTwoDecimals(mBookings.reduce((s, b) => s + getOwnerNet(b), 0));
     const mExp = mExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
     const mAnalytics = calculateMonthAnalytics(allBookings, monthKey);
     totalOccupiedNights += mAnalytics.occupiedNights;

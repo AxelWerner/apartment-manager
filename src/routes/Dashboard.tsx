@@ -37,7 +37,6 @@ import {
   CATEGORY_LABELS,
   resolveBookingStatus,
   getColombiaDateTime,
-  getBookingSourceInfo,
   isBookingReal,
   isBookingFuture,
   isExpenseReal,
@@ -45,6 +44,8 @@ import {
   isSameStay,
   calculateUniqueBookedNights,
   calculateUniqueStays,
+  getOwnerNet,
+  getManagementFee,
 } from '@/lib/formatters';
 import type { Booking } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
@@ -131,22 +132,9 @@ export default function Dashboard() {
     return { filteredBookings: bList, filteredExpenses: eList, totalExpenses: calculatedTotal };
   }, [bookings, expenses, timeRange, currentMonthStr, nextMonthStr, lastMonthStr, currentYear, colDateStr]);
 
-  // Aggregate helpers
-  const getBookingMgmtFee = (b: Booking) => {
-    if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
-    const extra = Number(b.extra_amount) || 0;
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
-    const rate = getBookingSourceInfo(b.source).commissionRate;
-    return Math.round(accommodation * rate);
-  };
-
-  const getBookingOwnerPayout = (b: Booking) => {
-    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
-    const extra = Number(b.extra_amount) || 0;
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
-    const rate = getBookingSourceInfo(b.source).ownerRate;
-    return Math.round(accommodation * rate);
-  };
+  // Aggregate helpers using shared 2-decimal formatters
+  const getBookingMgmtFee = getManagementFee;
+  const getBookingOwnerPayout = getOwnerNet;
 
   // Real vs Future breakdown for the period
   const realBookings = useMemo(

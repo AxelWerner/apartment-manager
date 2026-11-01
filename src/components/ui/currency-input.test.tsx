@@ -66,4 +66,41 @@ describe('CurrencyInput Component', () => {
     expect(input).toHaveClass('pr-28');
     expect(input).toHaveClass('text-left');
   });
+
+  describe('allowDecimals mode', () => {
+    it('formats initial value with 2 decimals when present', () => {
+      render(<CurrencyInput value={1500000.75} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+      expect(input.value).toBe('1.500.000,75');
+    });
+
+    it('allows typing decimals with comma separator and calls onChange with float', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '1500,5');
+      expect(input.value).toBe('1.500,5');
+      expect(handleChange).toHaveBeenLastCalledWith(1500.5);
+
+      await user.type(input, '5');
+      expect(input.value).toBe('1.500,55');
+      expect(handleChange).toHaveBeenLastCalledWith(1500.55);
+    });
+
+    it('allows typing decimals with dot separator converting to comma and calls onChange with float', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '250.75');
+      expect(input.value).toBe('250,75');
+      expect(handleChange).toHaveBeenLastCalledWith(250.75);
+    });
+  });
 });
+
