@@ -37,7 +37,6 @@ import {
   CATEGORY_LABELS,
   resolveBookingStatus,
   getColombiaDateTime,
-  getBookingSourceInfo,
   getManagementFee,
   getOwnerNet,
   isBookingReal,
