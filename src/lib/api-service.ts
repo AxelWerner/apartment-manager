@@ -128,6 +128,7 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
 
     const sourceInfo = getBookingSourceInfo(b.source);
     const adminRate = sourceInfo.commissionRate;
+    const ownerRate = sourceInfo.ownerRate;
 
     const management_fee =
       b.management_fee !== undefined && b.management_fee !== null

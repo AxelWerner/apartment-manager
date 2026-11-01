@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Target, Trophy, TrendingUp, CalendarDays, Pencil, Sparkles, CheckCircle2 } from 'lucide-react';
-import { formatCOP, formatMonthYear, getOwnerNet } from '@/lib/formatters';
+import { formatCOP, formatMonthYear, getBookingSourceInfo, getOwnerNet } from '@/lib/formatters';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Modal } from '@/components/ui/modal';
 import { useUpdateProperty } from '@/hooks/use-property';
