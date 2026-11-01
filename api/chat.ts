@@ -250,23 +250,18 @@ async function fetchMonthlyFinancialData(params: {
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
     const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
-    ownerPayout += op;
-
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
     const mf =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
+        : Math.floor(accommodation * getBookingSourceInfo(b.source).commissionRate);
     managementFee += mf;
+
+    const op =
+      b.owner_payout !== undefined && b.owner_payout !== null
+        ? Number(b.owner_payout)
+        : Math.max(0, accommodation - mf);
+    ownerPayout += op;
   }
 
   const accommodationRevenue = ownerPayout + managementFee;
@@ -439,23 +434,18 @@ async function fetchAnnualFinancialData(params: { year: number; propertyId?: str
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
     const extra = Number(b.extra_amount) || 0;
-    const op =
-      b.owner_payout !== undefined && b.owner_payout !== null
-        ? Number(b.owner_payout)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).ownerRate
-          );
-    ownerPayout += op;
-
+    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
     const mf =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
-        : Math.round(
-            (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
-              getBookingSourceInfo(b.source).commissionRate
-          );
+        : Math.floor(accommodation * getBookingSourceInfo(b.source).commissionRate);
     managementFee += mf;
+
+    const op =
+      b.owner_payout !== undefined && b.owner_payout !== null
+        ? Number(b.owner_payout)
+        : Math.max(0, accommodation - mf);
+    ownerPayout += op;
   }
 
   const yearExpenses = allExpenses.filter((e) =>

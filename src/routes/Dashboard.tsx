@@ -38,6 +38,8 @@ import {
   resolveBookingStatus,
   getColombiaDateTime,
   getBookingSourceInfo,
+  getManagementFee,
+  getOwnerNet,
   isBookingReal,
   isBookingFuture,
   isExpenseReal,
@@ -132,21 +134,8 @@ export default function Dashboard() {
   }, [bookings, expenses, timeRange, currentMonthStr, nextMonthStr, lastMonthStr, currentYear, colDateStr]);
 
   // Aggregate helpers
-  const getBookingMgmtFee = (b: Booking) => {
-    if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
-    const extra = Number(b.extra_amount) || 0;
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
-    const rate = getBookingSourceInfo(b.source).commissionRate;
-    return Math.round(accommodation * rate);
-  };
-
-  const getBookingOwnerPayout = (b: Booking) => {
-    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
-    const extra = Number(b.extra_amount) || 0;
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
-    const rate = getBookingSourceInfo(b.source).ownerRate;
-    return Math.round(accommodation * rate);
-  };
+  const getBookingMgmtFee = (b: Booking) => getManagementFee(b);
+  const getBookingOwnerPayout = (b: Booking) => getOwnerNet(b);
 
   // Real vs Future breakdown for the period
   const realBookings = useMemo(

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Target, Trophy, TrendingUp, CalendarDays, Pencil, Sparkles, CheckCircle2 } from 'lucide-react';
-import { formatCOP, formatMonthYear, getBookingSourceInfo } from '@/lib/formatters';
+import { formatCOP, formatMonthYear, getBookingSourceInfo, getOwnerNet } from '@/lib/formatters';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Modal } from '@/components/ui/modal';
 import { useUpdateProperty } from '@/hooks/use-property';
@@ -28,12 +28,7 @@ export function RevenueGoalCard({
 
   const annualGoal = monthlyGoal * 12; // 36.000.000 COP por defecto
 
-  const getOwnerRevenue = (b: Booking) => {
-    if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
-    const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0));
-    const rate = getBookingSourceInfo(b.source).ownerRate;
-    return Math.round(accommodation * rate);
-  };
+  const getOwnerRevenue = (b: Booking) => getOwnerNet(b);
 
   // Current Month Bookings and Revenue (filtered by check_in in currentMonthStr, excluding cancelled)
   const thisMonthBookings = bookings.filter(
