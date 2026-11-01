@@ -252,21 +252,19 @@ export function getOwnerNet(b: Booking): number {
   if (b.owner_payout !== undefined && b.owner_payout !== null) return Number(b.owner_payout);
   const extra = Number(b.extra_amount) || 0;
   const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
-  const rate = getBookingSourceInfo(b.source).commissionRate;
-  const managementFee = Math.floor(accommodation * rate);
-  return Math.max(0, accommodation - managementFee);
+  const rate = getBookingSourceInfo(b.source).ownerRate;
+  return Math.round(accommodation * rate);
 }
 
 /**
   * Calculate management fee for a booking.
-  * If the value contains decimals, it is rounded down (Math.floor).
   */
 export function getManagementFee(b: Booking): number {
   if (b.management_fee !== undefined && b.management_fee !== null) return Number(b.management_fee);
   const extra = Number(b.extra_amount) || 0;
   const accommodation = Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra;
   const rate = getBookingSourceInfo(b.source).commissionRate;
-  return Math.floor(accommodation * rate);
+  return Math.round(accommodation * rate);
 }
 
 /**

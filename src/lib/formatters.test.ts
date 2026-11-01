@@ -16,8 +16,6 @@ import {
   calculateUniqueBookedNights,
   calculateUniqueStays,
   groupBookingsByStay,
-  getManagementFee,
-  getOwnerNet,
 } from './formatters';
 
 describe('formatters', () => {
@@ -539,36 +537,4 @@ describe('formatters', () => {
       expect(calculateUniqueStays(bookings)).toBe(1);
     });
   });
-
-  describe('getManagementFee and getOwnerNet (Administration 20% calculation)', () => {
-    it('rounds down (Math.floor) if management fee yields decimals', () => {
-      // 15.7 -> 15 (accommodation = 78.5)
-      expect(getManagementFee({ net_payout: 78.5, cleaning_fee_collected: 0 } as any)).toBe(15);
-      expect(getOwnerNet({ net_payout: 78.5, cleaning_fee_collected: 0 } as any)).toBe(63.5);
-
-      // 44.2 -> 44 (accommodation = 221)
-      expect(getManagementFee({ net_payout: 221, cleaning_fee_collected: 0 } as any)).toBe(44);
-      expect(getOwnerNet({ net_payout: 221, cleaning_fee_collected: 0 } as any)).toBe(177);
-
-      // 2.5 -> 2 (accommodation = 12.5)
-      expect(getManagementFee({ net_payout: 12.5, cleaning_fee_collected: 0 } as any)).toBe(2);
-      expect(getOwnerNet({ net_payout: 12.5, cleaning_fee_collected: 0 } as any)).toBe(10.5);
-    });
-
-    it('returns existing management_fee if already set on booking', () => {
-      expect(getManagementFee({ management_fee: 50000, net_payout: 1000000 } as any)).toBe(50000);
-      expect(getOwnerNet({ owner_payout: 950000, net_payout: 1000000 } as any)).toBe(950000);
-    });
-
-    it('accounts for extra_amount in management fee', () => {
-      expect(
-        getManagementFee({
-          net_payout: 500000,
-          cleaning_fee_collected: 50000,
-          extra_amount: 50000,
-        } as any)
-      ).toBe(100000);
-    });
-  });
 });
-

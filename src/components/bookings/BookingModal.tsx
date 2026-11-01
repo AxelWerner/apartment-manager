@@ -112,10 +112,10 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
   // Deducir el aseo al pago recibido antes de calcular la comisión de administradora (10% directa 10%, 20% Airbnb, 25% directa 25%)
   // Los cobros extras (ej. 50.000 COP por horas extra) se desglosan con la misma tasa comisionable
   const baseAccommodationBeforeExtra = Math.max(0, effectiveNetPayout - cleaningFee);
-  const baseManagementFee = Math.floor(baseAccommodationBeforeExtra * adminCommissionRate);
+  const baseManagementFee = Math.round(baseAccommodationBeforeExtra * adminCommissionRate);
   const baseOwnerIncome = Math.max(0, baseAccommodationBeforeExtra - baseManagementFee);
 
-  const extraManagementFee = Math.floor(numericExtraAmount * adminCommissionRate);
+  const extraManagementFee = Math.round(numericExtraAmount * adminCommissionRate);
   const extraOwnerIncome = Math.max(0, numericExtraAmount - extraManagementFee);
 
   const effectiveManagementFee = baseManagementFee + extraManagementFee;

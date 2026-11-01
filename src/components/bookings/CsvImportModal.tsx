@@ -222,7 +222,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
             }
 
             const accommodationBase = Math.max(0, payout - cleanFee);
-            const managementFee = Math.floor(accommodationBase * 0.20);
+            const managementFee = Math.round(accommodationBase * 0.20);
             const ownerAccommodation = Math.max(0, accommodationBase - managementFee);
             const ownerPayout = ownerAccommodation;
             const rate = Math.round(ownerAccommodation / validNights);

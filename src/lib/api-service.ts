@@ -133,15 +133,15 @@ function syncBookingStatuses(bookings: Booking[]): Booking[] {
     const management_fee =
       b.management_fee !== undefined && b.management_fee !== null
         ? Number(b.management_fee)
-        : Math.floor(accommodationBase * adminRate);
+        : Math.round(accommodationBase * adminRate);
 
     const owner_payout =
       b.owner_payout !== undefined && b.owner_payout !== null
         ? Number(b.owner_payout)
-        : Math.max(0, accommodationBase - management_fee);
+        : Math.round(accommodationBase * ownerRate);
 
     const baseAccommodation = Math.max(0, payout - cleaningFee);
-    const ownerAccommodationWithoutExtra = Math.max(0, baseAccommodation - Math.floor(baseAccommodation * adminRate));
+    const ownerAccommodationWithoutExtra = Math.max(0, baseAccommodation - Math.round(baseAccommodation * adminRate));
     const nights = Number(b.number_of_nights) || 0;
     const nightly_rate =
       nights > 0 ? Math.round(ownerAccommodationWithoutExtra / nights) : Number(b.nightly_rate) || 0;

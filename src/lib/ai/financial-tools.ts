@@ -2,7 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { supabase } from '../supabase';
 import { calculateMonthAnalytics } from '../analytics-utils';
-import { getBookingSourceInfo, formatMonthYear, resolveBookingStatus, getManagementFee, getOwnerNet } from '../formatters';
+import { getBookingSourceInfo, formatMonthYear, resolveBookingStatus } from '../formatters';
 import type { Booking, Expense, Property } from '../../types/database';
 
 export interface FinancialStatsResult {
@@ -168,10 +168,23 @@ export async function fetchMonthlyFinancialData(params: {
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
-    const op = getOwnerNet(b);
+    const extra = Number(b.extra_amount) || 0;
+    const op =
+      b.owner_payout !== undefined && b.owner_payout !== null
+        ? Number(b.owner_payout)
+        : Math.round(
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
+          getBookingSourceInfo(b.source).ownerRate
+        );
     ownerPayout += op;
 
-    const mf = getManagementFee(b);
+    const mf =
+      b.management_fee !== undefined && b.management_fee !== null
+        ? Number(b.management_fee)
+        : Math.round(
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
+          getBookingSourceInfo(b.source).commissionRate
+        );
     managementFee += mf;
   }
 
@@ -394,10 +407,23 @@ export async function fetchAnnualFinancialData(params: {
     platformNetPayout += Number(b.net_payout) || 0;
     cleaningFeeCollected += Number(b.cleaning_fee_collected) || 0;
 
-    const op = getOwnerNet(b);
+    const extra = Number(b.extra_amount) || 0;
+    const op =
+      b.owner_payout !== undefined && b.owner_payout !== null
+        ? Number(b.owner_payout)
+        : Math.round(
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
+          getBookingSourceInfo(b.source).ownerRate
+        );
     ownerPayout += op;
 
-    const mf = getManagementFee(b);
+    const mf =
+      b.management_fee !== undefined && b.management_fee !== null
+        ? Number(b.management_fee)
+        : Math.round(
+          (Math.max(0, (Number(b.net_payout) || 0) - (Number(b.cleaning_fee_collected) || 0)) + extra) *
+          getBookingSourceInfo(b.source).commissionRate
+        );
     managementFee += mf;
   }
 
