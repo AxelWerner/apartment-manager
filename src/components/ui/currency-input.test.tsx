@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -100,6 +101,90 @@ describe('CurrencyInput Component', () => {
       await user.type(input, '250.75');
       expect(input.value).toBe('250,75');
       expect(handleChange).toHaveBeenLastCalledWith(250.75);
+    });
+
+    it('correctly types 50000 without turning thousand separator dot into decimal point', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '50000');
+      expect(input.value).toBe('50.000');
+      expect(handleChange).toHaveBeenLastCalledWith(50000);
+    });
+
+    it('correctly types 50000,5 and 50000.50 with thousand dot and decimal comma', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '50000,5');
+      expect(input.value).toBe('50.000,5');
+      expect(handleChange).toHaveBeenLastCalledWith(50000.5);
+    });
+
+    it('correctly handles backspacing from 50.000 to 5.000', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '50000');
+      expect(input.value).toBe('50.000');
+      expect(handleChange).toHaveBeenLastCalledWith(50000);
+
+      await user.type(input, '{Backspace}');
+      expect(input.value).toBe('5.000');
+      expect(handleChange).toHaveBeenLastCalledWith(5000);
+    });
+
+    it('handles controlled component when typing 22222', async () => {
+      const user = userEvent.setup();
+      function ControlledWrapper() {
+        const [val, setVal] = useState<number>(0);
+        return <CurrencyInput value={val} onChange={setVal} allowDecimals placeholder="Monto" />;
+      }
+
+      render(<ControlledWrapper />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.clear(input);
+      await user.type(input, '22222');
+      expect(input.value).toBe('22.222');
+    });
+
+    it('types 2222 (shows 2.222) and adding 5th digit 2 shows 22.222 without converting to 2,22', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.type(input, '2222');
+      expect(input.value).toBe('2.222');
+      expect(handleChange).toHaveBeenLastCalledWith(2222);
+
+      await user.type(input, '2');
+      expect(input.value).toBe('22.222');
+      expect(handleChange).toHaveBeenLastCalledWith(22222);
+    });
+
+    it('handles pasting US format decimal 250.75 and 50000.50 via clipboard', async () => {
+      const user = userEvent.setup();
+      const handleChange = vi.fn();
+
+      render(<CurrencyInput onChange={handleChange} allowDecimals placeholder="Monto" />);
+      const input = screen.getByPlaceholderText('Monto') as HTMLInputElement;
+
+      await user.click(input);
+      await user.paste('50000.50');
+      expect(input.value).toBe('50.000,50');
+      expect(handleChange).toHaveBeenLastCalledWith(50000.5);
     });
   });
 });

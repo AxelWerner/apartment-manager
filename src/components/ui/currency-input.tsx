@@ -33,14 +33,12 @@ function parseValueFromDisplay(displayStr: string, allowDecimals?: boolean): num
   if (!allowDecimals) {
     return parseDigits(displayStr);
   }
-  // In allowDecimals mode, allow comma or dot as decimal separator
-  const lastComma = displayStr.lastIndexOf(",");
-  const lastDot = displayStr.lastIndexOf(".");
-  const decSepIndex = Math.max(lastComma, lastDot);
-
-  if (decSepIndex !== -1) {
-    const rawInt = displayStr.slice(0, decSepIndex).replace(/\D/g, "") || "0";
-    const rawDec = displayStr.slice(decSepIndex + 1).replace(/\D/g, "").slice(0, 2);
+  // In Colombian format, comma ',' is the decimal separator.
+  // Dot '.' is strictly the thousand separator.
+  const commaIndex = displayStr.indexOf(",");
+  if (commaIndex !== -1) {
+    const rawInt = displayStr.slice(0, commaIndex).replace(/\D/g, "") || "0";
+    const rawDec = displayStr.slice(commaIndex + 1).replace(/\D/g, "").slice(0, 2);
     const num = parseFloat(`${rawInt}.${rawDec}`);
     return isNaN(num) ? 0 : Math.round((num + Number.EPSILON) * 100) / 100;
   }
@@ -83,6 +81,54 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
       }
     }, [value, allowDecimals]);
 
+    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+      if (!allowDecimals) return;
+
+      // If user presses '.' on physical or numpad keyboard, convert it to ','
+      if (e.key === ".") {
+        e.preventDefault();
+        const input = e.currentTarget;
+        const currentVal = input.value;
+
+        // If comma already exists, do not add another
+        if (currentVal.includes(",")) return;
+
+        const start = input.selectionStart ?? currentVal.length;
+        const end = input.selectionEnd ?? currentVal.length;
+        const before = currentVal.slice(0, start);
+        const after = currentVal.slice(end);
+
+        const intDigits = before.replace(/\D/g, "");
+        const formattedInt = intDigits ? Number(intDigits).toLocaleString("es-CO") : "0";
+        const decDigits = after.replace(/\D/g, "").slice(0, 2);
+        const nextDisplay = `${formattedInt},${decDigits}`;
+
+        setDisplay(nextDisplay);
+        const numeric = parseValueFromDisplay(nextDisplay, true);
+        onChange?.(numeric);
+      }
+    }
+
+    function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+      if (!allowDecimals) return;
+      const pasted = e.clipboardData.getData("text")?.trim();
+      if (!pasted) return;
+
+      // If pasted a US-formatted decimal like "250.75" or "50000.50" (dot followed by 1-2 digits, no comma)
+      if (!pasted.includes(",") && /\.\d{1,2}$/.test(pasted)) {
+        e.preventDefault();
+        const commaIndex = pasted.lastIndexOf(".");
+        const intPart = pasted.slice(0, commaIndex).replace(/\D/g, "");
+        const decPart = pasted.slice(commaIndex + 1).replace(/\D/g, "").slice(0, 2);
+        const formattedInt = intPart ? Number(intPart).toLocaleString("es-CO") : "0";
+        const nextDisplay = `${formattedInt},${decPart}`;
+
+        setDisplay(nextDisplay);
+        const numeric = parseValueFromDisplay(nextDisplay, true);
+        onChange?.(numeric);
+      }
+    }
+
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
       const raw = e.target.value;
 
@@ -94,16 +140,15 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         return;
       }
 
-      // Allow decimals mode: allow digits and one decimal separator (, or .)
-      const lastComma = raw.lastIndexOf(",");
-      const lastDot = raw.lastIndexOf(".");
-      const hasDecimal = lastComma !== -1 || lastDot !== -1;
-      const decIndex = Math.max(lastComma, lastDot);
-
+      // In allowDecimals mode:
+      // Comma ',' is the ONLY decimal separator in Colombian format.
+      // Dots are strictly thousand grouping separators.
+      const commaIndex = raw.indexOf(",");
       let formatted = "";
-      if (hasDecimal) {
-        const intPart = raw.slice(0, decIndex).replace(/\D/g, "");
-        const decPart = raw.slice(decIndex + 1).replace(/\D/g, "").slice(0, 2);
+
+      if (commaIndex !== -1) {
+        const intPart = raw.slice(0, commaIndex).replace(/\D/g, "");
+        const decPart = raw.slice(commaIndex + 1).replace(/\D/g, "").slice(0, 2);
         const formattedInt = intPart ? Number(intPart).toLocaleString("es-CO") : "0";
         formatted = `${formattedInt},${decPart}`;
       } else {
@@ -127,6 +172,8 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         className={`${className || ""} ${rightLabel ? "pr-28 text-left" : ""}`}
         placeholder={placeholder}
         value={display}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onChange={handleChange}
         onBlur={onBlur}
       />
