@@ -242,6 +242,28 @@ Para cada reserva válida importada:
 - **Arquitectura de Herramientas (Function Calling):** El LLM no calcula balances de cabeza; invoca herramientas deterministas como `getMonthlyFinancials(year, month)` o `getAnnualFinancials(year)` que consultan los datos reales.
 - El modelo interpreta y responde en lenguaje natural claro y conciso con recomendaciones de optimización.
 
+### 10.1 Monitoreo de Infraestructura de Modelos (Servidor Cephei) & Failover
+
+> **Ubicación:** [`src/lib/ai/cephei-models.ts`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/lib/ai/cephei-models.ts), [`scripts/monitor-cephei-models.ts`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/scripts/monitor-cephei-models.ts), [`api/cephei-health.ts`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/api/cephei-health.ts)
+
+- **Catálogo y Disponibilidad:** La aplicación consume modelos LLM desde el servidor propio compatible con OpenAI (`https://cephei.ai/api/v1`). Para evitar interrupciones operativas por caídas o deshabilitación de modelos específicos, se implementa una arquitectura de inspección de salud y fallback dinámico.
+- **Cadena de Contingencia (Fallback Hierarchy):**
+  - **Chat & Agente Financiero:**
+    - Modelo Principal: `galahad.qwen3.6-35b` (o `CUSTOM_LLM_MODEL`).
+    - Cadena de Fallback: `galahad.qwen3.8-flash` ➔ `galahad.qwen3.5-122b` ➔ `qwen3.8:27b-mlx` ➔ `galahad.qwen3-coder` ➔ `nemotron-3.5-super:120b`.
+  - **Visión & Escaneo de Facturas:**
+    - Modelo Principal: `glm-5.3-flash:cloud` (o `CUSTOM_LLM_VISION_MODEL`).
+    - Cadena de Fallback: `glm-5.3:cloud` ➔ `glm-5.2:cloud` ➔ `qwen3.8:27b-mlx` ➔ `nemotron-3.5-super:120b`.
+- **Comando de Monitoreo CLI:**
+  - Ejecución interactiva: `pnpm monitor:cephei`
+  - Ejecución JSON estructurado: `pnpm monitor:cephei -- --json`
+- **Endpoint de Salud Serverless:**
+  - `GET /api/cephei-health`: Retorna estado general (`healthy`, `degraded`, `outage`), modelos activos, alertas y sugerencias de remediación.
+- **Job Programado en Antigravity (`Cephei Models Monitor`):**
+  - Ubicado en `~/.gemini/config/sidecars/cephei-models-monitor/sidecar.json`.
+  - Ejecución horaria (`CRON_TZ=Europe/Berlin 0 * * * *`).
+  - Lanza un agente autónomo que audita el servidor Cephei, detecta si un modelo configurado fue dado de baja y genera una alerta con las acciones requeridas de failover sin esperar a que un usuario experimente un fallo.
+
 ---
 
 ## 11. Protocolo de Actualización de este Manual
