@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef } from "react";
+import { cn } from "@/lib/utils";
 
 function formatWithDots(value: string): string {
   // Remove everything except digits
@@ -169,7 +170,11 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
         inputMode={allowDecimals ? "decimal" : "numeric"}
         disabled={disabled}
         readOnly={readOnly}
-        className={`${className || ""} ${rightLabel ? "pr-28 text-left" : ""}`}
+        className={cn(
+          "w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-rose-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+          rightLabel && "pr-28 text-left"
+        )}
         placeholder={placeholder}
         value={display}
         onKeyDown={handleKeyDown}

@@ -425,7 +425,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                       allowDecimals
                       placeholder="0"
                       rightLabel="Comisión Airbnb"
-                      className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-medium"
+                      className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 text-rose-600 dark:text-rose-400 font-medium"
                     />
                   </div>
                 ) : (
@@ -460,7 +460,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                   allowDecimals
                   placeholder="0"
                   rightLabel={isDirect ? "Pago total" : "Pago neto"}
-                  className="w-full text-left px-3 py-2 text-sm rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 font-bold text-emerald-600 dark:text-emerald-400"
+                  className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium text-slate-900 dark:text-white"
                 />
               </div>
             </div>
@@ -489,7 +489,7 @@ function BookingFormContent({ bookingToEdit, onClose }: BookingFormContentProps)
                     allowDecimals
                     placeholder="0"
                     rightLabel="Valor extra"
-                    className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 font-bold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                    className="w-full text-left px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>

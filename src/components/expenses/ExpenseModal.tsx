@@ -446,6 +446,7 @@ function ExpenseFormContent({
             value={amount}
             onChange={(val) => setAmount(val || 0)}
             placeholder="0"
+            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500 font-medium"
           />
         </div>
 
