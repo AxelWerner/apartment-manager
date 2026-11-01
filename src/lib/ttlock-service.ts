@@ -240,6 +240,7 @@ export async function generateBookingPin(params: GeneratePinParams): Promise<Boo
     const isNetworkOrUrlError =
       apiErr instanceof Error &&
       (apiErr.message.includes('Failed to fetch') ||
+        apiErr.message.includes('fetch failed') ||
         apiErr.message.includes('Failed to parse URL') ||
         apiErr.message.includes('Invalid URL') ||
         apiErr.message.includes('404'));

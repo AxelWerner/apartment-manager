@@ -196,8 +196,8 @@ describe('CsvImportModal Component', () => {
           guest_name: 'Antiguo Huésped',
           guest_phone: null,
           number_of_guests: 2,
-          check_in: '2026-05-01',
-          check_out: '2026-05-04',
+          check_in: '2026-09-01',
+          check_out: '2026-09-04',
           number_of_nights: 3,
           nightly_rate: 100000,
           gross_amount: 360000,
@@ -230,7 +230,7 @@ describe('CsvImportModal Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/Año 2026/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Se borrarán todas las reservas de Airbnb \(1 en la base de datos\)/i)
+        screen.getByText(/Se reemplazarán las reservas de Airbnb de los meses a importar \(1 en la base de datos/i)
       ).toBeInTheDocument();
       expect(screen.getByText(/A borrar en BD \(Airbnb\):/i)).toBeInTheDocument();
     });
@@ -244,7 +244,7 @@ describe('CsvImportModal Component', () => {
       expect(mockMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
-            deleteAllAirbnb: true,
+            deleteMonths: ['2026-09'],
           }),
         })
       );
@@ -254,7 +254,7 @@ describe('CsvImportModal Component', () => {
   it('does NOT mark direct bookings for deletion or update when importing an Airbnb CSV', async () => {
     const user = userEvent.setup();
 
-    // Mock existing bookings: 1 direct booking and 1 airbnb booking
+    // Mock existing bookings: 1 direct booking and 1 airbnb booking in the same month (September)
     const { useBookings } = await import('@/hooks/use-bookings');
     vi.mocked(useBookings).mockReturnValue({
       data: [
@@ -287,8 +287,8 @@ describe('CsvImportModal Component', () => {
           guest_name: 'Antiguo Airbnb',
           guest_phone: null,
           number_of_guests: 2,
-          check_in: '2026-07-01',
-          check_out: '2026-07-04',
+          check_in: '2026-09-01',
+          check_out: '2026-09-04',
           number_of_nights: 3,
           nightly_rate: 100000,
           gross_amount: 360000,
@@ -319,11 +319,110 @@ describe('CsvImportModal Component', () => {
     await user.click(sampleBtn);
 
     await waitFor(() => {
-      // Only 1 booking should be marked for deletion (the old Airbnb booking), NOT the direct booking!
+      // Only 1 booking should be marked for deletion (the old Airbnb booking from September), NOT the direct booking!
       expect(
-        screen.getByText(/Se borrarán todas las reservas de Airbnb \(1 en la base de datos\)/i)
+        screen.getByText(/Se reemplazarán las reservas de Airbnb de los meses a importar \(1 en la base de datos/i)
       ).toBeInTheDocument();
       expect(screen.queryByText(/Huésped Reserva Directa/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('only marks Airbnb bookings for deletion if they belong to the months present in the imported file (e.g. April & June, leaving May untouched)', async () => {
+    const user = userEvent.setup();
+
+    const { useBookings } = await import('@/hooks/use-bookings');
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'b-april',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HM-APRIL',
+          guest_name: 'Huésped Abril',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-04-10',
+          check_out: '2026-04-15',
+          number_of_nights: 5,
+          nightly_rate: 100000,
+          gross_amount: 500000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 450000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-04-10',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          id: 'b-may',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HM-MAY',
+          guest_name: 'Huésped Mayo',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-05-10',
+          check_out: '2026-05-15',
+          number_of_nights: 5,
+          nightly_rate: 100000,
+          gross_amount: 500000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 450000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-05-10',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          id: 'b-june',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HM-JUNE',
+          guest_name: 'Huésped Junio',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-06-10',
+          check_out: '2026-06-15',
+          number_of_nights: 5,
+          nightly_rate: 100000,
+          gross_amount: 500000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 450000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-06-10',
+          source: 'airbnb',
+          notes: null,
+        },
+      ],
+    } as unknown as ReturnType<typeof useBookings>);
+
+    // Import file contains April and June bookings only
+    const sampleCsv = `Datum,Typ,Bestätigungs-Code,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+04/10/2026,Buchung,HM-NEW-APR,04/10/2026,04/12/2026,2,Nuevo Abril,200000,60000,260000,40000
+06/10/2026,Buchung,HM-NEW-JUN,06/10/2026,06/13/2026,3,Nuevo Junio,300000,60000,360000,60000`;
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(sampleCsv),
+    }) as unknown as typeof fetch;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const sampleBtn = screen.getByText(/^airbnb_\.csv$/i);
+    await user.click(sampleBtn);
+
+    await waitFor(() => {
+      // Exactly 2 bookings to delete (April and June), while May is untouched!
+      expect(
+        screen.getByText(/Se reemplazarán las reservas de Airbnb de los meses a importar \(2 en la base de datos/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/A borrar en BD \(Airbnb\):/i)).toBeInTheDocument();
     });
   });
 
@@ -396,7 +495,7 @@ describe('CsvImportModal Component', () => {
     expect(screen.getByText(/Selecciona el archivo de reservas completadas/i)).toBeInTheDocument();
   });
 
-  it('filters reservations by booking date when a previous completed import timestamp exists', async () => {
+  it('imports all reservations from CSV without skipping historical rows regardless of previous timestamp', async () => {
     const user = userEvent.setup();
     // Simulate previous import on 2026-10-01
     localStorage.setItem('apt_mgr_last_import_completed', '2026-10-01T12:00:00.000Z');
@@ -416,20 +515,11 @@ describe('CsvImportModal Component', () => {
     await user.click(sampleBtn);
 
     await waitFor(() => {
-      // The old booking (from Sep 15) should be skipped
-      expect(screen.getByText(/New Booking/i)).toBeInTheDocument();
-      expect(screen.queryByText(/Old Booking/i)).not.toBeInTheDocument();
-      expect(screen.getByText(/Se omitieron/i)).toBeInTheDocument();
-      expect(screen.getByText(/anteriores al último import/i)).toBeInTheDocument();
-    });
-
-    // Clicking "Incluir todas" restores the skipped rows
-    const includeAllBtn = screen.getByRole('button', { name: /Incluir todas \(1\)/i });
-    await user.click(includeAllBtn);
-
-    await waitFor(() => {
+      // Both old and new bookings should be loaded directly without skipping
       expect(screen.getByText(/Old Booking/i)).toBeInTheDocument();
       expect(screen.getByText(/New Booking/i)).toBeInTheDocument();
+      expect(screen.getByText(/Total 2 reservas/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Se omitieron/i)).not.toBeInTheDocument();
     });
   });
 

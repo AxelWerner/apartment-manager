@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Booking } from '@/types/database';
 import {
   formatCOP,
   parseCOP,
@@ -9,6 +10,7 @@ import {
   formatMonthYear,
   resolveBookingStatus,
   getBookingYear,
+  getBookingYearMonth,
   isBookingReal,
   isBookingFuture,
   isExpenseReal,
@@ -88,13 +90,13 @@ describe('formatters', () => {
 
   describe('getOwnerNet & getManagementFee', () => {
     it('preserves exact decimals if owner_payout and management_fee are stored', () => {
-      const b: any = {
+      const b = {
         net_payout: 1000000.75,
         cleaning_fee_collected: 80000,
         owner_payout: 736000.6,
         management_fee: 184000.15,
         source: 'airbnb',
-      };
+      } as unknown as Booking;
       expect(getOwnerNet(b)).toBe(736000.6);
       expect(getManagementFee(b)).toBe(184000.15);
     });
@@ -104,11 +106,11 @@ describe('formatters', () => {
       // Airbnb rate = 80% owner, 20% admin
       // 920000.75 * 0.8 = 736000.6
       // 920000.75 * 0.2 = 184000.15
-      const b: any = {
+      const b = {
         net_payout: 1000000.75,
         cleaning_fee_collected: 80000,
         source: 'airbnb',
-      };
+      } as unknown as Booking;
       expect(getOwnerNet(b)).toBe(736000.6);
       expect(getManagementFee(b)).toBe(184000.15);
     });
@@ -340,6 +342,28 @@ describe('formatters', () => {
       expect(getBookingYear(null)).toBeNull();
       expect(getBookingYear(undefined)).toBeNull();
       expect(getBookingYear('invalid-date')).toBeNull();
+    });
+  });
+
+  describe('getBookingYearMonth', () => {
+    it('extracts year and month (YYYY-MM) from ISO date strings', () => {
+      expect(getBookingYearMonth('2026-04-12')).toBe('2026-04');
+      expect(getBookingYearMonth('2026-06-01')).toBe('2026-06');
+      expect(getBookingYearMonth('2025-12-31')).toBe('2025-12');
+      expect(getBookingYearMonth('2026-1-5')).toBe('2026-01');
+    });
+
+    it('extracts year and month from European or US date strings', () => {
+      expect(getBookingYearMonth('15/04/2026')).toBe('2026-04');
+      expect(getBookingYearMonth('06/20/2026')).toBe('2026-06');
+      expect(getBookingYearMonth('04/10/2026')).toBe('2026-04');
+    });
+
+    it('returns null for empty, missing or invalid strings', () => {
+      expect(getBookingYearMonth('')).toBeNull();
+      expect(getBookingYearMonth(null)).toBeNull();
+      expect(getBookingYearMonth(undefined)).toBeNull();
+      expect(getBookingYearMonth('invalid')).toBeNull();
     });
   });
 

@@ -250,6 +250,15 @@ Consulta la [**Matriz Completa de Roles y Permisos**](file:///Users/axelwerner/D
 
 ---
 
+## 📚 Documentación Técnica & Manual de Sistema
+
+Para consultar la lógica detallada de cada módulo, flujos de importación, integraciones y fórmulas:
+- 📖 [**Manual de Sistema e Instrucciones de la Aplicación**](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/MANUAL_DE_SISTEMA.md)
+- 📐 [**Master Blueprint de Arquitectura**](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/BLUEPRINT.md)
+- 🔐 [**Plan de Integración TTLock**](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/TTLOCK_INTEGRATION_PLAN.md)
+
+---
+
 ## 📄 Licencia
 
 Este proyecto es privado y de uso personal. Todos los derechos reservados.

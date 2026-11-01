@@ -7,7 +7,14 @@ import {
   INITIAL_DAMAGES,
   INITIAL_TEMPLATES,
 } from './mock-data';
-import { resolveBookingStatus, getBookingSourceInfo, getBookingYear, isAirbnbBooking, roundToTwoDecimals } from './formatters';
+import {
+  resolveBookingStatus,
+  getBookingSourceInfo,
+  getBookingYear,
+  getBookingYearMonth,
+  isAirbnbBooking,
+  roundToTwoDecimals,
+} from './formatters';
 
 const STORAGE_KEYS = {
   property: 'apt_mgr_property',
@@ -236,6 +243,7 @@ export interface UpsertBatchOptions {
   syncYear?: string;
   deleteMissing?: boolean;
   deleteAllAirbnb?: boolean;
+  deleteMonths?: string[];
   importMode?: 'completed' | 'pending' | 'legacy';
 }
 
@@ -406,11 +414,13 @@ export async function upsertBookingsBatch(
   // Determine if deletion of existing Airbnb bookings should execute:
   // 1. Explicitly requested via deleteAllAirbnb
   // 2. Completed reservations mode (options?.importMode === 'completed')
-  // 3. Yearly sync requested via syncYear
-  // 4. Legacy mode (!options?.importMode) where batch replaces existing records
+  // 3. Month-scoped deletion via deleteMonths
+  // 4. Yearly sync requested via syncYear
+  // 5. Legacy mode (!options?.importMode) where batch replaces existing records
   const shouldDeleteAirbnb = Boolean(
     options?.deleteAllAirbnb ||
     options?.importMode === 'completed' ||
+    options?.deleteMonths ||
     options?.syncYear ||
     !options?.importMode
   );
@@ -419,9 +429,26 @@ export async function upsertBookingsBatch(
   let remaining = current;
 
   if (shouldDeleteAirbnb) {
+    // If completed mode or deleteMonths specified, derive target months (YYYY-MM)
+    const targetMonths = new Set(
+      options?.deleteMonths ??
+      (options?.importMode === 'completed'
+        ? bookings.map((b) => getBookingYearMonth(b.check_in)).filter((m): m is string => Boolean(m))
+        : [])
+    );
+
     const toDelete = current.filter((b) => {
       if (!isAirbnbBooking(b)) return false;
       if (targetPropId && b.property_id && b.property_id !== targetPropId) return false;
+
+      // In completed mode (or when deleteMonths is provided), ONLY delete Airbnb bookings
+      // belonging to the specific months present in the incoming file!
+      if (options?.importMode === 'completed' || options?.deleteMonths) {
+        if (targetMonths.size === 0) return false;
+        const bMonth = getBookingYearMonth(b.check_in);
+        return bMonth ? targetMonths.has(bMonth) : false;
+      }
+
       if (options?.syncYear && !options?.deleteAllAirbnb) {
         return getBookingYear(b.check_in) === options.syncYear;
       }
@@ -430,23 +457,62 @@ export async function upsertBookingsBatch(
 
     idsToDelete = toDelete.map((b) => b.id);
 
-    // Execute deletion in Supabase if any
-    try {
-      const fromQuery = supabase.from('bookings');
-      if (fromQuery && typeof fromQuery.delete === 'function') {
-        const deleteQuery = fromQuery.delete();
-        if (typeof deleteQuery.eq === 'function') {
-          let q = deleteQuery.eq('source', 'airbnb');
-          if (targetPropId && typeof q.eq === 'function') {
-            q = q.eq('property_id', targetPropId);
+    // Query Supabase directly for the real IDs of Airbnb bookings to delete
+    let supabaseIdsToDelete: string[] = [];
+    if (typeof supabase.from === 'function') {
+      try {
+        const fromQ = supabase.from('bookings');
+        if (fromQ && typeof fromQ.select === 'function') {
+          let selectQ = fromQ.select('id, check_in, source');
+          if (typeof selectQ.eq === 'function') {
+            selectQ = selectQ.eq('source', 'airbnb');
+            if (targetPropId && typeof selectQ.eq === 'function') {
+              selectQ = selectQ.eq('property_id', targetPropId);
+            }
           }
-          await q;
-        } else if (typeof deleteQuery.in === 'function' && idsToDelete.length > 0) {
-          await deleteQuery.in('id', idsToDelete);
+          const { data: dbRows, error: fetchErr } = await selectQ;
+          if (!fetchErr && Array.isArray(dbRows) && dbRows.length > 0) {
+            supabaseIdsToDelete = dbRows
+              .filter((b) => {
+                if (options?.importMode === 'completed' || options?.deleteMonths) {
+                  if (targetMonths.size === 0) return false;
+                  const ym = getBookingYearMonth(b.check_in);
+                  return ym ? targetMonths.has(ym) : false;
+                }
+                if (options?.syncYear && !options?.deleteAllAirbnb) {
+                  return getBookingYear(b.check_in) === options.syncYear;
+                }
+                return true;
+              })
+              .map((b) => b.id);
+          }
         }
+      } catch (err) {
+        console.warn('Failed to query Supabase for bookings to delete:', err);
       }
-    } catch (err) {
-      console.warn('Failed to delete existing Airbnb bookings from Supabase:', err);
+    }
+
+    const idsToDeleteInSupabase = supabaseIdsToDelete.length > 0 ? supabaseIdsToDelete : idsToDelete;
+
+    // Execute deletion in Supabase for the specific identified records
+    if (idsToDeleteInSupabase.length > 0) {
+      try {
+        const fromQuery = supabase.from('bookings');
+        if (fromQuery && typeof fromQuery.delete === 'function') {
+          const deleteQuery = fromQuery.delete();
+          if (typeof deleteQuery.in === 'function') {
+            await deleteQuery.in('id', idsToDeleteInSupabase);
+          } else if (typeof deleteQuery.eq === 'function') {
+            let q = deleteQuery.eq('source', 'airbnb');
+            if (targetPropId && typeof q.eq === 'function') {
+              q = q.eq('property_id', targetPropId);
+            }
+            await q;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to delete existing Airbnb bookings from Supabase:', err);
+      }
     }
 
     // Clean up any linked expenses in localStorage
@@ -468,14 +534,7 @@ export async function upsertBookingsBatch(
     }
 
     // Remove deleted items from current before inserting incoming bookings
-    remaining = current.filter((b) => {
-      if (!isAirbnbBooking(b)) return true;
-      if (targetPropId && b.property_id && b.property_id !== targetPropId) return true;
-      if (options?.syncYear && !options?.deleteAllAirbnb) {
-        return getBookingYear(b.check_in) !== options.syncYear;
-      }
-      return false;
-    });
+    remaining = current.filter((b) => !idsToDelete.includes(b.id));
   }
 
   // 1. SMART IMPORT MODE: 'completed' (Reservas ya hechas / pagos completados)
@@ -526,6 +585,7 @@ export async function upsertBookingsBatch(
             const { error: insErr } = await insertQuery.insert(bookings);
             if (insErr) {
               console.error('Error inserting completed bookings into Supabase:', insErr);
+              throw insErr;
             }
           }
         }

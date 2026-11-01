@@ -48,9 +48,12 @@ import {
 import type { Booking, BookingStatus } from '@/types/database';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 import { toast } from 'sonner';
+import { usePropertyContext } from '@/context/PropertyContext';
 
 export default function Bookings() {
-  const { data: bookings = [], isLoading } = useBookings();
+  const propertyCtx = usePropertyContext();
+  const activePropertyId = propertyCtx?.activePropertyId;
+  const { data: bookings = [], isLoading } = useBookings(activePropertyId);
   const { data: bookingPins = [] } = useBookingPins();
   const { data: allPropertyLocks = [] } = useAllPropertyLocks();
   const deleteBookingMutation = useDeleteBooking();

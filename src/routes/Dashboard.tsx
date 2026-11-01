@@ -55,6 +55,10 @@ import { useSEO } from '@/hooks/use-seo';
 type TimeRange = 'this_month' | 'next_month' | 'last_month' | 'ytd' | 'all_time';
 type FinancialHorizon = 'all' | 'real' | 'future';
 
+// Aggregate helpers using shared 2-decimal formatters
+const getBookingMgmtFee = getManagementFee;
+const getBookingOwnerPayout = getOwnerNet;
+
 export default function Dashboard() {
   const { data: bookings = [] } = useBookings();
   const { data: expenses = [] } = useExpenses();
@@ -131,10 +135,6 @@ export default function Dashboard() {
     const calculatedTotal = eList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     return { filteredBookings: bList, filteredExpenses: eList, totalExpenses: calculatedTotal };
   }, [bookings, expenses, timeRange, currentMonthStr, nextMonthStr, lastMonthStr, currentYear, colDateStr]);
-
-  // Aggregate helpers using shared 2-decimal formatters
-  const getBookingMgmtFee = getManagementFee;
-  const getBookingOwnerPayout = getOwnerNet;
 
   // Real vs Future breakdown for the period
   const realBookings = useMemo(

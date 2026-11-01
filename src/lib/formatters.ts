@@ -122,6 +122,49 @@ export function getBookingYear(dateString: string | null | undefined): string | 
 }
 
 /**
+ * Extract 'YYYY-MM' from any booking date string (ISO, US, or European formatted).
+ * Returns null if not determinable.
+ */
+export function getBookingYearMonth(dateString: string | null | undefined): string | null {
+  if (!dateString) return null;
+  const trimmed = dateString.trim();
+  if (!trimmed) return null;
+
+  // 1. ISO format: "2026-09-15" or "2026-09" or "2026/09/15"
+  const isoMatch = trimmed.match(/^(\d{4})[-/.](\d{1,2})/);
+  if (isoMatch) {
+    const y = isoMatch[1];
+    const m = isoMatch[2].padStart(2, '0');
+    const mNum = parseInt(m, 10);
+    if (mNum >= 1 && mNum <= 12) {
+      return `${y}-${m}`;
+    }
+  }
+
+  // 2. Trailing year: "15/09/2026", "15.09.2026", "09-15-2026"
+  const trailingMatch = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (trailingMatch) {
+    const p1 = parseInt(trailingMatch[1], 10);
+    const p2 = parseInt(trailingMatch[2], 10);
+    const y = trailingMatch[3];
+    // If p1 > 12, it must be DD/MM/YYYY -> month is p2
+    if (p1 > 12 && p2 <= 12) {
+      return `${y}-${String(p2).padStart(2, '0')}`;
+    }
+    // If p2 > 12, it must be MM/DD/YYYY -> month is p1
+    if (p2 > 12 && p1 <= 12) {
+      return `${y}-${String(p1).padStart(2, '0')}`;
+    }
+    // Default Airbnb convention (MM/DD/YYYY): month is p1
+    if (p1 <= 12) {
+      return `${y}-${String(p1).padStart(2, '0')}`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Format month 'YYYY-MM' into readable Spanish month:
  * e.g., "2026-09" -> "Septiembre 2026"
  */

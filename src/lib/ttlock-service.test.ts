@@ -54,8 +54,8 @@ describe('ttlock-service', () => {
       const pinObj = await generateBookingPin({
         bookingId: 'book-123',
         propertyId: 'prop-100',
-        checkIn: '2026-10-27',
-        checkOut: '2026-10-30',
+        checkIn: '2026-11-27',
+        checkOut: '2026-11-30',
         guestName: 'Carlos Montoya',
       });
 
@@ -76,8 +76,8 @@ describe('ttlock-service', () => {
       const pinObj = await generateBookingPin({
         bookingId: 'book-456',
         propertyId: 'prop-100',
-        checkIn: '2026-10-28',
-        checkOut: '2026-10-31',
+        checkIn: '2026-11-28',
+        checkOut: '2026-11-30',
         customPin: '123456',
       });
 

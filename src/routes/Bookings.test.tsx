@@ -468,12 +468,13 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
     it('allows opening the PIN modal from the action button and context menu', async () => {
       const user = userEvent.setup();
       const todayDate = new Date().toISOString().slice(0, 10);
+      const tomorrowDate = new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10);
       const activeBooking: Booking = {
         ...mockBookings[0],
         id: 'b-active-today',
         guest_name: 'Laura Acuña',
         check_in: todayDate,
-        check_out: '2026-10-30',
+        check_out: tomorrowDate,
       };
 
       vi.mocked(useBookings).mockReturnValue({
@@ -500,13 +501,14 @@ describe('Bookings Route - Revenue Breakdown and Toggle', () => {
     it('disables key button and context menu item when property lock is inactive or not configured', async () => {
       const user = userEvent.setup();
       const todayDate = new Date().toISOString().slice(0, 10);
+      const tomorrowDate = new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10);
       const activeBooking: Booking = {
         ...mockBookings[0],
         id: 'b-active-today',
         guest_name: 'Laura Acuña',
         property_id: 'prop-inactive-lock',
         check_in: todayDate,
-        check_out: '2026-10-30',
+        check_out: tomorrowDate,
       };
 
       vi.mocked(useBookings).mockReturnValue({

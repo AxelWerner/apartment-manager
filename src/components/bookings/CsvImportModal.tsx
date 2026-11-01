@@ -1,18 +1,39 @@
 import { useState, useEffect, useContext } from 'react';
 import Papa from 'papaparse';
-import { UploadCloud, FileSpreadsheet, Trash2, Plus, Moon, Files, Sparkles, Calendar, CheckCircle2, Clock, Filter, Cloud, AlertTriangle } from 'lucide-react';
+import {
+  UploadCloud,
+  FileSpreadsheet,
+  Trash2,
+  Plus,
+  Moon,
+  Files,
+  Sparkles,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Cloud,
+} from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
-import { formatCOP, formatDate, resolveBookingStatus, getBookingYear, isAirbnbBooking, roundToTwoDecimals } from '@/lib/formatters';
+import {
+  formatCOP,
+  formatDate,
+  formatMonthYear,
+  resolveBookingStatus,
+  getBookingYear,
+  getBookingYearMonth,
+  isAirbnbBooking,
+  roundToTwoDecimals,
+} from '@/lib/formatters';
 import { DEFAULT_PROPERTY_ID } from '@/lib/supabase';
 import { usePropertyContext } from '@/context/PropertyContext';
 import { AuthContext } from '@/context/auth-context-def';
 import type { Booking, BookingStatus } from '@/types/database';
 import { useBookings, useCreateBookingsBatch } from '@/hooks/use-bookings';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   getLastImportTimestamps,
   fetchImportTimestamps,
   setLastImportTimestamp,
-  clearLastImportTimestamp,
 } from '@/lib/api-service';
 import { toast } from 'sonner';
 
@@ -102,6 +123,7 @@ const parseDate = (dStr: string) => {
 export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   const propertyCtx = usePropertyContext();
   const activePropertyId = propertyCtx?.activePropertyId || DEFAULT_PROPERTY_ID;
+  const queryClient = useQueryClient();
   const { data: existingBookings = [] } = useBookings(activePropertyId);
   const createBatchMutation = useCreateBookingsBatch();
 
@@ -115,15 +137,14 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
 
   const [importMode, setImportMode] = useState<'completed' | 'pending'>('completed');
   const [parsedRows, setParsedRows] = useState<ParsedBookingRow[]>([]);
-  const [skippedRows, setSkippedRows] = useState<ParsedBookingRow[]>([]);
   const [dedupedCount, setDedupedCount] = useState(0);
   const [loadedFiles, setLoadedFiles] = useState<LoadedFileInfo[]>([]);
   const [loadingSample, setLoadingSample] = useState<string | null>(null);
   const [detectedYears, setDetectedYears] = useState<string[]>([]);
+  const [detectedMonths, setDetectedMonths] = useState<string[]>([]);
   const [rowsToDelete, setRowsToDelete] = useState<Booking[]>([]);
   const [showDeletedRows, setShowDeletedRows] = useState(false);
   const [timestamps, setTimestamps] = useState(getLastImportTimestamps());
-  const [filterByLastImport, setFilterByLastImport] = useState(true);
 
   // Sync latest import timestamps from Supabase whenever modal opens or property changes
   useEffect(() => {
@@ -269,16 +290,11 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
     });
   };
 
-  const [rawLoadedRows, setRawLoadedRows] = useState<ParsedBookingRow[]>([]);
-
   const applyFilterAndSort = (
     rawRows: ParsedBookingRow[],
-    mode: 'completed' | 'pending',
-    shouldFilter: boolean,
-    completedTs: string | null
+    mode: 'completed' | 'pending'
   ) => {
     let keptRows: ParsedBookingRow[] = [];
-    const skipped: ParsedBookingRow[] = [];
     let duplicatesFound = 0;
 
     // 1. DEDUPLICATION FOR PENDING RESERVATIONS (handles modifications/duplicate lines with same code)
@@ -306,38 +322,31 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       keptRows = [...rawRows];
     }
 
-    // 2. TIMESTAMP FILTERING FOR COMPLETED RESERVATIONS
-    if (mode === 'completed' && shouldFilter && completedTs) {
-      const cutoffDate = completedTs.slice(0, 10); // YYYY-MM-DD
-      const filtered: ParsedBookingRow[] = [];
-
-      for (const r of keptRows) {
-        const checkDate = r.booking_date || r.check_in;
-        if (checkDate && checkDate < cutoffDate) {
-          skipped.push(r);
-        } else {
-          filtered.push(r);
-        }
-      }
-      keptRows = filtered;
-    }
-
     setDedupedCount(duplicatesFound);
-    setSkippedRows(skipped);
 
-    // Check years present for informational display
+    // Check years and months present for informational display & scoped month replacement
     const distinctYears = new Set<string>();
+    const importedMonths = new Set<string>();
     for (const r of keptRows) {
       const y = getBookingYear(r.check_in);
       if (y) distinctYears.add(y);
+      const ym = getBookingYearMonth(r.check_in);
+      if (ym) importedMonths.add(ym);
     }
     setDetectedYears(Array.from(distinctYears).sort());
+    setDetectedMonths(Array.from(importedMonths).sort());
 
     // Sort chronologically by check-in date
     keptRows.sort((a, b) => (b.check_in || '').localeCompare(a.check_in || ''));
 
     const airbnbBookingsToDelete =
-      mode === 'completed' ? existingBookings.filter((b) => isAirbnbBooking(b)) : [];
+      mode === 'completed'
+        ? existingBookings.filter(
+            (b) =>
+              isAirbnbBooking(b) &&
+              importedMonths.has(getBookingYearMonth(b.check_in) || '')
+          )
+        : [];
 
     const finalRows: ParsedBookingRow[] = keptRows.map((row) => ({
       ...row,
@@ -347,14 +356,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
     setParsedRows(finalRows);
     setRowsToDelete(airbnbBookingsToDelete);
 
-    return { finalRows, skipped, duplicatesFound };
-  };
-
-  const handleToggleFilter = (checked: boolean) => {
-    setFilterByLastImport(checked);
-    if (rawLoadedRows.length > 0) {
-      applyFilterAndSort(rawLoadedRows, importMode, checked, timestamps.completed);
-    }
+    return { finalRows, duplicatesFound };
   };
 
   const processAndMergeFiles = async (files: File[], targetMode?: 'completed' | 'pending') => {
@@ -382,24 +384,14 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       }
 
       setLoadedFiles(fileSummaries);
-      setRawLoadedRows(rawRows);
 
-      const { finalRows, skipped, duplicatesFound } = applyFilterAndSort(
+      const { finalRows, duplicatesFound } = applyFilterAndSort(
         rawRows,
-        effectiveMode,
-        filterByLastImport,
-        timestamps.completed
+        effectiveMode
       );
 
       if (duplicatesFound > 0) {
         toast.info(`Se consolidaron ${duplicatesFound} registro(s) repetidos por modificación de reserva`);
-      }
-      if (skipped.length > 0) {
-        if (finalRows.length === 0) {
-          toast.warning(`Se omitieron todas las reservas (${skipped.length}) por tener fecha anterior a la última importación. Pulsa "Desactivar filtro" para verlas.`);
-        } else {
-          toast.info(`Se omitieron ${skipped.length} reserva(s) con fecha anterior al último import`);
-        }
       }
 
       if (finalRows.length > 0) {
@@ -497,7 +489,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         bookings: bookingsToInsert,
         options: {
           importMode,
-          deleteAllAirbnb: importMode === 'completed' || rowsToDelete.length > 0,
+          deleteAllAirbnb: false,
+          deleteMonths: detectedMonths,
         },
       });
 
@@ -505,6 +498,10 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
       await setLastImportTimestamp(importMode, activePropertyId);
       const updatedTs = await fetchImportTimestamps(activePropertyId);
       setTimestamps(updatedTs);
+
+      // Force immediate invalidation and refetch of all bookings queries so the table updates
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.refetchQueries({ queryKey: ['bookings'] });
 
       if (res.deleted > 0) {
         toast.success(`Se importaron ${res.inserted} reservas y se eliminaron ${res.deleted} reservas anteriores de Airbnb`);
@@ -523,13 +520,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
   };
 
   const handleReset = () => {
-    setRawLoadedRows([]);
     setParsedRows([]);
-    setSkippedRows([]);
     setDedupedCount(0);
     setLoadedFiles([]);
     setRowsToDelete([]);
     setDetectedYears([]);
+    setDetectedMonths([]);
     setShowDeletedRows(false);
   };
 
@@ -591,7 +587,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="text-slate-700 dark:text-slate-300 font-medium">Última importación:</span>
+              <span className="text-slate-700 dark:text-slate-300 font-medium">Última sincronización completada:</span>
               {timestamps.completed ? (
                 <div className="flex items-center gap-1.5">
                   <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono">
@@ -602,37 +598,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   </span>
                 </div>
               ) : (
-                <span className="text-slate-400 italic">Sin importaciones previas</span>
+                <span className="text-slate-400 italic">Sin sincronizaciones previas</span>
               )}
             </div>
-            {timestamps.completed && (
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300 font-medium select-none">
-                  <input
-                    type="checkbox"
-                    checked={filterByLastImport}
-                    onChange={(e) => handleToggleFilter(e.target.checked)}
-                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5"
-                  />
-                  <span>Solo comprobar reservas desde el último import</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await clearLastImportTimestamp('completed', activePropertyId);
-                    const updatedTs = await fetchImportTimestamps(activePropertyId);
-                    setTimestamps(updatedTs);
-                    if (rawLoadedRows.length > 0) {
-                      applyFilterAndSort(rawLoadedRows, importMode, filterByLastImport, null);
-                    }
-                    toast.info('Marca de tiempo reiniciada en Supabase');
-                  }}
-                  className="text-[11px] text-slate-400 hover:text-rose-600 underline cursor-pointer ml-1"
-                >
-                  Reiniciar
-                </button>
-              </div>
-            )}
+            <div className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Sincronización acotada por mes
+            </div>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-indigo-200/60 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 text-xs">
@@ -822,52 +793,6 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
               </button>
             </div>
 
-            {/* Notification if rows were skipped due to timestamp */}
-            {skippedRows.length > 0 && parsedRows.length > 0 && (
-              <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 text-xs flex items-center justify-between">
-                <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-medium">
-                  <Filter className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    Se omitieron <strong>{skippedRows.length}</strong> reservas anteriores al último import (fecha de reserva anterior a {formatDate(timestamps.completed?.slice(0, 10))}).
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleFilter(false)}
-                  className="text-[11px] font-bold text-amber-800 dark:text-amber-300 underline hover:text-amber-950 cursor-pointer"
-                >
-                  Incluir todas ({skippedRows.length})
-                </button>
-              </div>
-            )}
-
-            {/* If all rows were skipped, show a prominent empty state with one-click restore */}
-            {parsedRows.length === 0 && skippedRows.length > 0 && (
-              <div className="p-6 text-center rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30 space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-amber-950 dark:text-amber-100">
-                    Todas las reservas del archivo ({skippedRows.length}) fueron omitidas por el filtro de fecha
-                  </h4>
-                  <p className="text-xs text-amber-800 dark:text-amber-300 mt-1 max-w-md mx-auto">
-                    El filtro por fecha está activo y todas las reservas en este archivo tienen fecha anterior a tu última importación ({formatDate(timestamps.completed?.slice(0, 10))}).
-                  </p>
-                </div>
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleFilter(false)}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Desactivar filtro e incluir las {skippedRows.length} reservas</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Notification if duplicates were consolidated */}
             {dedupedCount > 0 && (
               <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 text-xs flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-medium">
@@ -885,7 +810,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold">
                     <Trash2 className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      Se borrarán todas las reservas de Airbnb ({rowsToDelete.length} en la base de datos) y se ingresarán las {parsedRows.length} reservas del archivo
+                      Se reemplazarán las reservas de Airbnb de los meses a importar ({rowsToDelete.length} en la base de datos{detectedMonths.length > 0 ? ` para ${detectedMonths.map(formatMonthYear).join(', ')}` : ''}) y se ingresarán las {parsedRows.length} reservas del archivo
                     </span>
                   </div>
                   <button
@@ -897,7 +822,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                   </button>
                 </div>
                 <p className="text-[11px] text-amber-700/90 dark:text-amber-300/80">
-                  Al importar se reemplazan por completo todas las reservas de tipo Airbnb existentes en la base de datos por las del archivo. Las reservas directas se conservan intactas.
+                  Solo se reemplazan las reservas de Airbnb de los meses presentes en el archivo importado{detectedMonths.length > 0 ? ` (${detectedMonths.map(formatMonthYear).join(', ')})` : ''}. Las reservas de otros meses y las reservas directas se conservan intactas.
                 </p>
                 {showDeletedRows && (
                   <div className="max-h-36 overflow-y-auto border border-amber-200 dark:border-amber-900/60 rounded-lg bg-white dark:bg-slate-900">

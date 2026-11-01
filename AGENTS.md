@@ -59,6 +59,13 @@ pnpm seed             # Seed database with sample data
 | 2026-06-04 | shadcn/ui + Tailwind | Full control, no runtime overhead |
 | 2026-10-15 | Playwright E2E Suite | Zero-seed user journey testing, Page Object Model, GitHub Actions with Supabase Local |
 | 2026-10-30 | AI Engineer Mentorship & Architecture Mode | Codebase serves as a production-grade proving ground to build practical AI Engineering mastery |
+| 2026-11-01 | Master System Handbook (`docs/MANUAL_DE_SISTEMA.md`) | Living documentation of architecture, module workflows, and business logic to maintain and consult |
+
+## 📚 Living System Handbook (Manual de Sistema)
+
+The primary living documentation of this application is located at [`docs/MANUAL_DE_SISTEMA.md`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/MANUAL_DE_SISTEMA.md).
+- **Consultation:** Always check this file first to understand end-to-end user journeys, edge cases, formulas, and data models.
+- **Maintenance:** Whenever modifying, adding, or refactoring features, **always update** [`docs/MANUAL_DE_SISTEMA.md`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/docs/MANUAL_DE_SISTEMA.md) to keep documentation synchronized with implementation.
 
 ---
 

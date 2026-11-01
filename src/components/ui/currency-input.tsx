@@ -13,7 +13,7 @@ function parseDigits(value: string): number {
   return digits ? Number(digits) : 0;
 }
 
-export function formatDisplayValue(value: number | undefined | null, allowDecimals?: boolean): string {
+function formatDisplayValue(value: number | undefined | null, allowDecimals?: boolean): string {
   if (value === undefined || value === null || isNaN(value)) return "";
   if (!allowDecimals) {
     const digits = String(Math.round(value));
@@ -144,7 +144,7 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
       // Comma ',' is the ONLY decimal separator in Colombian format.
       // Dots are strictly thousand grouping separators.
       const commaIndex = raw.indexOf(",");
-      let formatted = "";
+      let formatted: string;
 
       if (commaIndex !== -1) {
         const intPart = raw.slice(0, commaIndex).replace(/\D/g, "");

@@ -639,8 +639,8 @@ describe('api-service', () => {
           guest_name: 'Old Airbnb Guest',
           guest_phone: null,
           number_of_guests: 2,
-          check_in: '2026-08-01',
-          check_out: '2026-08-05',
+          check_in: '2026-10-01',
+          check_out: '2026-10-05',
           number_of_nights: 4,
           nightly_rate: 100000,
           gross_amount: 400000,
@@ -650,7 +650,7 @@ describe('api-service', () => {
           net_payout: 360000,
           status: 'completed',
           payout_status: 'paid',
-          payout_date: '2026-08-01',
+          payout_date: '2026-10-01',
           source: 'airbnb',
           notes: null,
         },
@@ -724,6 +724,149 @@ describe('api-service', () => {
       expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-direct-stay']));
     });
 
+    it('only deletes Airbnb bookings for the imported months (e.g. April and June, leaving May untouched)', async () => {
+      const mockIn = vi.fn().mockResolvedValue({ error: null });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        select: vi.fn().mockReturnValue({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+        upsert: vi.fn().mockResolvedValue({ error: null }),
+        delete: vi.fn().mockReturnValue({ in: mockIn }),
+        update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      });
+
+      const initialBookings: Booking[] = [
+        {
+          id: 'b-airbnb-april',
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMAPRIL',
+          guest_name: 'April Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-04-10',
+          check_out: '2026-04-14',
+          number_of_nights: 4,
+          nightly_rate: 100000,
+          gross_amount: 400000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 40000,
+          taxes_withheld: 0,
+          net_payout: 360000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-04-10',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          id: 'b-airbnb-may',
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMMAY',
+          guest_name: 'May Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-05-15',
+          check_out: '2026-05-20',
+          number_of_nights: 5,
+          nightly_rate: 100000,
+          gross_amount: 500000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 50000,
+          taxes_withheld: 0,
+          net_payout: 450000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-05-15',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          id: 'b-airbnb-june',
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMJUNE',
+          guest_name: 'June Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-06-05',
+          check_out: '2026-06-09',
+          number_of_nights: 4,
+          nightly_rate: 100000,
+          gross_amount: 400000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 40000,
+          taxes_withheld: 0,
+          net_payout: 360000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-06-05',
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+      localStorage.setItem('apt_mgr_bookings_v2', JSON.stringify(initialBookings));
+
+      // Import with bookings for April and June only
+      const incoming: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMAPRIL-NEW',
+          guest_name: 'New April Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-04-12',
+          check_out: '2026-04-15',
+          number_of_nights: 3,
+          nightly_rate: 120000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 36000,
+          taxes_withheld: 0,
+          net_payout: 324000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-04-12',
+          source: 'airbnb',
+          notes: null,
+        },
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HMJUNE-NEW',
+          guest_name: 'New June Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-06-10',
+          check_out: '2026-06-13',
+          number_of_nights: 3,
+          nightly_rate: 120000,
+          gross_amount: 360000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 36000,
+          taxes_withheld: 0,
+          net_payout: 324000,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-06-10',
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+
+      const result = await upsertBookingsBatch(incoming, {
+        importMode: 'completed',
+        deleteMonths: ['2026-04', '2026-06'],
+      });
+
+      expect(result.deleted).toBe(2);
+      expect(result.inserted).toBe(2);
+
+      const stored: Booking[] = JSON.parse(localStorage.getItem('apt_mgr_bookings_v2') || '[]');
+      const storedIds = stored.map((b) => b.id);
+      expect(storedIds).toContain('b-airbnb-may'); // May MUST be preserved
+      expect(storedIds).not.toContain('b-airbnb-april'); // April deleted
+      expect(storedIds).not.toContain('b-airbnb-june'); // June deleted
+
+      expect(mockIn).toHaveBeenCalledWith('id', expect.arrayContaining(['b-airbnb-april', 'b-airbnb-june']));
+      expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-airbnb-may']));
+    });
+
 
     it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
       const rawBooking: Booking = {
@@ -759,9 +902,9 @@ describe('api-service', () => {
       const bookings = await fetchBookings();
       const synced = bookings.find((b) => b.id === 'b-calc-test');
 
-      expect(synced?.owner_payout).toBe(206654);
-      // 80% alojamiento: 258.317 * 0.80 = 206.654 COP / 3 noches = 68.885 COP por noche
-      expect(synced?.nightly_rate).toBe(68885);
+      expect(synced?.owner_payout).toBe(206653.6);
+      // 80% alojamiento: 258.317 * 0.80 = 206.653,6 COP / 3 noches = 68.884,53 COP por noche
+      expect(synced?.nightly_rate).toBe(68884.53);
     });
 
     it('calculates 10% management fee and 90% owner payout for direct bookings after deducting cleaning fee', async () => {
