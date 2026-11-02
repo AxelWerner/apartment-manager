@@ -11,6 +11,10 @@ vi.mock('@/hooks/use-bookings', () => ({
 
 vi.mock('@/hooks/use-expenses', () => ({
   useExpenses: vi.fn(),
+  useRecurringTemplates: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+  })),
   useDeleteExpense: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useUpdateExpense: vi.fn(() => ({ mutateAsync: vi.fn() })),
   useCreateExpense: vi.fn(() => ({ mutateAsync: vi.fn() })),
@@ -425,6 +429,52 @@ describe('Dashboard Component', () => {
     expect(screen.getByText('Gasto de Aseo')).toBeInTheDocument();
     // 2 booking records on the same day must display "Recaudado (1 estadía)" not "(2 estadías)"
     expect(screen.getByText('Recaudado (1 estadía)')).toBeInTheDocument();
+  });
+
+  it('renders both confirmed pending bills and unbilled recurring services in Facturas Pendientes card', () => {
+    // September has exp-pending (Admin, $380,000 pending)
+    // Electricity, Water, Gas, Internet are unbilled -> displayed as "Esperando factura"
+    vi.mocked(useExpenses).mockReturnValue({
+      data: [
+        {
+          id: 'exp-pending-1',
+          property_id: 'prop-1',
+          category: 'hoa_administration',
+          description: 'Administración Septiembre',
+          amount: 380000,
+          date: '2026-09-05',
+          due_date: '2026-09-10',
+          billing_month: '2026-09',
+          expense_type: 'fixed_monthly',
+          payment_status: 'pending',
+          is_recurring: true,
+          recurrence_period: 'monthly',
+          linked_booking_id: null,
+          receipt_url: null,
+          notes: null,
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useExpenses>);
+
+    renderWithProviders(<Dashboard />);
+
+    // Card title
+    expect(screen.getByText('Facturas Pendientes')).toBeInTheDocument();
+
+    // Check confirmed pending bill
+    expect(screen.getByText('Administración Septiembre')).toBeInTheDocument();
+    expect(screen.getByText('Por pagar')).toBeInTheDocument();
+
+    // Check unbilled services
+    expect(screen.getByText('Energía / Luz (EPM)')).toBeInTheDocument();
+    expect(screen.getAllByText('Esperando factura').length).toBeGreaterThan(0);
+
+    // Link to expenses
+    expect(screen.getByText('Ver Planilla Mensual de Gastos')).toBeInTheDocument();
+
+    // Financial KPI card includes "Por pagar" projection
+    expect(screen.getByText(/Por pagar:/i)).toBeInTheDocument();
   });
 });
 

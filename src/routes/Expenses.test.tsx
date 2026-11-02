@@ -7,6 +7,10 @@ import type { Expense } from '@/types/database';
 
 vi.mock('@/hooks/use-expenses', () => ({
   useExpenses: vi.fn(),
+  useRecurringTemplates: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+  })),
   useDeleteExpense: vi.fn(() => ({
     mutateAsync: vi.fn(),
   })),

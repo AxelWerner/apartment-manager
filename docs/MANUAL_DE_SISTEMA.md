@@ -197,7 +197,23 @@ Para cada reserva válida importada:
   - Operaciones: Aseo y lavandería (vinculable a una reserva mediante `linked_booking_id`).
   - Mantenimiento & Reposición de Insumos.
   - Póliza de Seguro Anual.
-- **Escaneo Inteligente:** Ingestión de fotos/PDFs de facturas con modelo de visión multimodal. Extrae automáticamente monto, fecha, proveedor y categoría con validación de esquema en Zod.
+- **Ciclo de Vida de Servicios Recurrentes (Planilla Mensual):**
+  - **1. 🟡 Esperando Factura (Inicio de Mes):** Al comenzar el mes, el anfitrión visualiza qué servicios tiene comprometidos (Administración, Agua, Internet/Teléfono, Gas, Luz) sin necesidad de que la factura haya sido emitida. El sistema calcula un **Estimado Inteligente** (promedio automático de los últimos 3 meses registrados o plantilla base) y destaca el calendario habitual de corte:
+    - **Día 05:** Administración de Edificio
+    - **Día 10:** Agua / Acueducto (EPM)
+    - **Día 15:** Internet y TV / Teléfono (Tigo / Claro)
+    - **Día 24:** Gas Natural (EPM)
+    - **Día 25:** Energía / Luz (EPM)
+  - **2. 🟠 Facturado / Por Pagar:** Al recibir la factura física o digital, se registra con monto real exacto y fecha límite de pago (ya sea manualmente o mediante escaneo directo con IA).
+  - **3. 🟢 Pagado:** Se marca como cancelado y se adjunta el comprobante de transferencia bancaria.
+- **Pipeline de Presupuesto Mensual:**
+  - **Presupuesto Proyectado:** Facturado confirmado + Estimados de los servicios aún sin factura.
+  - **Facturado Confirmado:** Compromisos con cuenta de cobro en mano.
+  - **Total Pagado:** Dinero ya desembolsado.
+  - **Restante por Cubrir:** Brecha total entre el presupuesto proyectado y lo pagado.
+- **Integración con Dashboard:** Los servicios mensuales proyectados que están esperando factura se sincronizan automáticamente con la tarjeta operativa de **Facturas Pendientes** en [`src/routes/Dashboard.tsx`](file:///Users/axelwerner/Documents/Projects/Private/apartment-manager/src/routes/Dashboard.tsx) y se computan dentro de la métrica de gastos `⏳ Por pagar` del periodo. Esto evita que el anfitrión vea ganancias netas infladas al principio del mes y permite navegar directamente a la planilla con un clic.
+- **Regla de Privacidad y Notificaciones de Servicios:** Los recordatorios y notificaciones de revisión y pago de servicios (tanto en la campana de la app como por correo electrónico) se envían **estrictamente a usuarios con rol `PRIMARY_OWNER` (Dueño Principal) y `OWNER` (Dueño/Copropietario)**. Los miembros con roles operativos (`ADMINISTRATOR`, `OPERATOR`, `CLEANER`, `VIEWER`) quedan excluidos de estas alertas financieras para proteger la privacidad patrimonial.
+- **Escaneo Inteligente:** Ingestión de fotos/PDFs de facturas con modelo de visión multimodal. Extrae automáticamente monto, fecha, proveedor y categoría con validación de esquema en Zod. Integrado directamente en las tarjetas de servicios pendientes con el botón rápido de IA.
 
 ---
 

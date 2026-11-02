@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   TrendingUp,
   DollarSign,
@@ -11,6 +12,7 @@ import {
   Sparkles,
   Moon,
   CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -27,7 +29,7 @@ import {
   ComposedChart,
 } from 'recharts';
 import { useBookings } from '@/hooks/use-bookings';
-import { useExpenses } from '@/hooks/use-expenses';
+import { useExpenses, useRecurringTemplates } from '@/hooks/use-expenses';
 import { useDamages } from '@/hooks/use-damages';
 import { useProperty } from '@/hooks/use-property';
 import {
@@ -47,13 +49,58 @@ import {
   getOwnerNet,
   getManagementFee,
 } from '@/lib/formatters';
-import type { Booking } from '@/types/database';
+import type { Booking, ExpenseCategory } from '@/types/database';
 import { RevenueGoalCard } from '@/components/dashboard/RevenueGoalCard';
 import { MiniPieCardChart } from '@/components/charts/MiniPieCardChart';
 import { useSEO } from '@/hooks/use-seo';
 
 type TimeRange = 'this_month' | 'next_month' | 'last_month' | 'ytd' | 'all_time';
 type FinancialHorizon = 'all' | 'real' | 'future';
+
+// Standard recurring services configuration
+const RECURRING_SERVICES_CONFIG: Record<
+  string,
+  { label: string; defaultAmount: number; typicalDueDay: number; provider: string }
+> = {
+  hoa_administration: {
+    label: 'Administración',
+    defaultAmount: 380000,
+    typicalDueDay: 5,
+    provider: 'Edificio / Portería',
+  },
+  water: {
+    label: 'Agua / Acueducto (EPM)',
+    defaultAmount: 110000,
+    typicalDueDay: 10,
+    provider: 'EPM',
+  },
+  internet_cable: {
+    label: 'Internet y TV / Teléfono',
+    defaultAmount: 125000,
+    typicalDueDay: 15,
+    provider: 'Tigo / Claro Fibra',
+  },
+  gas: {
+    label: 'Gas Natural (EPM)',
+    defaultAmount: 35000,
+    typicalDueDay: 24,
+    provider: 'EPM',
+  },
+  electricity: {
+    label: 'Energía / Luz (EPM)',
+    defaultAmount: 290000,
+    typicalDueDay: 25,
+    provider: 'EPM',
+  },
+};
+
+const RECURRING_CATEGORIES: ExpenseCategory[] = [
+  'hoa_administration',
+  'internet_cable',
+  'electricity',
+  'water',
+  'gas',
+];
 
 // Aggregate helpers using shared 2-decimal formatters
 const getBookingMgmtFee = getManagementFee;
@@ -64,6 +111,9 @@ export default function Dashboard() {
   const { data: expenses = [] } = useExpenses();
   const { data: damages = [] } = useDamages();
   const { data: property } = useProperty();
+  const { data: templates = [] } = useRecurringTemplates(property?.id);
+
+  const expensesPath = property?.id ? `/p/${property.id}/expenses` : '/expenses';
 
   useSEO({
     title: property?.name ? `Panel — ${property.name}` : 'Panel de Control',
@@ -154,6 +204,80 @@ export default function Dashboard() {
     [filteredExpenses]
   );
 
+  // Target month string for unbilled recurring services
+  const targetMonthStr = timeRange === 'next_month' ? nextMonthStr : currentMonthStr;
+
+  // Identify unbilled recurring services (awaiting invoice) for the active period
+  const unbilledRecurringServices = useMemo(() => {
+    if (timeRange === 'last_month') return [];
+
+    return RECURRING_CATEGORIES.map((catKey) => {
+      const config = RECURRING_SERVICES_CONFIG[catKey];
+      const template = templates.find((t) => t.category === catKey && t.is_active !== false);
+      const defaultAmount = template?.default_amount ?? config.defaultAmount;
+      const typicalDueDay = template?.typical_due_day ?? config.typicalDueDay;
+
+      // Check if an expense already exists for this category in the target month
+      const existing = expenses.find(
+        (e) =>
+          e.category === catKey &&
+          (e.billing_month === targetMonthStr || (!e.billing_month && e.date.startsWith(targetMonthStr)))
+      );
+
+      if (existing) return null;
+
+      // Calculate historical estimate from past logged expenses (< targetMonthStr)
+      const pastEntries = expenses
+        .filter((e) => {
+          if (e.category !== catKey) return false;
+          const m = e.billing_month || e.date.substring(0, 7);
+          return m < targetMonthStr && Number(e.amount) > 0;
+        })
+        .sort((a, b) => {
+          const mA = a.billing_month || a.date.substring(0, 7);
+          const mB = b.billing_month || b.date.substring(0, 7);
+          return mB.localeCompare(mA);
+        })
+        .slice(0, 3);
+
+      let amount = defaultAmount;
+      let isHistoricalAvg = false;
+      let samplesCount = 0;
+      if (pastEntries.length > 0) {
+        const sum = pastEntries.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+        amount = Math.round(sum / pastEntries.length);
+        isHistoricalAvg = true;
+        samplesCount = pastEntries.length;
+      }
+
+      return {
+        id: `unbilled-${catKey}-${targetMonthStr}`,
+        category: catKey,
+        label: config.label,
+        provider: config.provider,
+        amount,
+        typicalDueDay,
+        isHistoricalAvg,
+        samplesCount,
+        estimatedDueDate: `${targetMonthStr}-${String(typicalDueDay).padStart(2, '0')}`,
+      };
+    }).filter(Boolean) as {
+      id: string;
+      category: ExpenseCategory;
+      label: string;
+      provider: string;
+      amount: number;
+      typicalDueDay: number;
+      isHistoricalAvg: boolean;
+      samplesCount: number;
+      estimatedDueDate: string;
+    }[];
+  }, [expenses, templates, targetMonthStr, timeRange]);
+
+  const unbilledRecurringTotal = useMemo(() => {
+    return unbilledRecurringServices.reduce((sum, s) => sum + s.amount, 0);
+  }, [unbilledRecurringServices]);
+
   // Financial aggregates: Real (Cobrado / Pagado)
   const realOwnerPayout = realBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
   const realManagementFee = realBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
@@ -163,12 +287,13 @@ export default function Dashboard() {
   const realNetProfit = realOwnerPayout - realExpensesTotal;
   const realBookedNights = calculateUniqueBookedNights(realBookings);
 
-  // Financial aggregates: Futuro (Por cobrar / Pendiente)
+  // Financial aggregates: Futuro (Por cobrar / Pendiente / Proyectado)
   const futureOwnerPayout = futureBookings.reduce((sum, b) => sum + getBookingOwnerPayout(b), 0);
   const futureManagementFee = futureBookings.reduce((sum, b) => sum + getBookingMgmtFee(b), 0);
   const futureGrossAccommodation = futureOwnerPayout + futureManagementFee;
   const futureCleaningFee = futureBookings.reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
-  const futureExpensesTotal = futureExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const futureExpensesLogged = futureExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const futureExpensesTotal = futureExpensesLogged + (isPastMonth ? 0 : unbilledRecurringTotal);
   const futureNetProfit = futureOwnerPayout - futureExpensesTotal;
   const futureBookedNights = calculateUniqueBookedNights(
     futureBookings.filter((fb) => !realBookings.some((rb) => isSameStay(rb, fb)))
@@ -288,17 +413,41 @@ export default function Dashboard() {
     .filter((b) => b.source === 'direct_25')
     .reduce((sum, b) => sum + (Number(b.cleaning_fee_collected) || 0), 0);
 
-  const hoaExpenses = activeExpensesList
-    .filter((e) => e.category === 'hoa_administration')
-    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const unbilledHoa = isPastMonth
+    ? 0
+    : unbilledRecurringServices
+        .filter((s) => s.category === 'hoa_administration')
+        .reduce((sum, s) => sum + s.amount, 0);
 
-  const utilitiesExpenses = activeExpensesList
-    .filter((e) => ['electricity', 'water', 'gas'].includes(e.category))
-    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const unbilledUtilities = isPastMonth
+    ? 0
+    : unbilledRecurringServices
+        .filter((s) => ['electricity', 'water', 'gas'].includes(s.category))
+        .reduce((sum, s) => sum + s.amount, 0);
 
-  const otherExpenses = activeExpensesList
-    .filter((e) => !['hoa_administration', 'electricity', 'water', 'gas'].includes(e.category))
-    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const unbilledOther = isPastMonth
+    ? 0
+    : unbilledRecurringServices
+        .filter((s) => !['hoa_administration', 'electricity', 'water', 'gas'].includes(s.category))
+        .reduce((sum, s) => sum + s.amount, 0);
+
+  const hoaExpenses =
+    activeExpensesList
+      .filter((e) => e.category === 'hoa_administration')
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0) +
+    (effectiveFinancialHorizon === 'real' ? 0 : unbilledHoa);
+
+  const utilitiesExpenses =
+    activeExpensesList
+      .filter((e) => ['electricity', 'water', 'gas'].includes(e.category))
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0) +
+    (effectiveFinancialHorizon === 'real' ? 0 : unbilledUtilities);
+
+  const otherExpenses =
+    activeExpensesList
+      .filter((e) => !['hoa_administration', 'electricity', 'water', 'gas'].includes(e.category))
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0) +
+    (effectiveFinancialHorizon === 'real' ? 0 : unbilledOther);
 
   const accommodationRevenuePieData = useMemo(() => [
     { name: 'Airbnb', value: ownerPayoutAirbnb, color: '#f43f5e' },
@@ -1116,7 +1265,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Pending Bills Warning */}
+        {/* Pending Bills & Monthly Recurring Services Warning */}
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -1124,23 +1273,36 @@ export default function Dashboard() {
               <span>Facturas Pendientes</span>
             </h3>
             <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full">
-              {pendingBills.length} por pagar
+              {pendingBills.length > 0 && unbilledRecurringServices.length > 0
+                ? `${pendingBills.length} por pagar · ${unbilledRecurringServices.length} por llegar`
+                : pendingBills.length > 0
+                ? `${pendingBills.length} por pagar`
+                : unbilledRecurringServices.length > 0
+                ? `${unbilledRecurringServices.length} por llegar`
+                : 'Al día'}
             </span>
           </div>
 
-          {pendingBills.length === 0 ? (
-            <p className="text-xs text-slate-400 py-3">¡Al día! No tienes facturas pendientes este mes.</p>
+          {pendingBills.length === 0 && unbilledRecurringServices.length === 0 ? (
+            <p className="text-xs text-slate-400 py-3">¡Al día! No tienes facturas pendientes ni servicios por facturar este mes.</p>
           ) : (
             <div className="space-y-2">
+              {/* Confirmed invoices pending payment */}
               {pendingBills.slice(0, 3).map((bill) => (
                 <div
                   key={bill.id}
                   className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 flex items-center justify-between"
                 >
                   <div className="truncate pr-2">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {bill.description}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                        {bill.description}
+                      </p>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded shrink-0">
+                        <Clock className="w-2.5 h-2.5 shrink-0" />
+                        <span className="leading-none">Por pagar</span>
+                      </span>
+                    </div>
                     {bill.due_date && (
                       <p className="text-[10px] text-amber-700 dark:text-amber-400">
                         Vence: {formatDate(bill.due_date)}
@@ -1152,8 +1314,42 @@ export default function Dashboard() {
                   </span>
                 </div>
               ))}
+
+              {/* Monthly recurring services awaiting invoice */}
+              {unbilledRecurringServices.slice(0, 3).map((service) => (
+                <div
+                  key={service.id}
+                  className="p-2.5 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200/60 dark:border-sky-800/40 flex items-center justify-between"
+                >
+                  <div className="truncate pr-2">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                        {service.label}
+                      </p>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/60 px-1.5 py-0.5 rounded shrink-0">
+                        <Clock className="w-2.5 h-2.5 text-sky-500 shrink-0" />
+                        <span className="leading-none relative -top-[0.5px]">Esperando factura</span>
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-sky-700 dark:text-sky-400">
+                      Vence aprox. día {service.typicalDueDay} {service.isHistoricalAvg ? `(Promedio ${service.samplesCount}m)` : ''}
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                    ~{formatCOP(service.amount)} <span className="text-[10px] font-normal text-slate-400">(Est.)</span>
+                  </span>
+                </div>
+              ))}
             </div>
           )}
+
+          <Link
+            to={expensesPath}
+            className="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center justify-between transition-colors block"
+          >
+            <span>Ver Planilla Mensual de Gastos</span>
+            <ArrowRight className="w-3.5 h-3.5 inline ml-1" />
+          </Link>
         </div>
 
         {/* Damage / AirCover Status */}

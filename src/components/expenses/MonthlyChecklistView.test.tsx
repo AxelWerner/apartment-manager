@@ -7,6 +7,10 @@ import type { Expense } from '@/types/database';
 
 vi.mock('@/hooks/use-expenses', () => ({
   useExpenses: vi.fn(),
+  useRecurringTemplates: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+  })),
   useUpdateExpense: vi.fn(() => ({
     mutateAsync: vi.fn(),
   })),
@@ -18,7 +22,7 @@ vi.mock('@/hooks/use-expenses', () => ({
   })),
 }));
 
-import { useExpenses } from '@/hooks/use-expenses';
+import { useExpenses, useRecurringTemplates } from '@/hooks/use-expenses';
 
 describe('MonthlyChecklistView Component', () => {
   it('renders all standard recurring bills in the checklist and insurance card', () => {
@@ -167,5 +171,77 @@ describe('MonthlyChecklistView Component', () => {
     expect(screen.getByText(/Valor de Apto Vacío/i)).toBeInTheDocument();
     expect(screen.getByText(/Valor de Apto con Gente/i)).toBeInTheDocument();
     expect(screen.getByText(/Luz fija: \$ 70.000 COP/i)).toBeInTheDocument();
+  });
+
+  it('renders "Esperando Factura" badge and buttons when recurring bills are unbilled at start of month', () => {
+    vi.mocked(useExpenses).mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useExpenses>);
+
+    renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} initialMonth="2026-11" />);
+
+    // Should display "Esperando Factura" badges
+    const awaitingBadges = screen.getAllByText(/Esperando Factura/i);
+    expect(awaitingBadges.length).toBeGreaterThan(0);
+
+    // Should display projected budget header
+    expect(screen.getByText(/Presupuesto Proyectado/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cronograma de pagos habitual/i)).toBeInTheDocument();
+
+    // Should have buttons to upload or scan with AI
+    expect(screen.getAllByRole('button', { name: /Cargar Factura/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Escanear factura con IA/i })[0]).toBeInTheDocument();
+  });
+
+  it('computes historical average estimate for utilities from previous months', () => {
+    // 2 past electricity bills (August 300,000 and September 200,000 -> average 250,000)
+    const mockExpenses: Expense[] = [
+      {
+        id: 'exp-el-1',
+        property_id: 'prop-1',
+        category: 'electricity',
+        expense_type: 'utility_monthly',
+        description: 'Luz Agosto',
+        amount: 300000,
+        date: '2026-08-20',
+        due_date: '2026-08-25',
+        billing_month: '2026-08',
+        payment_status: 'paid',
+        is_recurring: true,
+        recurrence_period: 'monthly',
+        linked_booking_id: null,
+        receipt_url: null,
+        notes: null,
+      },
+      {
+        id: 'exp-el-2',
+        property_id: 'prop-1',
+        category: 'electricity',
+        expense_type: 'utility_monthly',
+        description: 'Luz Septiembre',
+        amount: 200000,
+        date: '2026-09-20',
+        due_date: '2026-09-25',
+        billing_month: '2026-09',
+        payment_status: 'paid',
+        is_recurring: true,
+        recurrence_period: 'monthly',
+        linked_booking_id: null,
+        receipt_url: null,
+        notes: null,
+      },
+    ];
+
+    vi.mocked(useExpenses).mockReturnValue({
+      data: mockExpenses,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useExpenses>);
+
+    renderWithProviders(<MonthlyChecklistView onViewReceipt={vi.fn()} initialMonth="2026-10" />);
+
+    // In October, electricity has no bill yet -> should show average 250,000 COP
+    expect(screen.getByText(/\$ 250\.000,00 \(Est\.\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Promedio de 2 meses anteriores/i)).toBeInTheDocument();
   });
 });
