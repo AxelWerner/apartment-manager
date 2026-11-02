@@ -23,10 +23,7 @@ import {
   FileText,
   Receipt,
   Calendar,
-  FileUp,
   History,
-  TrendingUp,
-  AlertCircle,
 } from 'lucide-react';
 import { formatCOP, formatMonthYear, formatDate, getColombiaDateTime, CATEGORY_LABELS } from '@/lib/formatters';
 import type { Expense, ExpenseCategory, ExpenseType } from '@/types/database';
@@ -539,7 +536,7 @@ export function MonthlyChecklistView({ onViewReceipt, initialMonth }: MonthlyChe
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {checklistData.map((item) => {
-            const { catKey, config, existing, typicalDueDay, estimate, isPaid, isPending, isAwaiting } = item;
+            const { catKey, config, existing, typicalDueDay, estimate, isPaid, isPending } = item;
             const Icon = config.icon;
 
             return (

@@ -3,12 +3,21 @@ import { screen, fireEvent } from '@testing-library/react';
 import { InvitationsBell } from './InvitationsBell';
 import { renderWithProviders } from '@/test/test-utils';
 import * as pendingHook from '@/hooks/use-pending-invitations';
+import * as remindersHook from '@/hooks/use-service-reminders';
 import type { UserPendingInvitation } from '@/types/database';
 
 vi.mock('@/hooks/use-pending-invitations', () => ({
   useUserPendingInvitations: vi.fn(),
   useAcceptPendingInvitation: vi.fn(),
   useDeclinePendingInvitation: vi.fn(),
+}));
+
+vi.mock('@/hooks/use-service-reminders', () => ({
+  useServiceReminders: vi.fn(() => ({
+    reminders: [],
+    count: 0,
+    canReceiveServiceAlerts: false,
+  })),
 }));
 
 describe('InvitationsBell Component', () => {
@@ -167,5 +176,47 @@ describe('InvitationsBell Component', () => {
       token: 'tok-abc',
       propertyName: 'Penthouse Poblado',
     });
+  });
+
+  it('renders service reminders tab for owners and displays pending service alerts', () => {
+    vi.mocked(pendingHook.useUserPendingInvitations).mockReturnValue({
+      invitations: [],
+      count: 0,
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    vi.mocked(remindersHook.useServiceReminders).mockReturnValue({
+      reminders: [
+        {
+          id: 'reminder-water',
+          category: 'water',
+          label: 'Agua / Acueducto (EPM)',
+          provider: 'EPM',
+          typicalDueDay: 10,
+          status: 'awaiting_invoice',
+          urgency: 'due_today',
+          daysDifference: 0,
+          amount: 110000,
+          isEstimate: true,
+          dueDateStr: '2026-11-10',
+          propertyId: 'prop-1',
+          propertyName: 'Penthouse Poblado',
+        },
+      ],
+      count: 1,
+      canReceiveServiceAlerts: true,
+    });
+
+    renderWithProviders(<InvitationsBell />);
+
+    const button = screen.getByRole('button', { name: /Notificaciones/i });
+    fireEvent.click(button);
+
+    expect(screen.getByText(/Notificaciones/i)).toBeInTheDocument();
+    expect(screen.getByText(/Servicios/i)).toBeInTheDocument();
+    expect(screen.getByText(/Agua \/ Acueducto \(EPM\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Vence hoy/i)).toBeInTheDocument();
   });
 });

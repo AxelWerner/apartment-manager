@@ -22,7 +22,7 @@ vi.mock('@/hooks/use-expenses', () => ({
   })),
 }));
 
-import { useExpenses, useRecurringTemplates } from '@/hooks/use-expenses';
+import { useExpenses } from '@/hooks/use-expenses';
 
 describe('MonthlyChecklistView Component', () => {
   it('renders all standard recurring bills in the checklist and insurance card', () => {
