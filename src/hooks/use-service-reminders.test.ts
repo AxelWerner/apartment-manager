@@ -16,9 +16,11 @@ const mockProperty: Property = {
   name: 'Apartamento Poblado 402',
   address: 'Calle 10 # 40-20',
   city: 'Medellín',
-  country: 'Colombia',
   currency: 'COP',
-  is_active: true,
+  default_nightly_rate: 200000,
+  default_cleaning_fee: 50000,
+  check_in_time: '15:00',
+  check_out_time: '11:00',
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
 };
@@ -41,10 +43,10 @@ describe('useServiceReminders Hook', () => {
       isViewer: false,
       properties: [],
       isLoading: false,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
       switchProperty: vi.fn(),
       refreshProperties: vi.fn(),
-      currentProperty: null,
-      activeMembership: null,
     });
 
     vi.spyOn(useExpensesModule, 'useExpenses').mockReturnValue({
@@ -78,10 +80,10 @@ describe('useServiceReminders Hook', () => {
       isViewer: false,
       properties: [],
       isLoading: false,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
       switchProperty: vi.fn(),
       refreshProperties: vi.fn(),
-      currentProperty: null,
-      activeMembership: null,
     });
 
     // Administración (due 5): overdue by 5 days
@@ -130,10 +132,10 @@ describe('useServiceReminders Hook', () => {
       isViewer: false,
       properties: [],
       isLoading: false,
+      createProperty: vi.fn(),
+      updateProperty: vi.fn(),
       switchProperty: vi.fn(),
       refreshProperties: vi.fn(),
-      currentProperty: null,
-      activeMembership: null,
     });
 
     const paidAdminExpense: Expense = {
@@ -144,8 +146,14 @@ describe('useServiceReminders Hook', () => {
       description: 'Administración Noviembre',
       amount: 380000,
       date: '2026-11-04',
+      due_date: '2026-11-05',
       billing_month: '2026-11',
       payment_status: 'paid',
+      is_recurring: true,
+      recurrence_period: 'monthly',
+      linked_booking_id: null,
+      receipt_url: null,
+      notes: null,
       created_at: '2026-11-04',
       updated_at: '2026-11-04',
     };
