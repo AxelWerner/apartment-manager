@@ -142,11 +142,14 @@ Para cada reserva válida importada:
 
 #### Modo 2: Reservas Futuras / Cobros Pendientes (`pending`)
 - **Objetivo:** Registrar las reservas confirmadas a futuro antes de que Airbnb libere el dinero.
+- **Auto-detección Segura:** Si todos los archivos cargados contienen `pending` en el nombre (ej. `airbnb_pending (9).csv`), el modal cambia automáticamente a modo `pending` para evitar reemplazos destructivos accidentales.
 - **Deduplicación Previa:** Si el CSV contiene múltiples líneas para un mismo `airbnb_confirmation_code` (por extensiones o alteraciones), se conserva la fila con datos más completos y mayor monto bruto.
-- **Estrategia de Persistencia (Upsert Selectivo):**
-  - Si la reserva ya existe en la base de datos y su `payout_status == 'paid'`, **no se sobreescribe** (se protege la información de pago confirmada).
+- **Estrategia de Persistencia (Upsert Selectivo No Destructivo):**
+  - Nunca dispara borrado por meses (`deleteMonths`) ni elimina reservas ya completadas en meses superpuestos.
+  - Si la reserva ya existe en la base de datos (Supabase o caché local) y su `payout_status == 'paid'`, **no se sobreescribe** (se protege la información de pago confirmada).
   - Si existe y está en `pending`, se actualizan sus fechas y montos.
   - Si es una reserva nueva, se inserta con `payout_status = 'pending'`.
+  - Si ocurre un error de escritura en Supabase, la operación lo propaga explícitamente al usuario en lugar de ocultarlo.
 - **Estados Asignados:** Calculado con `resolveBookingStatus`:
   - `confirmed` si la fecha de check-in es futura.
   - `checked_in` si el huésped ya está actualmente en el apartamento.

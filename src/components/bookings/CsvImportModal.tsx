@@ -173,11 +173,11 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
           const isPending = effectiveMode === 'pending' || file.name.toLowerCase().includes('pending');
 
           for (const raw of results.data) {
-            // Normalize column lookups (case-insensitive & accent-agnostic across German, Spanish, English)
+            // Normalize column lookups (BOM-safe, case-insensitive across German, Spanish, English)
             const getVal = (...aliases: string[]): string => {
               for (const alias of aliases) {
                 for (const [key, val] of Object.entries(raw)) {
-                  if (key.trim().toLowerCase() === alias.toLowerCase()) {
+                  if (key.replace(/^\uFEFF/, '').trim().toLowerCase() === alias.toLowerCase()) {
                     return (val || '').trim();
                   }
                 }
@@ -363,7 +363,12 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
     if (!files || files.length === 0) return;
 
     try {
-      const effectiveMode = targetMode || importMode;
+      const allPendingFiles = files.every((file) => file.name.toLowerCase().includes('pending'));
+      const effectiveMode =
+        targetMode || (importMode === 'completed' && allPendingFiles ? 'pending' : importMode);
+      if (!targetMode && effectiveMode !== importMode) {
+        setImportMode(effectiveMode);
+      }
       const results = await Promise.all(files.map((file) => parseRawCsvFile(file, effectiveMode)));
 
       const rawRows: ParsedBookingRow[] = [];
@@ -490,7 +495,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         options: {
           importMode,
           deleteAllAirbnb: false,
-          deleteMonths: detectedMonths,
+          deleteMonths: importMode === 'completed' ? detectedMonths : undefined,
         },
       });
 
@@ -507,6 +512,8 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
         toast.success(`Se importaron ${res.inserted} reservas y se eliminaron ${res.deleted} reservas anteriores de Airbnb`);
       } else if (res.updated > 0) {
         toast.success(`Se importaron ${res.inserted} reservas nuevas y se actualizaron ${res.updated} existentes`);
+      } else if (res.inserted === 0 && res.unchanged > 0) {
+        toast.info(`Las ${res.unchanged} reservas ya estaban registradas y pagadas sin cambios`);
       } else {
         toast.success(`Se importaron ${res.inserted} reservas correctamente`);
       }
@@ -651,6 +658,7 @@ export function CsvImportModal({ isOpen, onClose }: CsvImportModalProps) {
                 onChange={(e) => {
                   if (e.target.files?.length) {
                     processAndMergeFiles(Array.from(e.target.files));
+                    e.target.value = '';
                   }
                 }}
               />

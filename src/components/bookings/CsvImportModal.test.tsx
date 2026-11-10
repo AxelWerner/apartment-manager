@@ -632,5 +632,123 @@ describe('CsvImportModal Component', () => {
       );
     });
   });
+
+  it('imports pending reservations CSV (with BOM and mixed number formats) without passing deleteMonths', async () => {
+    const user = userEvent.setup();
+    const handleClose = vi.fn();
+
+    const { useBookings } = await import('@/hooks/use-bookings');
+    vi.mocked(useBookings).mockReturnValue({
+      data: [
+        {
+          id: 'b-nov-completed',
+          property_id: 'prop-1',
+          airbnb_confirmation_code: 'HMW8MWTW9H',
+          guest_name: 'Daniel Alpargatero',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2026-11-08',
+          check_out: '2026-11-13',
+          number_of_nights: 5,
+          nightly_rate: 86961.12,
+          gross_amount: 740000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 136493,
+          taxes_withheld: 0,
+          net_payout: 603507,
+          status: 'completed',
+          payout_status: 'paid',
+          payout_date: '2026-11-08',
+          source: 'airbnb',
+          notes: null,
+        },
+      ],
+    } as unknown as ReturnType<typeof useBookings>);
+
+    const realPendingCsv = `\uFEFFDatum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Inserat,Details,Referenzcode,Währung,Betrag,Servicegebühr,Reinigungsgebühr,Bruttoeinkünfte,Von Airbnb abgeführte Steuer,Ertragsjahr
+11/16/2026,Buchung,HMZJ8ZB4MZ,10/26/2026,11/15/2026,11/19/2026,4,Gabriel Puentes,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,510560.46,"115.471,61",60000.00,626032.07,0.00,
+11/23/2026,Buchung,HMEQRYRKYD,09/20/2026,11/22/2026,11/28/2026,6,David Santiago Laverde Rojas,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,724820.06,"163.929,94",60000.00,888750.00,0.00,
+12/29/2026,Buchung,HM2WAEMKB3,11/03/2026,12/28/2026,12/31/2026,3,Nikcolas Vanegas Forero,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,799235.48,"180.758,67",60000.00,980000.00,0.00,
+01/05/2027,Buchung,HMZW34HH3P,10/11/2026,01/04/2027,01/08/2027,4,Juan David Navarro Najera,"Reserva del Mar II | Piscina, Jacuzzi, Wifi & BBQ",,,COP,929727.00,"210.273,00",60000.00,1140000.00,0.00,`;
+
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={handleClose} />);
+
+    // Switch to Reservas futuras tab
+    const pendingTab = screen.getByRole('button', { name: /Reservas futuras/i });
+    await user.click(pendingTab);
+
+    const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+    const pendingFile = new File([realPendingCsv], 'airbnb_pending (9).csv', { type: 'text/csv' });
+    await user.upload(fileInput, pendingFile);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Total 4 reservas/i)).toBeInTheDocument();
+      expect(screen.getByText(/Gabriel Puentes/i)).toBeInTheDocument();
+      expect(screen.getByText(/David Santiago Laverde Rojas/i)).toBeInTheDocument();
+      expect(screen.getByText(/Nikcolas Vanegas Forero/i)).toBeInTheDocument();
+      expect(screen.getByText(/Juan David Navarro Najera/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Se reemplazarán las reservas/i)).not.toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar \(4 reservas\)/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bookings: expect.arrayContaining([
+            expect.objectContaining({
+              airbnb_confirmation_code: 'HMZJ8ZB4MZ',
+              payout_status: 'pending',
+              check_in: '2026-11-15',
+            }),
+            expect.objectContaining({
+              airbnb_confirmation_code: 'HMZW34HH3P',
+              payout_status: 'pending',
+              check_in: '2027-01-04',
+            }),
+          ]),
+          options: {
+            importMode: 'pending',
+            deleteAllAirbnb: false,
+            deleteMonths: undefined,
+          },
+        })
+      );
+      expect(handleClose).toHaveBeenCalled();
+    });
+  });
+
+  it('automatically switches to pending mode when uploading a *pending*.csv file on the completed tab', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CsvImportModal isOpen={true} onClose={vi.fn()} />);
+
+    const pendingCsv = `Datum,Typ,Bestätigungs-Code,Buchungsdatum,Startdatum,Enddatum,Nächte,Gast,Betrag,Reinigungsgebühr,Bruttoeinkünfte,Servicegebühr
+12/29/2026,Buchung,HM2WAEMKB3,11/03/2026,12/28/2026,12/31/2026,3,Nikcolas Vanegas Forero,799235.48,60000.00,980000.00,"180.758,67"`;
+
+    const fileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+    const pendingFile = new File([pendingCsv], 'airbnb_pending (9).csv', { type: 'text/csv' });
+    await user.upload(fileInput, pendingFile);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Modo: Reservas futuras/i)).toBeInTheDocument();
+      expect(screen.getByText(/Nikcolas Vanegas Forero/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar e Importar \(1 reservas\)/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: {
+            importMode: 'pending',
+            deleteAllAirbnb: false,
+            deleteMonths: undefined,
+          },
+        })
+      );
+    });
+  });
 });
 

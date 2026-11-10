@@ -867,6 +867,152 @@ describe('api-service', () => {
       expect(mockIn).not.toHaveBeenCalledWith('id', expect.arrayContaining(['b-airbnb-may']));
     });
 
+    it('in pending mode: preserves completed bookings in overlapping months, upserts pending bookings, and throws on Supabase insert error', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ error: null });
+      const mockUpdateEq2 = vi.fn().mockResolvedValue({ error: null });
+      const mockUpdateEq1 = vi.fn().mockReturnValue({ eq: mockUpdateEq2 });
+      const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq1 });
+      const mockSelectIn = vi.fn().mockResolvedValue({
+        data: [
+          { airbnb_confirmation_code: 'HM_PAID', payout_status: 'paid' },
+          { airbnb_confirmation_code: 'HM_PEND_EXIST', payout_status: 'pending' },
+        ],
+        error: null,
+      });
+      const mockSelectEq = vi.fn().mockReturnValue({ in: mockSelectIn });
+      const mockSelect = vi.fn().mockReturnValue({ eq: mockSelectEq });
+      const mockDelete = vi.fn();
+
+      const mockPropUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
+      (supabase.from as unknown as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+        if (table === 'properties') {
+          return { update: mockPropUpdate };
+        }
+        return {
+          select: mockSelect,
+          insert: mockInsert,
+          update: mockUpdate,
+          delete: mockDelete,
+        };
+      });
+
+      const existingCompleted: Booking = {
+        id: 'b-nov-paid',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HM_PAID',
+        guest_name: 'Paid Nov Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-11-08',
+        check_out: '2026-11-13',
+        number_of_nights: 5,
+        nightly_rate: 100000,
+        gross_amount: 600000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 60000,
+        taxes_withheld: 0,
+        net_payout: 540000,
+        status: 'completed',
+        payout_status: 'paid',
+        payout_date: '2026-11-08',
+        source: 'airbnb',
+        notes: null,
+      };
+
+      const existingPending: Booking = {
+        id: 'b-nov-pending',
+        property_id: DEFAULT_PROPERTY_ID,
+        airbnb_confirmation_code: 'HM_PEND_EXIST',
+        guest_name: 'Existing Pending Guest',
+        guest_phone: null,
+        number_of_guests: 2,
+        check_in: '2026-11-15',
+        check_out: '2026-11-18',
+        number_of_nights: 3,
+        nightly_rate: 100000,
+        gross_amount: 360000,
+        cleaning_fee_collected: 60000,
+        airbnb_service_fee: 40000,
+        taxes_withheld: 0,
+        net_payout: 320000,
+        status: 'confirmed',
+        payout_status: 'pending',
+        payout_date: null,
+        source: 'airbnb',
+        notes: null,
+      };
+
+      localStorage.setItem('apt_mgr_bookings_v2', JSON.stringify([existingCompleted, existingPending]));
+
+      const incomingPending: Omit<Booking, 'id' | 'created_at' | 'updated_at'>[] = [
+        // Should NOT overwrite paid booking
+        { ...existingCompleted, payout_status: 'pending', net_payout: 999999 },
+        // Should update existing pending booking
+        { ...existingPending, check_out: '2026-11-19', number_of_nights: 4, net_payout: 420000 },
+        // Should insert brand new future booking
+        {
+          property_id: DEFAULT_PROPERTY_ID,
+          airbnb_confirmation_code: 'HM_FUTURE_NEW',
+          guest_name: 'Future Jan Guest',
+          guest_phone: null,
+          number_of_guests: 2,
+          check_in: '2027-01-04',
+          check_out: '2027-01-08',
+          number_of_nights: 4,
+          nightly_rate: 150000,
+          gross_amount: 700000,
+          cleaning_fee_collected: 60000,
+          airbnb_service_fee: 80000,
+          taxes_withheld: 0,
+          net_payout: 620000,
+          status: 'confirmed',
+          payout_status: 'pending',
+          payout_date: null,
+          source: 'airbnb',
+          notes: null,
+        },
+      ];
+
+      // Even if deleteMonths is passed, pending mode must NOT delete completed bookings
+      const res = await upsertBookingsBatch(incomingPending, {
+        importMode: 'pending',
+        deleteMonths: ['2026-11', '2027-01'],
+      });
+
+      expect(res.deleted).toBe(0);
+      expect(res.unchanged).toBe(1);
+      expect(res.updated).toBe(1);
+      expect(res.inserted).toBe(1);
+      expect(mockDelete).not.toHaveBeenCalled();
+
+      // Supabase insert only called with HM_FUTURE_NEW, update only called for HM_PEND_EXIST (not HM_PAID)
+      expect(mockInsert).toHaveBeenCalledWith([
+        expect.objectContaining({ airbnb_confirmation_code: 'HM_FUTURE_NEW' }),
+      ]);
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(mockUpdateEq2).toHaveBeenCalledWith('airbnb_confirmation_code', 'HM_PEND_EXIST');
+
+      const stored: Booking[] = JSON.parse(localStorage.getItem('apt_mgr_bookings_v2') || '[]');
+      expect(stored.find((b) => b.airbnb_confirmation_code === 'HM_PAID')?.payout_status).toBe('paid');
+      expect(stored.find((b) => b.airbnb_confirmation_code === 'HM_PAID')?.net_payout).toBe(540000);
+      expect(stored.find((b) => b.airbnb_confirmation_code === 'HM_PEND_EXIST')?.net_payout).toBe(420000);
+      expect(stored.find((b) => b.airbnb_confirmation_code === 'HM_FUTURE_NEW')).toBeDefined();
+
+      // Now verify Supabase insert error throws instead of failing silently
+      mockInsert.mockResolvedValueOnce({ error: { message: 'RLS policy violation' } });
+      await expect(
+        upsertBookingsBatch(
+          [
+            {
+              ...incomingPending[2],
+              airbnb_confirmation_code: 'HM_FAIL',
+            },
+          ],
+          { importMode: 'pending' }
+        )
+      ).rejects.toThrow('RLS policy violation');
+    });
+
 
     it('calculates 20% management fee after deducting cleaning fee, and 80% nightly rate', async () => {
       const rawBooking: Booking = {

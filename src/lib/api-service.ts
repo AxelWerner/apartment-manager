@@ -414,15 +414,14 @@ export async function upsertBookingsBatch(
   // Determine if deletion of existing Airbnb bookings should execute:
   // 1. Explicitly requested via deleteAllAirbnb
   // 2. Completed reservations mode (options?.importMode === 'completed')
-  // 3. Month-scoped deletion via deleteMonths
-  // 4. Yearly sync requested via syncYear
+  // 3. Month-scoped deletion via non-empty deleteMonths (never in 'pending' mode)
+  // 4. Yearly sync requested via syncYear (never in 'pending' mode)
   // 5. Legacy mode (!options?.importMode) where batch replaces existing records
+  const hasDeleteMonths = Array.isArray(options?.deleteMonths) && options.deleteMonths.length > 0;
   const shouldDeleteAirbnb = Boolean(
     options?.deleteAllAirbnb ||
     options?.importMode === 'completed' ||
-    options?.deleteMonths ||
-    options?.syncYear ||
-    !options?.importMode
+    (options?.importMode !== 'pending' && (hasDeleteMonths || options?.syncYear || !options?.importMode))
   );
 
   let idsToDelete: string[] = [];
@@ -547,7 +546,11 @@ export async function upsertBookingsBatch(
 
     for (const incoming of bookings) {
       const existingIdx = incoming.airbnb_confirmation_code
-        ? updatedList.findIndex((b) => b.airbnb_confirmation_code === incoming.airbnb_confirmation_code)
+        ? updatedList.findIndex(
+            (b) =>
+              b.airbnb_confirmation_code === incoming.airbnb_confirmation_code &&
+              (!targetPropId || !b.property_id || b.property_id === targetPropId)
+          )
         : -1;
 
       if (existingIdx >= 0) {
@@ -665,7 +668,11 @@ export async function upsertBookingsBatch(
 
     for (const incoming of bookings) {
       const existingIdx = incoming.airbnb_confirmation_code
-        ? updatedList.findIndex((b) => b.airbnb_confirmation_code === incoming.airbnb_confirmation_code)
+        ? updatedList.findIndex(
+            (b) =>
+              b.airbnb_confirmation_code === incoming.airbnb_confirmation_code &&
+              (!targetPropId || !b.property_id || b.property_id === targetPropId)
+          )
         : -1;
 
       if (existingIdx >= 0) {
@@ -697,12 +704,17 @@ export async function upsertBookingsBatch(
       }
     }
 
+    let supabaseSyncError: Error | null = null;
     try {
       if (shouldDeleteAirbnb) {
         if (typeof supabase.from === 'function') {
           const insertQuery = supabase.from('bookings');
           if (insertQuery && typeof insertQuery.insert === 'function') {
-            await insertQuery.insert(bookings);
+            const insertRes = await insertQuery.insert(bookings);
+            if (insertRes?.error) {
+              console.error('Error inserting pending bookings into Supabase:', insertRes.error);
+              supabaseSyncError = new Error(insertRes.error.message || 'Error al guardar reservas futuras');
+            }
           }
         }
       } else {
@@ -710,47 +722,76 @@ export async function upsertBookingsBatch(
           .map((b) => b.airbnb_confirmation_code)
           .filter((c): c is string => Boolean(c));
 
-        let existingCodes = new Set<string>();
+        const existingCodes = new Set<string>();
+        const paidCodes = new Set<string>();
         if (codes.length > 0 && targetPropId && typeof supabase.from === 'function') {
-          const selectQuery = supabase.from('bookings').select('airbnb_confirmation_code');
+          const selectQuery = supabase.from('bookings').select('airbnb_confirmation_code, payout_status');
           if (selectQuery && typeof selectQuery.eq === 'function') {
-            const { data: existingRows } = await selectQuery
+            const selectRes = await selectQuery
               .eq('property_id', targetPropId)
               .in('airbnb_confirmation_code', codes);
-            if (existingRows) {
-              existingCodes = new Set(existingRows.map((r) => r.airbnb_confirmation_code));
+            if (selectRes?.error) {
+              console.error('Error querying existing pending bookings in Supabase:', selectRes.error);
+              supabaseSyncError = new Error(selectRes.error.message || 'Error al consultar reservas existentes');
+            } else if (selectRes?.data) {
+              for (const r of selectRes.data) {
+                if (r.airbnb_confirmation_code) {
+                  existingCodes.add(r.airbnb_confirmation_code);
+                  if (r.payout_status === 'paid') {
+                    paidCodes.add(r.airbnb_confirmation_code);
+                  }
+                }
+              }
             }
           }
         }
 
-        const toInsert = bookings.filter(
-          (b) => !b.airbnb_confirmation_code || !existingCodes.has(b.airbnb_confirmation_code)
-        );
-        const toUpdate = bookings.filter(
-          (b) => b.airbnb_confirmation_code && existingCodes.has(b.airbnb_confirmation_code)
-        );
+        if (!supabaseSyncError) {
+          const toInsert = bookings.filter(
+            (b) => !b.airbnb_confirmation_code || !existingCodes.has(b.airbnb_confirmation_code)
+          );
+          const toUpdate = bookings.filter(
+            (b) =>
+              b.airbnb_confirmation_code &&
+              existingCodes.has(b.airbnb_confirmation_code) &&
+              !paidCodes.has(b.airbnb_confirmation_code)
+          );
 
-        if (toInsert.length > 0 && typeof supabase.from === 'function') {
-          const insertQuery = supabase.from('bookings');
-          if (insertQuery && typeof insertQuery.insert === 'function') {
-            await insertQuery.insert(toInsert);
+          if (toInsert.length > 0 && typeof supabase.from === 'function') {
+            const insertQuery = supabase.from('bookings');
+            if (insertQuery && typeof insertQuery.insert === 'function') {
+              const insertRes = await insertQuery.insert(toInsert);
+              if (insertRes?.error) {
+                console.error('Error inserting pending bookings into Supabase:', insertRes.error);
+                supabaseSyncError = new Error(insertRes.error.message || 'Error al insertar reservas futuras');
+              }
+            }
           }
-        }
 
-        if (typeof supabase.from === 'function') {
-          for (const b of toUpdate) {
-            if (b.airbnb_confirmation_code && targetPropId) {
-              await supabase
-                .from('bookings')
-                .update(b)
-                .eq('property_id', targetPropId)
-                .eq('airbnb_confirmation_code', b.airbnb_confirmation_code);
+          if (!supabaseSyncError && typeof supabase.from === 'function') {
+            for (const b of toUpdate) {
+              if (b.airbnb_confirmation_code && targetPropId) {
+                const updateRes = await supabase
+                  .from('bookings')
+                  .update(b)
+                  .eq('property_id', targetPropId)
+                  .eq('airbnb_confirmation_code', b.airbnb_confirmation_code);
+                if (updateRes?.error) {
+                  console.error('Error updating pending booking in Supabase:', updateRes.error);
+                  supabaseSyncError = new Error(updateRes.error.message || 'Error al actualizar reserva futura');
+                  break;
+                }
+              }
             }
           }
         }
       }
     } catch (err) {
       console.warn('Pending import Supabase sync warning:', err);
+    }
+
+    if (supabaseSyncError) {
+      throw supabaseSyncError;
     }
 
     const synced = syncBookingStatuses(updatedList);
